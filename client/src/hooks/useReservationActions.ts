@@ -215,7 +215,7 @@ export function useReservationActions() {
                                 rootRumorId = rootTag?.[1] || request.rumor.id;
                             }
 
-                            await fetch(`${apiBaseUrl}/api/restaurants/reservations`, {
+                            await fetch(`${apiBaseUrl}/api/customers/reservations`, {
                                 method: "POST",
                                 headers: {
                                     "Content-Type": "application/json"

@@ -2,7 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
-const restaurantsTable = process.env.RESTAURANTS_TABLE || "synvya-restaurants";
+const customersTable = process.env.CUSTOMERS_TABLE || "synvya-customers";
 
 function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
   const corsHeaders = {
@@ -25,7 +25,7 @@ function withErrorHandling(handler) {
     try {
       return await handler(event);
     } catch (error) {
-      console.error("Restaurant API error:", error);
+      console.error("Customer Registry API error:", error);
       const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
       return jsonResponse(
         500,
@@ -63,29 +63,29 @@ async function handleRegister(event, requestOrigin = null) {
   const signupDate = new Date(signup_timestamp * 1000).toISOString().split("T")[0];
   const lastUpdated = new Date().toISOString();
 
-  // Check if restaurant already exists
+  // Check if customer already exists
   try {
     const existing = await dynamo.send(
       new GetCommand({
-        TableName: restaurantsTable,
+        TableName: customersTable,
         Key: { npub }
       })
     );
 
     if (existing.Item) {
-      // Restaurant already registered, return success
+      // Customer already registered, return success
       return jsonResponse(200, { 
-        message: "Restaurant already registered",
+        message: "Customer already registered",
         npub,
         signup_date: existing.Item.signup_date
       }, {}, requestOrigin);
     }
   } catch (error) {
-    console.error("Error checking existing restaurant:", error);
+    console.error("Error checking existing customer:", error);
     // Continue to create new record
   }
 
-  // Create new restaurant record
+  // Create new customer record
   const item = {
     npub,
     signup_date: signupDate,
@@ -97,18 +97,18 @@ async function handleRegister(event, requestOrigin = null) {
   try {
     await dynamo.send(
       new PutCommand({
-        TableName: restaurantsTable,
+        TableName: customersTable,
         Item: item
       })
     );
 
     return jsonResponse(200, {
-      message: "Restaurant registered successfully",
+      message: "Customer registered successfully",
       npub,
       signup_date: signupDate
     }, {}, requestOrigin);
   } catch (error) {
-    console.error("Error creating restaurant record:", error);
+    console.error("Error creating customer record:", error);
     throw error;
   }
 }
@@ -150,21 +150,21 @@ async function handleReservation(event, requestOrigin = null) {
   };
 
   try {
-    // First, ensure the restaurant record exists (create if it doesn't)
+    // First, ensure the customer record exists (create if it doesn't)
     const existing = await dynamo.send(
       new GetCommand({
-        TableName: restaurantsTable,
+        TableName: customersTable,
         Key: { npub }
       })
     );
 
     if (!existing.Item) {
-      // Restaurant doesn't exist, create it with current timestamp as signup
+      // Customer doesn't exist, create it with current timestamp as signup
       const now = Math.floor(Date.now() / 1000);
       const signupDate = new Date().toISOString().split("T")[0];
       await dynamo.send(
         new PutCommand({
-          TableName: restaurantsTable,
+          TableName: customersTable,
           Item: {
             npub,
             signup_date: signupDate,
@@ -180,7 +180,7 @@ async function handleReservation(event, requestOrigin = null) {
       // Update existing record with atomic increment
       await dynamo.send(
         new UpdateCommand({
-          TableName: restaurantsTable,
+          TableName: customersTable,
           Key: { npub },
           UpdateExpression: updateExpression,
           ExpressionAttributeNames: expressionAttributeNames,
@@ -201,7 +201,7 @@ async function handleReservation(event, requestOrigin = null) {
 }
 
 export const handler = withErrorHandling(async (event) => {
-  console.log("=== Restaurant API handler called ===", JSON.stringify({
+  console.log("=== Customer Registry API handler called ===", JSON.stringify({
     path: event.requestContext?.http?.path,
     method: event.requestContext?.http?.method,
     timestamp: new Date().toISOString()
@@ -215,11 +215,11 @@ export const handler = withErrorHandling(async (event) => {
 
   const path = event.requestContext?.http?.path || "";
 
-  if (path.endsWith("/api/restaurants/register")) {
+  if (path.endsWith("/api/customers/register")) {
     return handleRegister(event, requestOrigin);
   }
 
-  if (path.endsWith("/api/restaurants/reservations")) {
+  if (path.endsWith("/api/customers/reservations")) {
     return handleReservation(event, requestOrigin);
   }
 

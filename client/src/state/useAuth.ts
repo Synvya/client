@@ -74,7 +74,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     if (apiBaseUrl) {
       try {
         const signupTimestamp = Math.floor(Date.now() / 1000);
-        await fetch(`${apiBaseUrl}/api/restaurants/register`, {
+        await fetch(`${apiBaseUrl}/api/customers/register`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
