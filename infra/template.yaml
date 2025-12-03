@@ -66,6 +66,7 @@ Resources:
   UploadProxyFunction:
     Type: AWS::Serverless::Function
     Properties:
+      Handler: media.handler
       CodeUri: lambda/
       Description: Proxies NIP-96 uploads to nostr.build, signing requests with NIP-98.
       Policies:
