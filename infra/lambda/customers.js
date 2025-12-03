@@ -6,18 +6,43 @@ const customersTable = process.env.CUSTOMERS_TABLE || "synvya-customers";
 
 function getCorsOrigin(requestOrigin) {
   const allowedOrigins = (process.env.CORS_ALLOW_ORIGIN || "*").split(",").map((o) => o.trim());
+  
+  // Allow wildcard
   if (allowedOrigins.includes("*")) {
     return "*";
   }
-  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
-    return requestOrigin;
+  
+  // Normalize request origin (remove trailing slash, lowercase for comparison)
+  const normalizedRequestOrigin = requestOrigin 
+    ? requestOrigin.trim().replace(/\/$/, "").toLowerCase()
+    : null;
+  
+  // Check for exact match (case-insensitive, no trailing slash)
+  if (normalizedRequestOrigin) {
+    for (const allowed of allowedOrigins) {
+      const normalizedAllowed = allowed.toLowerCase().replace(/\/$/, "");
+      if (normalizedRequestOrigin === normalizedAllowed) {
+        return requestOrigin; // Return original request origin, not normalized
+      }
+    }
   }
+  
+  // Fallback: return first allowed origin or wildcard
   return allowedOrigins[0] || "*";
 }
 
 function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
+  const corsOrigin = getCorsOrigin(requestOrigin);
+  
+  // Log for debugging
+  console.log("CORS Debug:", {
+    requestOrigin,
+    allowedOrigins: process.env.CORS_ALLOW_ORIGIN,
+    resolvedOrigin: corsOrigin
+  });
+  
   const corsHeaders = {
-    "Access-Control-Allow-Origin": getCorsOrigin(requestOrigin),
+    "Access-Control-Allow-Origin": corsOrigin,
     "Access-Control-Allow-Methods": "OPTIONS,GET,POST,PUT,DELETE",
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Content-Type": "application/json",
@@ -31,13 +56,25 @@ function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
   };
 }
 
+function extractOrigin(event) {
+  // Extract origin from various possible header locations
+  return (
+    event.headers?.["origin"] || 
+    event.headers?.["Origin"] || 
+    event.headers?.["ORIGIN"] ||
+    event.requestContext?.http?.headers?.origin ||
+    event.requestContext?.http?.headers?.Origin ||
+    null
+  );
+}
+
 function withErrorHandling(handler) {
   return async (event) => {
     try {
       return await handler(event);
     } catch (error) {
       console.error("Customer Registry API error:", error);
-      const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
+      const requestOrigin = extractOrigin(event);
       return jsonResponse(
         500,
         { error: "Internal server error", message: error.message },
@@ -218,7 +255,12 @@ export const handler = withErrorHandling(async (event) => {
     timestamp: new Date().toISOString()
   }, null, 2));
 
-  const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
+  // Extract origin from various possible header locations
+  const requestOrigin = extractOrigin(event);
+  
+  // Log for debugging
+  console.log("Request origin:", requestOrigin);
+  console.log("CORS_ALLOW_ORIGIN env:", process.env.CORS_ALLOW_ORIGIN);
 
   if (event.requestContext?.http?.method === "OPTIONS") {
     return jsonResponse(200, { ok: true }, {}, requestOrigin);
