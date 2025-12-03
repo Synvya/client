@@ -90,6 +90,18 @@ Resources:
         - AttributeName: pubkey
           KeyType: HASH
 
+  RestaurantsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: synvya-restaurants
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: npub
+          AttributeType: S
+      KeySchema:
+        - AttributeName: npub
+          KeyType: HASH
+
   SquareIntegrationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -134,6 +146,35 @@ Resources:
           Type: HttpApi
           Properties:
             Path: /square/publish
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+
+  RestaurantApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: restaurants.handler
+      Description: Handles restaurant registration and reservation tracking.
+      Environment:
+        Variables:
+          CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+          RESTAURANTS_TABLE: !Ref RestaurantsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RestaurantsTable
+      Events:
+        Register:
+          Type: HttpApi
+          Properties:
+            Path: /api/restaurants/register
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+        Reservations:
+          Type: HttpApi
+          Properties:
+            Path: /api/restaurants/reservations
             Method: POST
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi
