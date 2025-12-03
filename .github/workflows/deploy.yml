@@ -100,19 +100,19 @@ jobs:
             fi
           fi
 
-      - name: Check for restaurants.js changes
-        id: restaurants-changes
+      - name: Check for customers.js changes
+        id: customers-changes
         working-directory: ${{ github.workspace }}
         run: |
           # Check if the before commit exists
           if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
-            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/restaurants.js" | grep -q "^infra/lambda/restaurants.js"; then
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/customers.js" | grep -q "^infra/lambda/customers.js"; then
               echo "changed=true" >> $GITHUB_OUTPUT
             else
               echo "changed=false" >> $GITHUB_OUTPUT
             fi
           else
-            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/restaurants.js"; then
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/customers.js"; then
               echo "changed=true" >> $GITHUB_OUTPUT
             else
               echo "changed=false" >> $GITHUB_OUTPUT
@@ -157,21 +157,21 @@ jobs:
             --function-name synvya-upload-proxy \
             --zip-file fileb://infra/synvya-upload-proxy.zip
 
-      - name: Package Restaurants Lambda function
-        if: steps.restaurants-changes.outputs.changed == 'true'
+      - name: Package Customer Registry Lambda function
+        if: steps.customers-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}/infra/lambda
         run: |
           npm ci --production
-          zip -qr ../synvya-restaurants-api.zip \
-            restaurants.js package.json package-lock.json node_modules
+          zip -qr ../synvya-customer-registry.zip \
+            customers.js package.json package-lock.json node_modules
 
-      - name: Deploy Restaurants Lambda function
-        if: steps.restaurants-changes.outputs.changed == 'true'
+      - name: Deploy Customer Registry Lambda function
+        if: steps.customers-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           aws lambda update-function-code \
             --region "$AWS_REGION" \
-            --function-name synvya-restaurants-api \
-            --zip-file fileb://infra/synvya-restaurants-api.zip
+            --function-name synvya-customer-registry \
+            --zip-file fileb://infra/synvya-customer-registry.zip
