@@ -2,6 +2,7 @@
  * Tests for Arrived Reservation Storage
  */
 
+import "fake-indexeddb/auto";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   markReservationArrived,
