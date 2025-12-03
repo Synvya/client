@@ -40,7 +40,8 @@ export interface ReservationRequest {
 export type ReservationStatus = 
   | "confirmed"
   | "declined" 
-  | "cancelled";
+  | "cancelled"
+  | "arrived";
 
 /**
  * Reservation response payload (kind 9902)
