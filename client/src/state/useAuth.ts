@@ -103,6 +103,29 @@ export const useAuth = create<AuthState>((set, get) => ({
   async importSecret(nsec) {
     await saveEncryptedSecret(nsec);
     const derived = deriveFromNsec(nsec);
+    
+    // Register customer with backend (fire-and-forget)
+    // Backend will handle if customer already exists
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+    if (apiBaseUrl) {
+      try {
+        const signupTimestamp = Math.floor(Date.now() / 1000);
+        await fetch(`${apiBaseUrl}/api/customers/register`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            npub: derived.npub,
+            signup_timestamp: signupTimestamp
+          })
+        });
+      } catch (error) {
+        // Don't block import if registration fails
+        console.error("Failed to register customer:", error);
+      }
+    }
+    
     set({
       status: "ready",
       pubkey: derived.pk,
