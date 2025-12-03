@@ -325,25 +325,46 @@ function isCompleteAddress(location) {
 
 function getCorsOrigin(requestOrigin) {
   const allowedOrigins = (process.env.CORS_ALLOW_ORIGIN || "*").split(",").map((o) => o.trim());
+  
+  // Allow wildcard
   if (allowedOrigins.includes("*")) {
     return "*";
   }
-  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+  
+  // If no request origin provided, return first allowed origin (for same-origin requests)
+  if (!requestOrigin) {
+    return allowedOrigins[0] || null;
+  }
+  
+  // Check if request origin is in allowed list
+  if (allowedOrigins.includes(requestOrigin)) {
     return requestOrigin;
   }
-  return allowedOrigins[0] || "*";
+  
+  // Request origin not allowed - return null to prevent CORS header
+  // Browser will reject the request, which is the secure behavior
+  return null;
 }
 
 function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
+  const corsOrigin = getCorsOrigin(requestOrigin);
+  
+  const responseHeaders = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Allow-Methods": "OPTIONS,GET,POST",
+    ...headers
+  };
+  
+  // Only set Access-Control-Allow-Origin if origin is allowed
+  // This prevents unauthorized origins from receiving CORS headers
+  if (corsOrigin !== null) {
+    responseHeaders["Access-Control-Allow-Origin"] = corsOrigin;
+  }
+  
   return {
     statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": getCorsOrigin(requestOrigin),
-      "Access-Control-Allow-Headers": "*",
-      "Access-Control-Allow-Methods": "OPTIONS,GET,POST",
-      ...headers
-    },
+    headers: responseHeaders,
     body: JSON.stringify(body)
   };
 }

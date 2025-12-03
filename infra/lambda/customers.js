@@ -12,42 +12,36 @@ function getCorsOrigin(requestOrigin) {
     return "*";
   }
   
-  // Normalize request origin (remove trailing slash, lowercase for comparison)
-  const normalizedRequestOrigin = requestOrigin 
-    ? requestOrigin.trim().replace(/\/$/, "").toLowerCase()
-    : null;
-  
-  // Check for exact match (case-insensitive, no trailing slash)
-  if (normalizedRequestOrigin) {
-    for (const allowed of allowedOrigins) {
-      const normalizedAllowed = allowed.toLowerCase().replace(/\/$/, "");
-      if (normalizedRequestOrigin === normalizedAllowed) {
-        return requestOrigin; // Return original request origin, not normalized
-      }
-    }
+  // If no request origin provided, return first allowed origin (for same-origin requests)
+  if (!requestOrigin) {
+    return allowedOrigins[0] || null;
   }
   
-  // Fallback: return first allowed origin or wildcard
-  return allowedOrigins[0] || "*";
+  // Check if request origin is in allowed list
+  if (allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  
+  // Request origin not allowed - return null to prevent CORS header
+  // Browser will reject the request, which is the secure behavior
+  return null;
 }
 
 function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
   const corsOrigin = getCorsOrigin(requestOrigin);
   
-  // Log for debugging
-  console.log("CORS Debug:", {
-    requestOrigin,
-    allowedOrigins: process.env.CORS_ALLOW_ORIGIN,
-    resolvedOrigin: corsOrigin
-  });
-  
   const corsHeaders = {
-    "Access-Control-Allow-Origin": corsOrigin,
     "Access-Control-Allow-Methods": "OPTIONS,GET,POST,PUT,DELETE",
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Content-Type": "application/json",
     ...headers
   };
+  
+  // Only set Access-Control-Allow-Origin if origin is allowed
+  // This prevents unauthorized origins from receiving CORS headers
+  if (corsOrigin !== null) {
+    corsHeaders["Access-Control-Allow-Origin"] = corsOrigin;
+  }
 
   return {
     statusCode,
@@ -56,25 +50,13 @@ function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
   };
 }
 
-function extractOrigin(event) {
-  // Extract origin from various possible header locations
-  return (
-    event.headers?.["origin"] || 
-    event.headers?.["Origin"] || 
-    event.headers?.["ORIGIN"] ||
-    event.requestContext?.http?.headers?.origin ||
-    event.requestContext?.http?.headers?.Origin ||
-    null
-  );
-}
-
 function withErrorHandling(handler) {
   return async (event) => {
     try {
       return await handler(event);
     } catch (error) {
       console.error("Customer Registry API error:", error);
-      const requestOrigin = extractOrigin(event);
+      const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
       return jsonResponse(
         500,
         { error: "Internal server error", message: error.message },
@@ -255,12 +237,7 @@ export const handler = withErrorHandling(async (event) => {
     timestamp: new Date().toISOString()
   }, null, 2));
 
-  // Extract origin from various possible header locations
-  const requestOrigin = extractOrigin(event);
-  
-  // Log for debugging
-  console.log("Request origin:", requestOrigin);
-  console.log("CORS_ALLOW_ORIGIN env:", process.env.CORS_ALLOW_ORIGIN);
+  const requestOrigin = event.headers?.["origin"] || event.headers?.["Origin"] || null;
 
   if (event.requestContext?.http?.method === "OPTIONS") {
     return jsonResponse(200, { ok: true }, {}, requestOrigin);
@@ -278,4 +255,3 @@ export const handler = withErrorHandling(async (event) => {
 
   return jsonResponse(404, { error: "Not found" }, {}, requestOrigin);
 });
-
