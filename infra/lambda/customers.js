@@ -4,9 +4,20 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@
 const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const customersTable = process.env.CUSTOMERS_TABLE || "synvya-customers";
 
+function getCorsOrigin(requestOrigin) {
+  const allowedOrigins = (process.env.CORS_ALLOW_ORIGIN || "*").split(",").map((o) => o.trim());
+  if (allowedOrigins.includes("*")) {
+    return "*";
+  }
+  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
+    return requestOrigin;
+  }
+  return allowedOrigins[0] || "*";
+}
+
 function jsonResponse(statusCode, body, headers = {}, requestOrigin = null) {
   const corsHeaders = {
-    "Access-Control-Allow-Origin": requestOrigin || process.env.CORS_ALLOW_ORIGIN || "*",
+    "Access-Control-Allow-Origin": getCorsOrigin(requestOrigin),
     "Access-Control-Allow-Methods": "OPTIONS,GET,POST,PUT,DELETE",
     "Access-Control-Allow-Headers": "Content-Type,Authorization",
     "Content-Type": "application/json",
