@@ -11,6 +11,7 @@ import { useReservations } from "@/state/useReservations";
 import { useReservationActions } from "@/hooks/useReservationActions";
 import { loadAndDecryptSecret } from "@/lib/secureStore";
 import { skFromNsec } from "@/lib/nostrKeys";
+import { markReservationArrived, isReservationArrived } from "@/lib/arrivedStorage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -381,9 +382,11 @@ interface ConversationThreadCardProps {
 }
 
 function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.Element {
-  const { initialRequest, latestMessage, messages, messageCount, partnerPubkey } = thread;
+  const { initialRequest, latestMessage, messages, messageCount, partnerPubkey, rootEventId } = thread;
   const request = initialRequest.payload as ReservationRequest;
   const latestTimestamp = new Date(latestMessage.rumor.created_at * 1000);
+  const [isArrived, setIsArrived] = useState(false);
+  const [isCheckingArrived, setIsCheckingArrived] = useState(true);
 
   // Find the latest confirmed time to display in the top card
   // This should be the latest confirmed response's iso_time, or fall back to the original request time
@@ -416,6 +419,10 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
 
   // Determine thread status based on latest message
   const getThreadStatus = () => {
+    // If marked as arrived, show arrived status
+    if (isArrived) {
+      return "arrived";
+    }
     if (latestMessage.type === "response") {
       const response = latestMessage.payload as ReservationResponse;
       return response.status;
@@ -469,11 +476,33 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
     }
   });
 
+  // Check if reservation has been marked as arrived
+  useEffect(() => {
+    let mounted = true;
+    setIsCheckingArrived(true);
+    isReservationArrived(rootEventId)
+      .then((arrived) => {
+        if (mounted) {
+          setIsArrived(arrived);
+          setIsCheckingArrived(false);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to check arrived status:", error);
+        if (mounted) {
+          setIsCheckingArrived(false);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [rootEventId]);
+
   // Check if we should show "Arrived" button
   const reservationTime = new Date(displayTime);
   const now = new Date();
   const oneHourBefore = new Date(reservationTime.getTime() - 60 * 60 * 1000);
-  const showArrivedButton = status === "confirmed" && now >= oneHourBefore && now <= reservationTime;
+  const showArrivedButton = status === "confirmed" && !isArrived && now >= oneHourBefore;
 
   return (
     <div className="rounded-lg border bg-card">
@@ -549,9 +578,13 @@ function ConversationThreadCard({ thread }: ConversationThreadCardProps): JSX.El
             <Button 
               variant="default" 
               size="sm"
-              onClick={() => {
-                // TODO: Implement arrived status tracking
-                console.log("Mark as arrived:", thread.rootEventId);
+              onClick={async () => {
+                try {
+                  await markReservationArrived(rootEventId);
+                  setIsArrived(true);
+                } catch (error) {
+                  console.error("Failed to mark reservation as arrived:", error);
+                }
               }}
             >
               Arrived
