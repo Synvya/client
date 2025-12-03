@@ -62,22 +62,38 @@ jobs:
             --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
             --paths "/*"
 
-      - name: Check for Lambda changes
-        id: lambda-changes
+      - name: Check for media.js changes
+        id: media-changes
         working-directory: ${{ github.workspace }}
         run: |
           # Check if the before commit exists
           if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
-            # Check all commits in the push range for lambda changes
-            # Use --diff-filter to only show modified/added files, then filter for lambda directory
-            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/" | grep -q "^infra/lambda/"; then
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/media.js" | grep -q "^infra/lambda/media.js"; then
               echo "changed=true" >> $GITHUB_OUTPUT
             else
               echo "changed=false" >> $GITHUB_OUTPUT
             fi
           else
-            # Before commit doesn't exist (force push/rebase), check if current commit has lambda files
-            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/"; then
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/media.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Check for square.js changes
+        id: square-changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Check if the before commit exists
+          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/square.js" | grep -q "^infra/lambda/square.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/square.js"; then
               echo "changed=true" >> $GITHUB_OUTPUT
             else
               echo "changed=false" >> $GITHUB_OUTPUT
@@ -103,16 +119,16 @@ jobs:
             fi
           fi
 
-      - name: Package Lambda function
-        if: steps.lambda-changes.outputs.changed == 'true'
+      - name: Package Square Lambda function
+        if: steps.square-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}/infra/lambda
         run: |
           npm ci --production
           zip -qr ../synvya-square-integration.zip \
-            square.js handler.js package.json package-lock.json node_modules
+            square.js media.js package.json package-lock.json node_modules
 
-      - name: Deploy Lambda function
-        if: steps.lambda-changes.outputs.changed == 'true'
+      - name: Deploy Square Lambda function
+        if: steps.square-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -121,6 +137,25 @@ jobs:
             --region "$AWS_REGION" \
             --function-name synvya-square-integration \
             --zip-file fileb://infra/synvya-square-integration.zip
+
+      - name: Package Media Lambda function
+        if: steps.media-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}/infra/lambda
+        run: |
+          npm ci --production
+          zip -qr ../synvya-upload-proxy.zip \
+            media.js package.json package-lock.json node_modules
+
+      - name: Deploy Media Lambda function
+        if: steps.media-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws lambda update-function-code \
+            --region "$AWS_REGION" \
+            --function-name synvya-upload-proxy \
+            --zip-file fileb://infra/synvya-upload-proxy.zip
 
       - name: Package Restaurants Lambda function
         if: steps.restaurants-changes.outputs.changed == 'true'

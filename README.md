@@ -98,7 +98,7 @@ The API Gateway, Lambda functions, and DynamoDB table were provisioned once (man
   - Secrets Manager entries holding the upload and Nostr signing keys.
 
 - **Updating Lambda code**
-  - Follow the steps in [Working on the Square Integration lambda locally](#working-on-the-square-integration-lambda-locally) (or the analogous upload proxy instructions) to build a zip containing `square.js`, `handler.js`, `package*.json`, and `node_modules` at the archive root.
+  - Follow the steps in [Working on the Square Integration lambda locally](#working-on-the-square-integration-lambda-locally) (or the analogous upload proxy instructions) to build a zip containing `square.js`, `media.js`, `package*.json`, and `node_modules` at the archive root.
   - Upload the zip through the Lambda console. No CloudFormation stack update is required for code-only changes.
 
 - **Reprovisioning (only if the infrastructure must be rebuilt)**
@@ -144,7 +144,7 @@ The API Gateway, Lambda functions, and DynamoDB table were provisioned once (man
    cd infra/lambda
    npm install --production
    zip -qr ../synvya-square-integration.zip \
-     square.js handler.js package.json package-lock.json node_modules
+     square.js media.js package.json package-lock.json node_modules
    ```
 3. **Upload** – in the AWS console open `synvya-square-integration`, choose **Code → Upload from → .zip file**, and select `infra/synvya-square-integration.zip`.
 
