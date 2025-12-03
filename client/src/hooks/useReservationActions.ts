@@ -193,6 +193,47 @@ export function useReservationActions() {
             };
 
             await sendResponse(request, response);
+
+            // Track confirmed reservation for billing (fire-and-forget)
+            if (response.status === "confirmed" && time !== null && tzid) {
+                const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+                if (apiBaseUrl) {
+                    try {
+                        // Calculate month in YYYY-MM format
+                        const reservationDate = new Date(time * 1000);
+                        const month = `${reservationDate.getFullYear()}-${String(reservationDate.getMonth() + 1).padStart(2, '0')}`;
+                        
+                        // Get restaurant's npub from auth state
+                        const { npub: restaurantNpub } = useAuth.getState();
+                        if (restaurantNpub) {
+                            // Get root rumor ID from the request
+                            let rootRumorId: string;
+                            if (request.type === "request") {
+                                rootRumorId = request.rumor.id;
+                            } else {
+                                const rootTag = request.rumor.tags.find(tag => tag[0] === "e" && tag[3] === "root");
+                                rootRumorId = rootTag?.[1] || request.rumor.id;
+                            }
+
+                            await fetch(`${apiBaseUrl}/api/restaurants/reservations`, {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                    npub: restaurantNpub,
+                                    root_rumor_id: rootRumorId,
+                                    reservation_timestamp: time,
+                                    month
+                                })
+                            });
+                        }
+                    } catch (error) {
+                        // Don't block reservation confirmation if tracking fails
+                        console.error("Failed to track reservation:", error);
+                    }
+                }
+            }
         },
         [sendResponse]
     );

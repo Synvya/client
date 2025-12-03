@@ -68,6 +68,28 @@ export const useAuth = create<AuthState>((set, get) => ({
   async createNewIdentity() {
     const generated = generateKeypair();
     await saveEncryptedSecret(generated.nsec);
+    
+    // Register restaurant with backend (fire-and-forget)
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
+    if (apiBaseUrl) {
+      try {
+        const signupTimestamp = Math.floor(Date.now() / 1000);
+        await fetch(`${apiBaseUrl}/api/restaurants/register`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            npub: generated.npub,
+            signup_timestamp: signupTimestamp
+          })
+        });
+      } catch (error) {
+        // Don't block sign-up if registration fails
+        console.error("Failed to register restaurant:", error);
+      }
+    }
+    
     set({
       status: "ready",
       pubkey: generated.pk,

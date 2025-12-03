@@ -62,28 +62,6 @@ jobs:
             --distribution-id "$CLOUDFRONT_DISTRIBUTION_ID" \
             --paths "/*"
 
-      - name: Check for Lambda changes
-        id: lambda-changes
-        working-directory: ${{ github.workspace }}
-        run: |
-          # Check if the before commit exists
-          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
-            # Check all commits in the push range for lambda changes
-            # Use --diff-filter to only show modified/added files, then filter for lambda directory
-            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/" | grep -q "^infra/lambda/"; then
-              echo "changed=true" >> $GITHUB_OUTPUT
-            else
-              echo "changed=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            # Before commit doesn't exist (force push/rebase), check if current commit has lambda files
-            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/"; then
-              echo "changed=true" >> $GITHUB_OUTPUT
-            else
-              echo "changed=false" >> $GITHUB_OUTPUT
-            fi
-          fi
-
       - name: Check for media.js changes
         id: media-changes
         working-directory: ${{ github.workspace }}
@@ -116,6 +94,25 @@ jobs:
             fi
           else
             if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/square.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+      - name: Check for restaurants.js changes
+        id: restaurants-changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Check if the before commit exists
+          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/restaurants.js" | grep -q "^infra/lambda/restaurants.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/restaurants.js"; then
               echo "changed=true" >> $GITHUB_OUTPUT
             else
               echo "changed=false" >> $GITHUB_OUTPUT
@@ -159,3 +156,22 @@ jobs:
             --region "$AWS_REGION" \
             --function-name synvya-upload-proxy \
             --zip-file fileb://infra/synvya-upload-proxy.zip
+
+      - name: Package Restaurants Lambda function
+        if: steps.restaurants-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}/infra/lambda
+        run: |
+          npm ci --production
+          zip -qr ../synvya-restaurants-api.zip \
+            restaurants.js package.json package-lock.json node_modules
+
+      - name: Deploy Restaurants Lambda function
+        if: steps.restaurants-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws lambda update-function-code \
+            --region "$AWS_REGION" \
+            --function-name synvya-restaurants-api \
+            --zip-file fileb://infra/synvya-restaurants-api.zip
