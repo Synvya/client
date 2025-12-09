@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/state/useAuth";
+import { PrivacyPolicyDialog } from "@/components/PrivacyPolicyDialog";
+import { TermsOfServiceDialog } from "@/components/TermsOfServiceDialog";
 import dinedirectLogo from "@/assets/logo_light.png";
 
 export function LandingPage(): JSX.Element {
@@ -29,6 +31,8 @@ export function LandingPage(): JSX.Element {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [privacyDialogOpen, setPrivacyDialogOpen] = useState(false);
+  const [termsDialogOpen, setTermsDialogOpen] = useState(false);
 
   useEffect(() => {
     void initialize();
@@ -159,23 +163,21 @@ export function LandingPage(): JSX.Element {
                   />
                   <span>
                     I agree to the{" "}
-                    <a
-                      href="https://d.nostr.build/X94MRGirObzXoU2O.pdf"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-primary underline underline-offset-2"
+                    <button
+                      type="button"
+                      onClick={() => setTermsDialogOpen(true)}
+                      className="text-primary underline underline-offset-2 hover:no-underline"
                     >
                       Terms of Service
-                    </a>{" "}
+                    </button>{" "}
                     and{" "}
-                    <a
-                      href="https://d.nostr.build/X94MRGirObzXoU2O.pdf"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-primary underline underline-offset-2"
+                    <button
+                      type="button"
+                      onClick={() => setPrivacyDialogOpen(true)}
+                      className="text-primary underline underline-offset-2 hover:no-underline"
                     >
                       Privacy Policy
-                    </a>
+                    </button>
                     .
                   </span>
                 </label>
@@ -283,6 +285,8 @@ export function LandingPage(): JSX.Element {
           </>
         )}
       </div>
+      <TermsOfServiceDialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen} />
+      <PrivacyPolicyDialog open={privacyDialogOpen} onOpenChange={setPrivacyDialogOpen} />
     </div>
   );
 }
