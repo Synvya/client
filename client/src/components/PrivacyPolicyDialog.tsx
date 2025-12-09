@@ -23,9 +23,6 @@ export function PrivacyPolicyDialog({
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <p className="text-muted-foreground">
-            <strong>Effective Date: December 09, 2025</strong>
-          </p>
-          <p className="text-muted-foreground">
             Synvya, Inc. d/b/a DineDirect (&quot;<strong>Synvya</strong>,&quot; &quot;<strong>we</strong>,&quot; &quot;<strong>our</strong>,&quot; or &quot;<strong>us</strong>&quot;) respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard information when you use the <strong>DineDirect</strong> service (the &quot;<strong>Service</strong>&quot;). This Privacy Policy does <strong>not</strong> cover the public website located at <strong>https://www.dinedirect.app</strong> (the &quot;<strong>Website</strong>&quot;). The Website is governed by a separate privacy policy available at <strong>https://www.dinedirect.app</strong>.
           </p>
           <p className="text-muted-foreground">
