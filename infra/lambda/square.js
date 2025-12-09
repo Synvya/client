@@ -570,12 +570,32 @@ async function geocodeLocation(location) {
 }
 
 function buildEvents(catalog, profileLocation, profileGeoHash, businessName = null, merchantPubkey = null) {
-  const catById = new Map((catalog.categories || []).map((c) => [c.id, c.name]));
+  // Build map from category ID to full category object
+  const catById = new Map((catalog.categories || []).map((c) => [c.id, c]));
   const imgById = new Map((catalog.images || []).map((i) => [i.id, i.url]));
   const locationTagValue =
     typeof profileLocation === "string" && profileLocation.trim() ? profileLocation.trim() : null;
   const geohashTagValue =
     typeof profileGeoHash === "string" && profileGeoHash.trim() ? profileGeoHash.trim() : null;
+
+  // Build map of category ID -> all parent category IDs (for hierarchy traversal)
+  const categoryToParents = new Map();
+  for (const category of catalog.categories || []) {
+    if (category.parent_category_id) {
+      const parents = [];
+      let currentParentId = category.parent_category_id;
+      while (currentParentId) {
+        parents.push(currentParentId);
+        const parentCat = catById.get(currentParentId);
+        if (parentCat && parentCat.parent_category_id) {
+          currentParentId = parentCat.parent_category_id;
+        } else {
+          break;
+        }
+      }
+      categoryToParents.set(category.id, parents);
+    }
+  }
 
   const events = [];
   for (const item of catalog.items || []) {
@@ -655,13 +675,33 @@ ${item.description || ""}`.trim();
         }
       }
 
-      // a: reference to collection(s) - one per category
+      // a: reference to collection(s) - format: ["a", "30405:<pubkey>:<d-tag>"]
+      // Include all MENU_CATEGORY collections (both direct and parent categories)
       if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
+        const menuCategoryNames = new Set();
+        
         for (const categoryId of item.categoryIds || []) {
-          const categoryName = catById.get(categoryId);
-          if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
-            tags.push(["a", "30405", merchantPubkey.trim(), categoryName.trim()]);
+          const category = catById.get(categoryId);
+          if (!category) continue;
+          
+          // If this is a MENU_CATEGORY, add it
+          if (category.category_type === "MENU_CATEGORY" && category.name) {
+            menuCategoryNames.add(category.name.trim());
           }
+          
+          // Also add all parent MENU_CATEGORY collections
+          const parentIds = categoryToParents.get(categoryId) || [];
+          for (const parentId of parentIds) {
+            const parentCategory = catById.get(parentId);
+            if (parentCategory && parentCategory.category_type === "MENU_CATEGORY" && parentCategory.name) {
+              menuCategoryNames.add(parentCategory.name.trim());
+            }
+          }
+        }
+        
+        // Add a tags in correct format: ["a", "30405:<pubkey>:<d-tag>"]
+        for (const categoryName of menuCategoryNames) {
+          tags.push(["a", `30405:${merchantPubkey.trim()}:${categoryName}`]);
         }
       }
 
@@ -810,7 +850,8 @@ function findLocationNameByAddress(catalog, profileLocation) {
 }
 
 function buildCollectionEvents(catalog, profileLocation, profileGeoHash, businessName, merchantPubkey) {
-  const catById = new Map((catalog.categories || []).map((c) => [c.id, c.name]));
+  // Build map from category ID to full category object
+  const catById = new Map((catalog.categories || []).map((c) => [c.id, c]));
   const locationTagValue =
     typeof profileLocation === "string" && profileLocation.trim() ? profileLocation.trim() : null;
   const geohashTagValue =
@@ -821,9 +862,9 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
   // Use location name if available, otherwise fall back to business name
   const displayName = locationName || businessName;
 
-  // Build map of category name -> list of product d-tags
+  // Build map of category ID -> list of product d-tags
   // Each product variation gets its own d-tag
-  const categoryToProductDTags = new Map();
+  const categoryIdToProductDTags = new Map();
   
   for (const item of catalog.items || []) {
     const variations =
@@ -839,59 +880,72 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
       
       // Add this product d-tag to all categories this item belongs to
       for (const categoryId of item.categoryIds || []) {
-        const categoryName = catById.get(categoryId);
-        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
-          const trimmedCategoryName = categoryName.trim();
-          if (!categoryToProductDTags.has(trimmedCategoryName)) {
-            categoryToProductDTags.set(trimmedCategoryName, []);
-          }
-          categoryToProductDTags.get(trimmedCategoryName).push(productDTag);
+        if (!categoryIdToProductDTags.has(categoryId)) {
+          categoryIdToProductDTags.set(categoryId, []);
         }
+        categoryIdToProductDTags.get(categoryId).push(productDTag);
       }
     }
   }
 
-  // Collect unique category names that have items
-  const categoryNamesWithItems = Array.from(categoryToProductDTags.keys());
+  // Filter to only MENU_CATEGORY types that have items
+  const menuCategoriesWithItems = (catalog.categories || [])
+    .filter((cat) => {
+      // Only include MENU_CATEGORY types
+      if (cat.category_type !== "MENU_CATEGORY") {
+        return false;
+      }
+      // Only include categories that have items
+      const hasItems = categoryIdToProductDTags.has(cat.id) && 
+                       categoryIdToProductDTags.get(cat.id).length > 0;
+      return hasItems;
+    });
 
   // Always log collection building info (not just in debug mode)
   console.log("buildCollectionEvents", JSON.stringify({
     totalCategories: catalog.categories?.length || 0,
     totalItems: catalog.items?.length || 0,
-    categoryNamesWithItems,
-    categoryToProductCount: Array.from(categoryToProductDTags.entries()).map(([name, dTags]) => ({
-      categoryName: name,
-      productCount: dTags.length
-    })),
-    categoryMap: Array.from(catById.entries()).map(([id, name]) => ({ id, name })),
-    sampleItem: catalog.items?.[0] ? {
-      id: catalog.items[0].id,
-      name: catalog.items[0].name,
-      categoryIds: catalog.items[0].categoryIds
-    } : null
+    menuCategoriesWithItems: menuCategoriesWithItems.map(c => ({ id: c.id, name: c.name, category_type: c.category_type })),
+    categoryToProductCount: Array.from(categoryIdToProductDTags.entries()).map(([id, dTags]) => {
+      const cat = catById.get(id);
+      return {
+        categoryId: id,
+        categoryName: cat?.name || "Unknown",
+        categoryType: cat?.category_type || "Unknown",
+        productCount: dTags.length
+      };
+    }),
   }, null, 2));
   
   if (process.env.DEBUG_SQUARE_SYNC === "true") {
     console.debug("buildCollectionEvents (detailed)", {
       totalCategories: catalog.categories?.length || 0,
       totalItems: catalog.items?.length || 0,
-      categoryNamesWithItems,
-      categoryToProductDTags: Object.fromEntries(categoryToProductDTags)
+      menuCategoriesWithItems: menuCategoriesWithItems.map(c => ({ id: c.id, name: c.name })),
+      categoryIdToProductDTags: Object.fromEntries(categoryIdToProductDTags)
     });
   }
 
   const collectionEvents = [];
   const createdAt = Math.floor(Date.now() / 1000);
 
-  for (const categoryName of categoryNamesWithItems) {
+  // Create collections for all MENU_CATEGORY types (both top-level and sub-level)
+  for (const category of menuCategoriesWithItems) {
+    const productDTags = categoryIdToProductDTags.get(category.id) || [];
+    
+    // Only create collection if it has items
+    if (productDTags.length === 0) {
+      continue;
+    }
+
     const tags = [];
-    tags.push(["d", categoryName]);
-    tags.push(["title", `${categoryName} Menu`]);
+    tags.push(["d", category.name]);
+    tags.push(["title", `${category.name} Menu`]);
     
     if (displayName && typeof displayName === "string" && displayName.trim()) {
-      tags.push(["summary", `${categoryName} Menu for ${displayName}`]);
+      tags.push(["summary", `${category.name} Menu for ${displayName}`]);
     } else {
-      tags.push(["summary", `${categoryName} Menu`]);
+      tags.push(["summary", `${category.name} Menu`]);
     }
 
     if (locationTagValue) {
@@ -903,11 +957,10 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
     }
 
     // Add 'a' tags referencing all products in this collection
-    // Format: ["a", "30402", "<pubkey>", "<product-d-tag>"]
+    // Format: ["a", "30402:<pubkey>:<d-tag>"] per spec
     if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
-      const productDTags = categoryToProductDTags.get(categoryName) || [];
       for (const productDTag of productDTags) {
-        tags.push(["a", "30402", merchantPubkey.trim(), productDTag]);
+        tags.push(["a", `30402:${merchantPubkey.trim()}:${productDTag}`]);
       }
     }
 
@@ -1120,7 +1173,12 @@ async function fetchNormalizedCatalog(record) {
       case "CATEGORY": {
         const data = object.category_data;
         if (data && data.name) {
-          categories.push({ id: object.id, name: data.name });
+          categories.push({
+            id: object.id,
+            name: data.name,
+            category_type: data.category_type || null,
+            parent_category_id: data.parent_category?.id || null
+          });
         }
         break;
       }
