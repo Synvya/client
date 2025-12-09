@@ -938,14 +938,18 @@ function buildCollectionEvents(catalog, profileLocation, profileGeoHash, busines
       continue;
     }
 
+    // Use "Menu Section" for sub-menus, "Menu" for top-level menus
+    const isSubMenu = category.parent_category_id !== null && category.parent_category_id !== undefined;
+    const collectionLabel = isSubMenu ? "Menu Section" : "Menu";
+
     const tags = [];
     tags.push(["d", category.name]);
-    tags.push(["title", `${category.name} Menu`]);
+    tags.push(["title", `${category.name} ${collectionLabel}`]);
     
     if (displayName && typeof displayName === "string" && displayName.trim()) {
-      tags.push(["summary", `${category.name} Menu for ${displayName}`]);
+      tags.push(["summary", `${category.name} ${collectionLabel} for ${displayName}`]);
     } else {
-      tags.push(["summary", `${category.name} Menu`]);
+      tags.push(["summary", `${category.name} ${collectionLabel}`]);
     }
 
     if (locationTagValue) {
