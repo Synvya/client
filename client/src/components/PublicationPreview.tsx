@@ -102,9 +102,15 @@ export function PublicationPreview({
               const price = priceTag ? formatPrice(priceTag) : null;
               
               // Extract collection references (a tags for kind 30405)
+              // Format: ["a", "30405:<pubkey>:<d-tag>"]
               const collectionRefs = event.tags
-                .filter((t) => Array.isArray(t) && t[0] === "a" && t[1] === "30405" && t[3])
-                .map((t) => t[3] as string);
+                .filter((t) => Array.isArray(t) && t[0] === "a" && typeof t[1] === "string" && t[1].startsWith("30405:"))
+                .map((t) => {
+                  // Parse "30405:<pubkey>:<d-tag>" to extract d-tag (collection name)
+                  const parts = (t[1] as string).split(":");
+                  return parts.length >= 3 ? parts[2] : null;
+                })
+                .filter((v): v is string => v !== null);
               
               // Extract suitableForDiet tags
               const suitableForDiet = extractTagValues(event.tags, "schema.org:MenuItem:suitableForDiet");
@@ -253,4 +259,3 @@ export function PublicationPreview({
     </Dialog>
   );
 }
-
