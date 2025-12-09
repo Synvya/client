@@ -1255,6 +1255,13 @@ async function fetchNormalizedCatalog(record) {
 async function performSync(record, options) {
   console.log("=== performSync START ===");
   const refreshed = await refreshAccessToken(record);
+  console.log("Token details", JSON.stringify({
+    merchantId: refreshed.merchantId,
+    scopes: refreshed.scopes,
+    hasAccessToken: !!refreshed.accessToken,
+    accessTokenLength: refreshed.accessToken?.length || 0,
+    apiBase: resolveSquareBase()
+  }, null, 2));
   const catalog = await fetchNormalizedCatalog(refreshed);
   console.log("Catalog fetched", JSON.stringify({ itemsCount: catalog.items?.length || 0, categoriesCount: catalog.categories?.length || 0 }, null, 2));
   const requestedLocationRaw = options?.profileLocation;
@@ -1792,6 +1799,13 @@ async function handleExchange(event, requestOrigin = null) {
 async function performPreview(record, options) {
   console.log("=== performPreview START ===");
   const refreshed = await refreshAccessToken(record);
+  console.log("Token details", JSON.stringify({
+    merchantId: refreshed.merchantId,
+    scopes: refreshed.scopes,
+    hasAccessToken: !!refreshed.accessToken,
+    accessTokenLength: refreshed.accessToken?.length || 0,
+    apiBase: resolveSquareBase()
+  }, null, 2));
   const catalog = await fetchNormalizedCatalog(refreshed);
   console.log("Catalog fetched (preview)", JSON.stringify({ itemsCount: catalog.items?.length || 0, categoriesCount: catalog.categories?.length || 0 }, null, 2));
   const requestedLocationRaw = options?.profileLocation;
