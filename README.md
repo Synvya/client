@@ -27,9 +27,19 @@ Synvya's merchant-facing web client for onboarding, profile management, and Squa
 - See [NIP-RR repository](https://github.com/Synvya/nip-rr) for the complete protocol specification
 
 ### Square Integration
-- OAuth flow for connecting Square merchant accounts
-- Catalog sync and classified ad generation from Square inventory
-- NIP-99 classified listings published to Nostr relays
+- **OAuth flow** for connecting Square merchant accounts
+- **Catalog sync** from Square's Catalog API (items, variations, categories, pricing)
+- **Nostr marketplace event generation**:
+  - Kind 30402: Product listings for individual menu items with pricing, descriptions, and images
+  - Kind 30405: Product collections representing menu hierarchy (e.g., "Lunch Menu", "Appetizers Menu Section")
+- **Menu hierarchy support**:
+  - Only `MENU_CATEGORY` types create collections (not `REGULAR_CATEGORY`)
+  - Top-level menus labeled as "Menu" (e.g., "Dinner Menu")
+  - Sub-level menu groups labeled as "Menu Section" (e.g., "Entrees Menu Section")
+  - Products reference both direct menu section and parent menu via `a` tags
+- **Preview mode**: Test event generation without publishing to relays
+- **Lambda endpoints**: `/square/catalog/:npub`, `/square/catalog/:npub/preview`, `/square/catalog/:npub/publish`
+- Follows [Gamma Markets Spec](https://github.com/GammaMarkets/market-spec/blob/main/spec.md) for product listings and collections
 
 ## Local Development
 - Node.js 20+
