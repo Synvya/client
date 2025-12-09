@@ -1,6 +1,6 @@
-# Synvya for Restaurants
+# DineDirect
 
-A frontend-only onboarding tool for Synvya merchants. It generates a Nostr identity in the browser, stores the `nsec` securely, and publishes business profile (kind 0) events to configured relays. Media uploads use nostr.build with NIP-98 auth during local development.
+A frontend-only onboarding tool for DineDirect merchants. It generates a Nostr identity in the browser, stores the `nsec` securely, and publishes business profile (kind 0) events to configured relays. Media uploads use nostr.build with NIP-98 auth during local development.
 
 ## Getting Started
 
@@ -20,7 +20,7 @@ When the app loads it will generate a merchant keypair, encrypt the `nsec` using
 ## Key Features
 
 - **Nostr identity:** Client-side key generation with secure IndexedDB storage and a NIP-07 `window.nostr` shim.
-- **Business profiles:** Guided form that builds kind-0 profile events with required Synvya tags and publishes them to selected relays.
+- **Business profiles:** Guided form that builds kind-0 profile events with required DineDirect tags and publishes them to selected relays.
 - **Media uploads:** Local/dev uploads go directly to nostr.build using a signing secret from `.env`.
 - **Relay management:** Configure and persist relays locally for testing before deployment.
 

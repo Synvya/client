@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/state/useAuth";
-import synvyaLogo from "@/assets/synvya_logo_light.png";
+import dinedirectLogo from "@/assets/logo_light.png";
 
 export function LandingPage(): JSX.Element {
   const status = useAuth((state) => state.status);
@@ -120,9 +120,9 @@ export function LandingPage(): JSX.Element {
       <div className="w-full max-w-2xl space-y-6 rounded-3xl border bg-card px-8 py-10 shadow-sm">
         <div className="space-y-2 text-center">
           <div className="flex justify-center">
-            <img src={synvyaLogo} alt="Synvya logo" className="h-12 w-auto" />
+            <img src={dinedirectLogo} alt="DineDirect logo" className="h-12 w-auto" />
           </div>
-          <h1 className="text-2xl font-semibold">Synvya for Restaurants</h1>
+          <h1 className="text-2xl font-semibold">DineDirect</h1>
           <p className="text-sm text-muted-foreground">
             Start fresh or import your existing merchant key to continue.
           </p>

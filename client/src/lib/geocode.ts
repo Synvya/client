@@ -3,8 +3,8 @@ import ngeohash from "ngeohash";
 const GEOHASH_PRECISION = 9;
 const GEOCODE_ENDPOINT = "https://nominatim.openstreetmap.org/search";
 const FALLBACK_GEOCODE_ENDPOINT = "https://geocode.maps.co/search";
-const GEOCODE_USER_AGENT = "SynvyaClient/1.0 (contact@synvya.com)";
-const GEOCODE_CONTACT_EMAIL = "contact@synvya.com";
+const GEOCODE_USER_AGENT = "DineDirectClient/1.0 (contact@dinedirect.app)";
+const GEOCODE_CONTACT_EMAIL = "contact@dinedirect.app";
 
 // Simple in-memory cache for geocoding results
 const geocodeCache = new Map<string, { geohash: string | null; latitude: number | null; longitude: number | null }>();
