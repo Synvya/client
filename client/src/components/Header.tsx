@@ -6,7 +6,7 @@ export function Header(): JSX.Element {
     <header className="border-b">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-6">
-          <span className="text-lg font-semibold">Synvya for Restaurants</span>
+          <span className="text-lg font-semibold">DineDirect</span>
           <nav className="flex items-center gap-3 text-sm">
             <NavLink
               to="/app/profile"

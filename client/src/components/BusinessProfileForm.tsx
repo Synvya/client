@@ -390,7 +390,7 @@ export function BusinessProfileForm(): JSX.Element {
     event.preventDefault();
     setStatus({ type: "idle", message: null });
 
-    const nip05 = profile.name ? `${profile.name}@synvya.com` : "";
+    const nip05 = profile.name ? `${profile.name}@dinedirect.app` : "";
 
     const payload: BusinessProfile = {
       ...profile,
@@ -516,7 +516,7 @@ export function BusinessProfileForm(): JSX.Element {
     setProfile((prev) => ({
       ...prev,
       name: value,
-      nip05: value ? `${value}@synvya.com` : ""
+      nip05: value ? `${value}@dinedirect.app` : ""
     }));
   };
 

@@ -8,7 +8,7 @@ describe("buildProfileEvent", () => {
     displayName: "Test Shop",
     about: "A test shop",
     website: "https://testshop.com",
-    nip05: "testshop@synvya.com",
+    nip05: "testshop@dinedirect.app",
     picture: "https://example.com/pic.jpg",
     banner: "https://example.com/banner.jpg",
     businessType: "restaurant",
@@ -176,7 +176,7 @@ describe("buildProfileEvent", () => {
     expect(content.website).toBe("https://testshop.com");
     expect(content.picture).toBe("https://example.com/pic.jpg");
     expect(content.banner).toBe("https://example.com/banner.jpg");
-    expect(content.nip05).toBe("testshop@synvya.com");
+    expect(content.nip05).toBe("testshop@dinedirect.app");
     
     // memberOf should not be in content, only in tags
     expect(content.memberOf).toBeUndefined();
