@@ -194,6 +194,61 @@ async function fetchProfileNameFromRelays(pubkey) {
   // Don't close the pool here - it's shared and might be used by other functions
 }
 
+/**
+ * Validates that an event's 'a' tags use the correct format.
+ * Correct format: ["a", "30405:<pubkey>:<d-tag>"] or ["a", "30402:<pubkey>:<d-tag>"]
+ * Wrong format: ["a", "30402", "<pubkey>", "<d-tag>"]
+ * 
+ * @param {Object} event - The Nostr event to validate
+ * @returns {boolean} - true if event is valid, false if it has invalid a tags
+ */
+function isValidEventFormat(event) {
+  if (!event || !event.tags || !Array.isArray(event.tags)) {
+    return false;
+  }
+  
+  const aTags = event.tags.filter((tag) => Array.isArray(tag) && tag[0] === "a");
+  
+  // Check each 'a' tag
+  for (const aTag of aTags) {
+    // Correct format: ["a", "30405:<pubkey>:<d-tag>"] - second element is a single string
+    // Wrong format: ["a", "30402", "<pubkey>", "<d-tag>"] - multiple elements
+    if (aTag.length !== 2 || typeof aTag[1] !== "string") {
+      console.warn("Event has invalid 'a' tag format (wrong number of elements or non-string)", {
+        eventId: event.id?.substring(0, 16) + "...",
+        kind: event.kind,
+        aTag: aTag
+      });
+      return false;
+    }
+    
+    // Validate the format of the address string: "kind:pubkey:d-tag"
+    const address = aTag[1];
+    const parts = address.split(":");
+    if (parts.length !== 3) {
+      console.warn("Event has invalid 'a' tag format (address string format incorrect)", {
+        eventId: event.id?.substring(0, 16) + "...",
+        kind: event.kind,
+        address: address
+      });
+      return false;
+    }
+    
+    // Validate kind matches expected format
+    const [kindStr, pubkey, dTag] = parts;
+    if (kindStr !== "30402" && kindStr !== "30405") {
+      console.warn("Event has invalid 'a' tag format (unexpected kind)", {
+        eventId: event.id?.substring(0, 16) + "...",
+        kind: event.kind,
+        aTagKind: kindStr
+      });
+      return false;
+    }
+  }
+  
+  return true;
+}
+
 async function queryEventIdsByDTags(pubkey, dTags, relays) {
   if (!nostrPool || !relays || !relays.length || !dTags || !dTags.length || !pubkey) {
     return {};
@@ -226,9 +281,20 @@ async function queryEventIdsByDTags(pubkey, dTags, relays) {
     
     // Build map of d-tag -> event ID
     // Track created_at to handle multiple events with same d-tag (use most recent)
+    // Ignore events with invalid 'a' tag format
     const dTagToEvent = {};
     for (const event of events) {
       if (!event || !event.id) continue;
+      
+      // Skip events with invalid 'a' tag format
+      if (!isValidEventFormat(event)) {
+        console.warn("Skipping event with invalid 'a' tag format", {
+          eventId: event.id?.substring(0, 16) + "...",
+          kind: event.kind
+        });
+        continue;
+      }
+      
       const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
       if (dTag && dTags.includes(dTag)) {
         // If multiple events have the same d-tag, use the most recent one
@@ -288,8 +354,19 @@ async function queryEventsByDTags(pubkey, dTags, relays) {
     }
     
     // Build map of d-tag -> event (use most recent if multiple)
+    // Ignore events with invalid 'a' tag format
     for (const event of events) {
       if (!event || !event.id) continue;
+      
+      // Skip events with invalid 'a' tag format
+      if (!isValidEventFormat(event)) {
+        console.warn("Skipping event with invalid 'a' tag format", {
+          eventId: event.id?.substring(0, 16) + "...",
+          kind: event.kind
+        });
+        continue;
+      }
+      
       const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
       if (dTag && dTags.includes(dTag)) {
         // If multiple events have the same d-tag, use the most recent one
@@ -1569,6 +1646,15 @@ async function performSync(record, options) {
         
         if (existingEvents && Array.isArray(existingEvents) && existingEvents.length > 0) {
           for (const event of existingEvents) {
+            // Skip events with invalid 'a' tag format
+            if (!isValidEventFormat(event)) {
+              console.warn("Skipping collection event with invalid 'a' tag format during verification", {
+                eventId: event.id?.substring(0, 16) + "...",
+                kind: event.kind
+              });
+              continue;
+            }
+            
             const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
             if (dTag && collectionDTagsToVerify.includes(dTag)) {
               existingCollectionDTags.add(dTag);
@@ -1979,9 +2065,20 @@ async function performPreview(record, options) {
       
       if (eventsToDelete && Array.isArray(eventsToDelete)) {
         // Build map of d-tag -> most recent event
+        // Ignore events with invalid 'a' tag format
         const dTagToEvent = {};
         for (const event of eventsToDelete) {
           if (!event || !event.id) continue;
+          
+          // Skip events with invalid 'a' tag format
+          if (!isValidEventFormat(event)) {
+            console.warn("Skipping event with invalid 'a' tag format in preview deletion", {
+              eventId: event.id?.substring(0, 16) + "...",
+              kind: event.kind
+            });
+            continue;
+          }
+          
           const dTag = event.tags?.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
           if (dTag && removedDTags.includes(dTag)) {
             const existing = dTagToEvent[dTag];
