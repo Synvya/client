@@ -11,6 +11,7 @@ import {
   fetchSquareStatus,
   publishSquareCatalog,
   previewSquareCatalog,
+  clearSquareCache,
   type SquareConnectionStatus,
   type SquareEventTemplate,
 } from "@/services/square";
@@ -249,6 +250,15 @@ export function SettingsPage(): JSX.Element {
       const signed = await signEvent(deletionEvent);
       validateEvent(signed);
       await publishToRelays(signed, relays);
+      
+      // Clear the publishedFingerprints cache in DynamoDB
+      // so that preview will detect these items as needing to be republished
+      try {
+        await clearSquareCache(pubkey);
+      } catch (error) {
+        console.warn("Failed to clear Square cache:", error);
+        // Don't fail the unpublish if cache clear fails
+      }
       
       setSquareNotice(`Unpublished ${addresses.length} menu event${addresses.length === 1 ? "" : "s"}.`);
       setStatusVersion((value) => value + 1);

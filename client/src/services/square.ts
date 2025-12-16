@@ -157,3 +157,16 @@ export async function publishSquareCatalog(params: SquarePublishParams): Promise
   });
   return handleResponse<SquarePublishResponse>(response);
 }
+
+export async function clearSquareCache(pubkey: string): Promise<void> {
+  const base = getApiBaseUrl();
+  const response = await fetch(`${base}/square/clear-cache`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({ pubkey })
+  });
+  await handleResponse<{ ok: boolean }>(response);
+}
