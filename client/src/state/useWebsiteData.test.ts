@@ -16,9 +16,24 @@ const localStorageMock = (() => {
     },
     removeItem: (key: string) => {
       delete store[key];
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => {
+      const keys = Object.keys(store);
+      return keys[index] || null;
     }
   };
 })();
+
+// Mock global objects for Node environment
+if (typeof window === "undefined") {
+  (global as any).window = {};
+}
+if (typeof localStorage === "undefined") {
+  (global as any).localStorage = localStorageMock;
+}
 
 Object.defineProperty(window, "localStorage", {
   value: localStorageMock,

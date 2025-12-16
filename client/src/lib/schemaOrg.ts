@@ -403,12 +403,9 @@ export function buildMenuSchema(
 
       if (menuSections.length > 0) {
         menu.hasMenuSection = menuSections;
-      } else if (collection.products.length > 0) {
-        // No sections, add products directly to menu
-        if (!menu.hasMenuItem) {
-          menu.hasMenuItem = [];
-        }
-        menu.hasMenuItem.push(...collection.products);
+      } else if (collection.products.length > 0 && !menu.hasMenuItem) {
+        // No sections and no uncategorized items, add products directly to menu
+        menu.hasMenuItem = [...collection.products];
       }
 
       menus.push(menu);
