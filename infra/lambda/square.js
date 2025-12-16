@@ -2111,6 +2111,15 @@ async function handlePublish(event, requestOrigin = null) {
       })
     );
     console.log("Cleared publishedFingerprints for pubkey:", pubkey);
+    
+    // Return early to prevent repopulating the cache with performSync
+    // This allows preview to detect all items as needing to be republished
+    return jsonResponse(200, {
+      merchantId: record.merchantId,
+      pendingCount: 0,
+      totalEvents: 0,
+      events: []
+    }, {}, requestOrigin);
   }
   
   console.log("handlePublish - connection found, calling performSync");
