@@ -1,0 +1,272 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useWebsiteData } from "@/state/useWebsiteData";
+import { useAuth } from "@/state/useAuth";
+import { Copy, Download, Code, RefreshCw, AlertCircle } from "lucide-react";
+
+export function WebsiteDataPage(): JSX.Element {
+  const schema = useWebsiteData((state) => state.schema);
+  const lastUpdated = useWebsiteData((state) => state.lastUpdated);
+  const pubkey = useAuth((state) => state.pubkey);
+  const [copied, setCopied] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
+
+  // Reset copied state after 2 seconds
+  useEffect(() => {
+    if (copied) {
+      const timer = setTimeout(() => setCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [copied]);
+
+  // Reset download status after 2 seconds
+  useEffect(() => {
+    if (downloadStatus === "success") {
+      const timer = setTimeout(() => setDownloadStatus("idle"), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [downloadStatus]);
+
+  const handleCopy = async () => {
+    if (!schema) return;
+    try {
+      await navigator.clipboard.writeText(schema);
+      setCopied(true);
+    } catch (error) {
+      console.error("Failed to copy to clipboard:", error);
+    }
+  };
+
+  const handleDownload = () => {
+    if (!schema) return;
+    try {
+      const blob = new Blob([schema], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "schema-org-snippet.html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setDownloadStatus("success");
+    } catch (error) {
+      console.error("Failed to download:", error);
+    }
+  };
+
+  const handleRefresh = () => {
+    // Trigger a re-render by navigating to profile page
+    // This is a placeholder - actual refresh will happen when profile/menu is updated
+    window.location.reload();
+  };
+
+  const formatLastUpdated = (date: Date | null): string => {
+    if (!date) return "Never";
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return "Just now";
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+    if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+    if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+    
+    return date.toLocaleDateString();
+  };
+
+  if (!pubkey) {
+    return (
+      <div className="container py-10">
+        <div className="mx-auto max-w-4xl space-y-8">
+          <div className="rounded-lg border bg-card p-6 shadow-sm">
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <AlertCircle className="h-5 w-5" />
+              <p>Please complete onboarding to access website data.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container py-10">
+      <div className="mx-auto max-w-4xl space-y-8">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Website Data</h1>
+          <p className="mt-2 text-muted-foreground">
+            Schema.org structured data for your website. Copy and paste this into your website's &lt;head&gt; section for better SEO and rich search results.
+          </p>
+        </div>
+
+        {/* Explanation Card */}
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <Code className="mt-1 h-5 w-5 flex-shrink-0 text-primary" />
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold">What is this?</h2>
+              <p className="text-sm text-muted-foreground">
+                This is <strong>structured data</strong> in JSON-LD format that helps search engines like Google understand your business information. It enables:
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                <li>Rich search results with your restaurant info, hours, and menu</li>
+                <li>Better visibility in local searches</li>
+                <li>Display of ratings, prices, and dietary options</li>
+                <li>Integration with voice assistants and AI services</li>
+              </ul>
+              <p className="text-sm text-muted-foreground">
+                The data automatically updates when you publish your profile or menu through this app.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Schema Display */}
+        {schema ? (
+          <div className="space-y-4">
+            {/* Status Bar */}
+            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                <span className="font-medium">Last updated:</span>
+                <span className="text-muted-foreground">{formatLastUpdated(lastUpdated)}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefresh}
+                  className="text-sm"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Code Display */}
+            <div className="relative rounded-lg border bg-card shadow-sm">
+              <div className="absolute right-2 top-2 flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  disabled={downloadStatus === "success"}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadStatus === "success" ? "Downloaded!" : "Download"}
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleCopy}
+                  disabled={copied}
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  {copied ? "Copied!" : "Copy"}
+                </Button>
+              </div>
+              <Textarea
+                value={schema}
+                readOnly
+                className="min-h-[500px] resize-none rounded-lg border-0 font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
+                style={{
+                  fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
+                }}
+              />
+            </div>
+
+            {/* Usage Instructions */}
+            <div className="rounded-lg border bg-card p-6 shadow-sm">
+              <h3 className="mb-3 font-semibold">How to use this code</h3>
+              <ol className="space-y-2 text-sm text-muted-foreground">
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">1.</span>
+                  <span>Copy the code above by clicking the "Copy" button</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">2.</span>
+                  <span>Open your website's HTML file (usually <code className="rounded bg-muted px-1 py-0.5">index.html</code>)</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">3.</span>
+                  <span>Paste the code inside the <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section, before the closing <code className="rounded bg-muted px-1 py-0.5">&lt;/head&gt;</code> tag</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">4.</span>
+                  <span>Save and deploy your website</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-foreground">5.</span>
+                  <span>Verify it's working using <a href="https://search.google.com/test/rich-results" target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-4 hover:underline">Google's Rich Results Test</a></span>
+                </li>
+              </ol>
+            </div>
+          </div>
+        ) : (
+          /* Empty State */
+          <div className="rounded-lg border bg-card p-12 text-center shadow-sm">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+              <Code className="h-10 w-10 text-muted-foreground" />
+            </div>
+            <h3 className="mt-6 text-lg font-semibold">No data available yet</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Publish your business profile to generate structured data for your website.
+            </p>
+            <Button
+              className="mt-6"
+              onClick={() => {
+                window.location.href = "/app/profile";
+              }}
+            >
+              Go to Profile
+            </Button>
+          </div>
+        )}
+
+        {/* Additional Resources */}
+        <div className="rounded-lg border bg-card p-6 shadow-sm">
+          <h3 className="mb-3 font-semibold">Additional Resources</h3>
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            <li>
+              <a
+                href="https://schema.org/Restaurant"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                Schema.org Restaurant Documentation
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                Google Structured Data Guide
+              </a>
+            </li>
+            <li>
+              <a
+                href="https://search.google.com/test/rich-results"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                Test Your Structured Data
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
