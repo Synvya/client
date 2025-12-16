@@ -371,6 +371,20 @@ export function buildMenuSchema(
   // Build Menu objects (one per top-level collection)
   const menus: SchemaOrgMenu[] = [];
 
+  // First, identify which items belong to sections (to exclude from menu.hasMenuItem)
+  // Items in sections should ONLY appear in sections, not in menu.hasMenuItem
+  const itemsInSections = new Set<SchemaOrgMenuItem>();
+
+  for (const [dTag, collection] of Array.from(collectionsMap.entries())) {
+    const isSection = collection.name.includes("Menu Section");
+    if (isSection) {
+      // Mark all items in sections so they don't go in menu.hasMenuItem
+      for (const item of collection.products) {
+        itemsInSections.add(item);
+      }
+    }
+  }
+
   for (const [dTag, collection] of Array.from(collectionsMap.entries())) {
     // Check if this is a top-level menu (ends with "Menu") or a section
     const isTopLevel = collection.name.includes(" Menu") && !collection.name.includes("Menu Section");
@@ -381,12 +395,6 @@ export function buildMenuSchema(
         "@id": `#${dTag.toLowerCase().replace(/\s+/g, "-")}`,
         "name": collection.name
       };
-
-      // Add direct items (if any uncategorized items should go here)
-      if (uncategorizedItems.length > 0 && menus.length === 0) {
-        // Add uncategorized items to the first menu
-        menu.hasMenuItem = [...uncategorizedItems];
-      }
 
       // Find sub-sections that belong to this menu
       const menuSections: SchemaOrgMenuSection[] = [];
@@ -403,9 +411,27 @@ export function buildMenuSchema(
 
       if (menuSections.length > 0) {
         menu.hasMenuSection = menuSections;
-      } else if (collection.products.length > 0 && !menu.hasMenuItem) {
-        // No sections and no uncategorized items, add products directly to menu
-        menu.hasMenuItem = [...collection.products];
+      }
+
+      // Add items directly to menu ONLY if:
+      // 1. They're uncategorized (no a tags), OR
+      // 2. They reference this top-level menu but are NOT in any section
+      const directMenuItems: SchemaOrgMenuItem[] = [];
+      
+      // Add uncategorized items to the first menu only
+      if (menus.length === 0 && uncategorizedItems.length > 0) {
+        directMenuItems.push(...uncategorizedItems);
+      }
+      
+      // Add items from this collection that aren't in sections
+      for (const item of collection.products) {
+        if (!itemsInSections.has(item)) {
+          directMenuItems.push(item);
+        }
+      }
+      
+      if (directMenuItems.length > 0) {
+        menu.hasMenuItem = directMenuItems;
       }
 
       menus.push(menu);
@@ -446,10 +472,10 @@ function buildMenuItem(productEvent: SquareEventTemplate): SchemaOrgMenuItem | n
     menuItem.description = productEvent.content;
   }
 
-  // Price
+  // Price - only include if present in Nostr event
   const priceTag = productEvent.tags.find((t) => t[0] === "price")?.[1];
-  const currencyTag = productEvent.tags.find((t) => t[0] === "price")?.[2] || "USD";
   if (priceTag) {
+    const currencyTag = productEvent.tags.find((t) => t[0] === "price")?.[2] || "USD";
     const priceInDollars = (parseInt(priceTag, 10) / 100).toFixed(2);
     menuItem.offers = {
       "@type": "Offer",
@@ -457,6 +483,7 @@ function buildMenuItem(productEvent: SquareEventTemplate): SchemaOrgMenuItem | n
       "priceCurrency": currencyTag
     };
   }
+  // If no price tag, don't include offers property at all
 
   // Image
   const imageTag = productEvent.tags.find((t) => t[0] === "image")?.[1];

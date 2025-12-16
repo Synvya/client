@@ -434,8 +434,63 @@ describe("schemaOrg", () => {
 
       const menus = buildMenuSchema("Test Restaurant", events);
       expect(menus).toHaveLength(1);
-      expect(menus[0].hasMenuItem).toHaveLength(1);
-      expect(menus[0].hasMenuItem![0].name).toBe("Daily Special");
+      // Daily Special is uncategorized, so it should be in hasMenuItem
+      // Ribeye Steak references Dinner menu but has no sections, so it should also be in hasMenuItem
+      expect(menus[0].hasMenuItem).toBeDefined();
+      expect(menus[0].hasMenuItem!.length).toBeGreaterThanOrEqual(1);
+      expect(menus[0].hasMenuItem!.some(item => item.name === "Daily Special")).toBe(true);
+      expect(menus[0].hasMenuItem!.some(item => item.name === "Ribeye Steak")).toBe(true);
+    });
+
+    it("should not duplicate items in both hasMenuItem and hasMenuSection", () => {
+      const events: SquareEventTemplate[] = [
+        {
+          kind: 30405,
+          created_at: Date.now(),
+          content: "",
+          tags: [
+            ["d", "Dinner"],
+            ["title", "Dinner Menu"]
+          ]
+        },
+        {
+          kind: 30405,
+          created_at: Date.now(),
+          content: "",
+          tags: [
+            ["d", "Entrees"],
+            ["title", "Entrees Menu Section"]
+          ]
+        },
+        {
+          kind: 30402,
+          created_at: Date.now(),
+          content: "Steak description",
+          tags: [
+            ["d", "steak"],
+            ["title", "Ribeye Steak"],
+            ["price", "2999", "USD"],
+            ["a", "30405:pubkey123:Dinner"],
+            ["a", "30405:pubkey123:Entrees"]
+          ]
+        }
+      ];
+
+      const menus = buildMenuSchema("Test Restaurant", events);
+      expect(menus).toHaveLength(1);
+      expect(menus[0].name).toBe("Dinner Menu");
+      
+      // Item should be in section, NOT in menu.hasMenuItem
+      expect(menus[0].hasMenuSection).toBeDefined();
+      expect(menus[0].hasMenuSection!.length).toBeGreaterThan(0);
+      const entreesSection = menus[0].hasMenuSection!.find(s => s.name === "Entrees");
+      expect(entreesSection).toBeDefined();
+      expect(entreesSection!.hasMenuItem!.some(item => item.name === "Ribeye Steak")).toBe(true);
+      
+      // Item should NOT be in menu.hasMenuItem (no duplicates)
+      if (menus[0].hasMenuItem) {
+        expect(menus[0].hasMenuItem.some(item => item.name === "Ribeye Steak")).toBe(false);
+      }
     });
   });
 
