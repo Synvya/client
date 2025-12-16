@@ -2081,8 +2081,8 @@ async function handlePublish(event, requestOrigin = null) {
     return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
   }
   const body = parseJson(event.body);
-  const { pubkey } = body;
-  console.log("handlePublish - pubkey:", pubkey);
+  const { pubkey, clearCache } = body;
+  console.log("handlePublish - pubkey:", pubkey, "clearCache:", clearCache);
   if (!pubkey) {
     return jsonResponse(400, { error: "pubkey is required" }, {}, requestOrigin);
   }
@@ -2095,6 +2095,24 @@ async function handlePublish(event, requestOrigin = null) {
     console.log("handlePublish - connection not found for pubkey:", pubkey);
     return jsonResponse(404, { error: "Square connection not found" }, {}, requestOrigin);
   }
+  
+  // Clear publishedFingerprints cache if requested
+  if (clearCache === true) {
+    console.log("handlePublish - clearing publishedFingerprints cache");
+    await dynamo.send(
+      new UpdateCommand({
+        TableName: squareConnectionsTable,
+        Key: { [squarePrimaryKey]: pubkey },
+        UpdateExpression: "SET publishedFingerprints = :empty, updatedAt = :u",
+        ExpressionAttributeValues: {
+          ":empty": {},
+          ":u": new Date().toISOString()
+        }
+      })
+    );
+    console.log("Cleared publishedFingerprints for pubkey:", pubkey);
+  }
+  
   console.log("handlePublish - connection found, calling performSync");
   const result = await performSync({ ...record, pubkey }, { profileLocation });
   return jsonResponse(200, {
@@ -2105,37 +2123,6 @@ async function handlePublish(event, requestOrigin = null) {
   }, {}, requestOrigin);
 }
 
-async function handleClearCache(event, requestOrigin = null) {
-  console.log("=== handleClearCache START ===");
-  if (event.requestContext?.http?.method !== "POST") {
-    return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
-  }
-  const body = parseJson(event.body);
-  const { pubkey } = body;
-  if (!pubkey) {
-    return jsonResponse(400, { error: "pubkey is required" }, {}, requestOrigin);
-  }
-  const record = await loadConnection(pubkey);
-  if (!record) {
-    return jsonResponse(404, { error: "Square connection not found" }, {}, requestOrigin);
-  }
-  
-  // Clear publishedFingerprints in DynamoDB
-  await dynamo.send(
-    new UpdateCommand({
-      TableName: squareConnectionsTable,
-      Key: { [squarePrimaryKey]: pubkey },
-      UpdateExpression: "SET publishedFingerprints = :empty, updatedAt = :u",
-      ExpressionAttributeValues: {
-        ":empty": {},
-        ":u": new Date().toISOString()
-      }
-    })
-  );
-  
-  console.log("Cleared publishedFingerprints for pubkey:", pubkey);
-  return jsonResponse(200, { ok: true }, {}, requestOrigin);
-}
 
 export const handler = withErrorHandling(async (event) => {
   console.log("=== Lambda handler called ===", JSON.stringify({
@@ -2161,10 +2148,6 @@ export const handler = withErrorHandling(async (event) => {
   if (path.endsWith("/square/publish")) {
     console.log("=== Routing to handlePublish ===");
     return handlePublish(event, requestOrigin);
-  }
-  if (path.endsWith("/square/clear-cache")) {
-    console.log("=== Routing to handleClearCache ===");
-    return handleClearCache(event, requestOrigin);
   }
   return jsonResponse(404, { error: "Not found" }, {}, requestOrigin);
 });

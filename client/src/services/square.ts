@@ -101,6 +101,7 @@ interface SquareExchangeParams {
 interface SquarePublishParams {
   pubkey: string;
   profileLocation?: string | null;
+  clearCache?: boolean;
 }
 
 export interface SquarePreviewResponse extends SquareSyncResult {
@@ -152,21 +153,17 @@ export async function publishSquareCatalog(params: SquarePublishParams): Promise
     },
     body: JSON.stringify({
       pubkey: params.pubkey,
-      profileLocation: params.profileLocation ?? undefined
+      profileLocation: params.profileLocation ?? undefined,
+      clearCache: params.clearCache ?? undefined
     })
   });
   return handleResponse<SquarePublishResponse>(response);
 }
 
 export async function clearSquareCache(pubkey: string): Promise<void> {
-  const base = getApiBaseUrl();
-  const response = await fetch(`${base}/square/clear-cache`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: JSON.stringify({ pubkey })
+  // Clear cache by calling publish with clearCache flag (no actual publish happens if no events)
+  await publishSquareCatalog({
+    pubkey,
+    clearCache: true
   });
-  await handleResponse<{ ok: boolean }>(response);
 }
