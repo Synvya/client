@@ -7,6 +7,7 @@ import { ReservationsPage } from "@/pages/Reservations";
 import { TestHarnessPage } from "@/pages/TestHarness";
 import { LandingPage } from "@/pages/Landing";
 import { SquareCallbackPage } from "@/pages/SquareCallback";
+import { WebsiteDataPage } from "@/pages/WebsiteData";
 
 function ProtectedApp(): JSX.Element {
   return (
@@ -30,6 +31,7 @@ export function App(): JSX.Element {
         <Route index element={<Navigate to="profile" replace />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="reservations" element={<ReservationsPage />} />
+        <Route path="website-data" element={<WebsiteDataPage />} />
         {import.meta.env.DEV && (
           <Route path="test-harness" element={<TestHarnessPage />} />
         )}
