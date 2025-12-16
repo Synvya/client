@@ -19,6 +19,7 @@ import { validateEvent } from "@/validation/nostrValidation";
 import { resolveProfileLocation } from "@/lib/profileLocation";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { useWebsiteData } from "@/state/useWebsiteData";
+import type { BusinessProfile } from "@/types/profile";
 import { PublicationPreview } from "@/components/PublicationPreview";
 import {
   Dialog,
@@ -352,24 +353,37 @@ export function SettingsPage(): JSX.Element {
           });
 
           if (profileEvent) {
-            // Parse profile content
-            const content = JSON.parse(profileEvent.content || "{}");
-            const profile = {
-              name: content.name || "",
-              displayName: content.display_name || content.name || "",
-              about: content.about || "",
-              website: content.website || "",
-              nip05: content.nip05 || "",
-              picture: content.picture || "",
-              banner: content.banner || "",
-              businessType: "restaurant" as const, // Default, could parse from tags
-              categories: []
+            // Use the same parsing logic from BusinessProfileForm to get ALL fields
+            const { parseKind0ProfileEvent } = await import("@/components/BusinessProfileForm");
+            const { patch } = parseKind0ProfileEvent(profileEvent);
+            
+            // Create complete profile with all fields
+            const profile: BusinessProfile = {
+              name: patch.name || "",
+              displayName: patch.displayName || patch.name || "",
+              about: patch.about || "",
+              website: patch.website || "",
+              nip05: patch.nip05 || "",
+              picture: patch.picture || "",
+              banner: patch.banner || "",
+              businessType: patch.businessType || ("restaurant" as const),
+              categories: patch.categories || [],
+              phone: patch.phone,
+              email: patch.email,
+              street: patch.street,
+              city: patch.city,
+              state: patch.state,
+              zip: patch.zip,
+              country: patch.country,
+              cuisine: patch.cuisine,
+              openingHours: patch.openingHours,
+              acceptsReservations: patch.acceptsReservations
             };
 
             // Extract geohash from profile event tags
             const geohashTag = profileEvent.tags.find((t: string[]) => t[0] === "g")?.[1];
 
-            // Update schema with profile and menu events
+            // Update schema with COMPLETE profile and menu events
             updateWebsiteSchema(profile, events, geohashTag || null);
           }
         } catch (error) {

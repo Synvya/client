@@ -140,7 +140,7 @@ function createInitialProfile(): BusinessProfile {
   };
 }
 
-function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>; categories: string[] } {
+export function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>; categories: string[] } {
   const patch: Partial<BusinessProfile> = {};
   const categories: string[] = [];
   const openingHours: OpeningHoursSpec[] = [];

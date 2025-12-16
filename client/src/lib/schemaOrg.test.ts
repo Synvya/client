@@ -463,7 +463,7 @@ describe("schemaOrg", () => {
       expect(script).toContain('<script type="application/ld+json">');
       expect(script).toContain('</script>');
       expect(script).toContain('"@context": "https://schema.org"');
-      expect(script).toContain('"@graph"');
+      expect(script).not.toContain('"@graph"'); // Should be inline, not graph
       expect(script).toContain('"@type": "CafeOrCoffeeShop"');
       expect(script).toContain('"name": "Test Cafe"');
     });
@@ -500,6 +500,8 @@ describe("schemaOrg", () => {
       expect(script).toContain('"@type": "MenuItem"');
       expect(script).toContain('"name": "Espresso"');
       expect(script).toContain('"hasMenu"');
+      expect(script).not.toContain('"@id"'); // Menus should be inline, no @id references
+      expect(script).not.toContain('"@graph"'); // Should be single entity, not graph
     });
 
     it("should escape HTML special characters", () => {
@@ -541,6 +543,7 @@ describe("schemaOrg", () => {
       expect(script).toContain('"@type": "Bakery"');
       expect(script).not.toContain('"@type": "Menu"');
       expect(script).not.toContain('"hasMenu"');
+      expect(script).not.toContain('"@graph"'); // Should be single entity
     });
 
     it("should include geohash coordinates", () => {
@@ -593,7 +596,8 @@ describe("schemaOrg", () => {
         expect(() => JSON.parse(unescaped)).not.toThrow();
         const parsed = JSON.parse(unescaped);
         expect(parsed["@context"]).toBe("https://schema.org");
-        expect(parsed["@graph"]).toBeInstanceOf(Array);
+        expect(parsed["@type"]).toBe("Restaurant"); // Should be single entity, not graph
+        expect(parsed["@graph"]).toBeUndefined(); // No @graph in inline structure
       }
     });
   });

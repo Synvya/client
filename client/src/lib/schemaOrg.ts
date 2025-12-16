@@ -72,7 +72,7 @@ interface SchemaOrgMenuSection extends SchemaOrgThing {
 
 interface SchemaOrgMenu extends SchemaOrgThing {
   "@type": "Menu";
-  "@id": string;
+  "@id"?: string; // Optional - only needed when using @graph with references
   name: string;
   hasMenuItem?: SchemaOrgMenuItem[];
   hasMenuSection?: SchemaOrgMenuSection[];
@@ -93,7 +93,7 @@ interface SchemaOrgFoodEstablishment extends SchemaOrgThing {
   openingHoursSpecification?: SchemaOrgOpeningHoursSpecification[];
   acceptsReservations?: boolean;
   potentialAction?: SchemaOrgReserveAction;
-  hasMenu?: { "@id": string } | Array<{ "@id": string }>;
+  hasMenu?: SchemaOrgMenu | SchemaOrgMenu[];
 }
 
 interface SchemaOrgGraph {
@@ -480,35 +480,33 @@ function buildMenuItem(productEvent: SquareEventTemplate): SchemaOrgMenuItem | n
 
 /**
  * Generates a complete LD-JSON script tag with FoodEstablishment and Menu schemas
+ * Uses inline menus (no @graph) for simpler, single-entity structure
  */
 export function generateLDJsonScript(
   profile: BusinessProfile,
   menuEvents?: SquareEventTemplate[] | null,
   geohash?: string | null
 ): string {
-  const graph: SchemaOrgThing[] = [];
-
-  // Add FoodEstablishment
+  // Build FoodEstablishment with all properties
   const establishment = buildFoodEstablishmentSchema(profile, geohash);
   
-  // Add menu references if menus exist
+  // If we have menu events, add them inline (no @id references needed)
   if (menuEvents && menuEvents.length > 0) {
     const menus = buildMenuSchema(profile.displayName || profile.name, menuEvents);
     if (menus.length > 0) {
-      establishment.hasMenu = menus.length === 1
-        ? { "@id": menus[0]["@id"] }
-        : menus.map((m) => ({ "@id": m["@id"] }));
-      graph.push(establishment, ...menus);
-    } else {
-      graph.push(establishment);
+      // Inline the menus directly - remove @id since we're not using references
+      establishment.hasMenu = menus.map(menu => {
+        // Remove @id property since we're inlining
+        const { "@id": _, ...menuWithoutId } = menu;
+        return menuWithoutId;
+      });
     }
-  } else {
-    graph.push(establishment);
   }
 
-  const schemaOrg: SchemaOrgGraph = {
+  // Create simple single-entity structure (no @graph)
+  const schemaOrg = {
     "@context": "https://schema.org",
-    "@graph": graph
+    ...establishment
   };
 
   const jsonString = JSON.stringify(schemaOrg, null, 2);
