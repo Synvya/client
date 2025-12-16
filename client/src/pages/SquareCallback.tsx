@@ -98,7 +98,7 @@ export function SquareCallbackPage(): JSX.Element {
   const statusMessage = useMemo(() => {
     switch (processing) {
       case "initializing":
-        return "Preparing your DineDirect identity…";
+        return "Preparing your Synvya identity…";
       case "exchanging":
         return "Finalizing your Square connection…";
       case "completed":

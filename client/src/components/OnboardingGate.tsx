@@ -42,7 +42,7 @@ export function OnboardingGate({ children }: OnboardingGateProps): JSX.Element {
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            <span>Preparing your DineDirect identity…</span>
+            <span>Preparing your Synvya identity…</span>
           </div>
         </div>
       );

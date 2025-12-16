@@ -224,7 +224,7 @@ function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessProfile>
     } else if (tag[0] === "schema.org:acceptsReservations" && typeof tag[1] === "string") {
       if (tag[1] === "False") {
         patch.acceptsReservations = false;
-      } else if (tag[1] === "https://dinedirect.app") {
+      } else if (tag[1] === "https://synvya.com") {
         patch.acceptsReservations = true;
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string" && tag[1] === "rp") {
@@ -390,7 +390,7 @@ export function BusinessProfileForm(): JSX.Element {
     event.preventDefault();
     setStatus({ type: "idle", message: null });
 
-    const nip05 = profile.name ? `${profile.name}@dinedirect.app` : "";
+    const nip05 = profile.name ? `${profile.name}@synvya.com` : "";
 
     const payload: BusinessProfile = {
       ...profile,
@@ -516,7 +516,7 @@ export function BusinessProfileForm(): JSX.Element {
     setProfile((prev) => ({
       ...prev,
       name: value,
-      nip05: value ? `${value}@dinedirect.app` : ""
+      nip05: value ? `${value}@synvya.com` : ""
     }));
   };
 

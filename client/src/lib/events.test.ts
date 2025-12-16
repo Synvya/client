@@ -8,7 +8,7 @@ describe("buildProfileEvent", () => {
     displayName: "Test Shop",
     about: "A test shop",
     website: "https://testshop.com",
-    nip05: "testshop@dinedirect.app",
+    nip05: "testshop@synvya.com",
     picture: "https://example.com/pic.jpg",
     banner: "https://example.com/banner.jpg",
     businessType: "restaurant",
@@ -176,7 +176,7 @@ describe("buildProfileEvent", () => {
     expect(content.website).toBe("https://testshop.com");
     expect(content.picture).toBe("https://example.com/pic.jpg");
     expect(content.banner).toBe("https://example.com/banner.jpg");
-    expect(content.nip05).toBe("testshop@dinedirect.app");
+    expect(content.nip05).toBe("testshop@synvya.com");
     
     // memberOf should not be in content, only in tags
     expect(content.memberOf).toBeUndefined();
@@ -485,7 +485,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithReservations);
 
     expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:acceptsReservations", "False", "https://schema.org/acceptsReservations"]);
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations" && tag[1] === "https://dinedirect.app")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations" && tag[1] === "https://synvya.com")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "rp")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "k" && tag[1] === "nip")).toBe(false);
   });
@@ -498,7 +498,7 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithReservations);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:acceptsReservations", "https://dinedirect.app", "https://schema.org/acceptsReservations"]);
+    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:acceptsReservations", "https://synvya.com", "https://schema.org/acceptsReservations"]);
     expect(event.tags).toContainEqual(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
     expect(event.tags).toContainEqual(["k", "nip"]);
     expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations" && tag[1] === "False")).toBe(false);

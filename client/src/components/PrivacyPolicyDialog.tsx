@@ -23,10 +23,10 @@ export function PrivacyPolicyDialog({
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <p className="text-muted-foreground">
-            Synvya, Inc. d/b/a DineDirect (&quot;<strong>Synvya</strong>,&quot; &quot;<strong>we</strong>,&quot; &quot;<strong>our</strong>,&quot; or &quot;<strong>us</strong>&quot;) respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard information when you use the <strong>DineDirect</strong> service (the &quot;<strong>Service</strong>&quot;). This Privacy Policy does <strong>not</strong> cover the public website located at <strong>https://www.dinedirect.app</strong> (the &quot;<strong>Website</strong>&quot;). The Website is governed by a separate privacy policy available at <strong>https://www.dinedirect.app</strong>.
+            Synvya, Inc. (&quot;<strong>Synvya</strong>,&quot; &quot;<strong>we</strong>,&quot; &quot;<strong>our</strong>,&quot; or &quot;<strong>us</strong>&quot;) respects your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard information when you use the <strong>Synvya</strong> service (the &quot;<strong>Service</strong>&quot;). This Privacy Policy does <strong>not</strong> cover the public website located at <strong>https://www.synvya.com</strong> (the &quot;<strong>Website</strong>&quot;). The Website is governed by a separate privacy policy available at <strong>https://www.synvya.com</strong>.
           </p>
           <p className="text-muted-foreground">
-            If you are a visitor to the Website but do not use the Service, please refer only to the Website privacy policy. If you are a business owner using the service at https://account.dinedirect.app, this Privacy Policy applies to your use of the Service.
+            If you are a visitor to the Website but do not use the Service, please refer only to the Website privacy policy. If you are a business owner using the service at https://account.synvya.com, this Privacy Policy applies to your use of the Service.
           </p>
 
           <section>
@@ -45,8 +45,8 @@ export function PrivacyPolicyDialog({
                 <tbody>
                   <tr className="border-b">
                     <td className="p-2">Account Information</td>
-                    <td className="p-2">Company name, billing address, email address, password or OAuth credentials</td>
-                    <td className="p-2">To create and administer your DineDirect account</td>
+                    <td className="p-2">Company name, billing address, payment information, email address</td>
+                    <td className="p-2">To create and administer your Synvya account</td>
                   </tr>
                   <tr className="border-b">
                     <td className="p-2">Customer Support</td>
@@ -228,16 +228,16 @@ export function PrivacyPolicyDialog({
             </p>
             <div className="border-l-4 border-muted pl-4 my-2">
               <p className="text-muted-foreground">
-                <strong>Privacy Team – Synvya, Inc. d/b/a DineDirect</strong><br />
+                <strong>Privacy Team – Synvya, Inc.</strong><br />
                 9209 Jacobia Ave SE.,<br />
                 Snoqualmie, WA 98065<br />
-                <strong>Email:</strong> privacy@dinedirect.app
+                <strong>Email:</strong> privacy@synvya.com
               </p>
             </div>
           </section>
 
           <p className="text-muted-foreground text-xs mt-4">
-            © 2025 Synvya, Inc. d/b/a DineDirect All rights reserved.
+            © 2025 Synvya, Inc. All rights reserved.
           </p>
         </div>
       </DialogContent>

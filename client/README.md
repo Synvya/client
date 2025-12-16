@@ -1,4 +1,4 @@
-# DineDirect
+# Synvya Client
 
 A Nostr-based merchant onboarding and management application. It generates Nostr identities in the browser, stores credentials securely, and publishes business profiles (kind 0) and Square catalog inventory as marketplace events (kind 30402 product listings and kind 30405 collections) to configured relays. Media uploads use nostr.build with NIP-98 auth during local development.
 
@@ -20,7 +20,7 @@ When the app loads it will generate a merchant keypair, encrypt the `nsec` using
 ## Key Features
 
 - **Nostr identity:** Client-side key generation with secure IndexedDB storage and a NIP-07 `window.nostr` shim.
-- **Business profiles:** Guided form that builds kind 0 profile events with required DineDirect tags and publishes them to selected relays.
+- **Business profiles:** Guided form that builds kind 0 profile events with required Synvya tags and publishes them to selected relays.
 - **Square catalog publishing:** 
   - Connect Square merchant accounts via OAuth.
   - Sync catalog items, categories, and pricing from Square API.

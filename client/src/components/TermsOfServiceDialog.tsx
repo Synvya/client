@@ -23,16 +23,16 @@ export function TermsOfServiceDialog({
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <p className="text-muted-foreground">
-            These Terms of Service (&quot;<strong>Terms</strong>&quot;) are a legally binding agreement between you (&quot;<strong>Merchant</strong>,&quot; &quot;<strong>you</strong>&quot;) and Synvya, Inc. d/b/a DineDirect (&quot;<strong>Synvya</strong>,&quot; &quot;<strong>we</strong>,&quot; or &quot;<strong>us</strong>&quot;). By subscribing to, or using the DineDirect service (the &quot;<strong>Service</strong>&quot;) and by authorizing the Service to publish information to the Nostr network, you acknowledge that you have read, understood, and agree to be bound by these Terms. If you do not agree, you must not use the Service.
+            These Terms of Service (&quot;<strong>Terms</strong>&quot;) are a legally binding agreement between you (&quot;<strong>Merchant</strong>,&quot; &quot;<strong>you</strong>&quot;) and Synvya, Inc. (&quot;<strong>Synvya</strong>,&quot; &quot;<strong>we</strong>,&quot; or &quot;<strong>us</strong>&quot;). By subscribing to, or using the Synvya service (the &quot;<strong>Service</strong>&quot;) and by authorizing the Service to publish information to the Nostr network, you acknowledge that you have read, understood, and agree to be bound by these Terms. If you do not agree, you must not use the Service.
           </p>
           <p className="text-muted-foreground">
-            These Terms do <strong>not</strong> cover the public website located at <strong>https://www.dinedirect.app</strong> (the &quot;<strong>Website</strong>&quot;). The Website is governed by separate Terms of Use available at https://www.dinedirect.app.
+            These Terms do <strong>not</strong> cover the public website located at <strong>https://www.synvya.com</strong> (the &quot;<strong>Website</strong>&quot;). The Website is governed by separate Terms of Use available at https://www.synvya.com.
           </p>
 
           <section>
             <h3 className="font-semibold mb-2">Service Overview</h3>
             <p className="text-muted-foreground">
-              DineDirect provides an integration to AI assistants through the Nostr network to —only when you expressly direct us to do so—publish your Business Data (business name, address, contact details, products, services, prices, etc.) to the open, decentralized Nostr protocol (&quot;<strong>Nostr</strong>&quot;).
+              Synvya provides an integration to AI assistants through the Nostr network to —only when you expressly direct us to do so—publish your Business Data (business name, address, contact details, products, services, prices, etc.) to the open, decentralized Nostr protocol (&quot;<strong>Nostr</strong>&quot;).
             </p>
           </section>
 
@@ -159,15 +159,15 @@ export function TermsOfServiceDialog({
               For questions about these Terms or the Service, please contact Synvya at:
             </p>
             <p className="text-muted-foreground mt-2">
-              <strong>Synvya, Inc. d/b/a DineDirect</strong><br />
+              <strong>Synvya, Inc.</strong><br />
               9209 Jacobia Ave SE<br />
               Snoqualmie, WA 98065<br />
-              Email: legal@dinedirect.app
+              Email: legal@synvya.com
             </p>
           </section>
 
           <p className="text-muted-foreground text-xs mt-4">
-            © 2025 Synvya, Inc. d/b/a DineDirect All rights reserved.
+            © 2025 Synvya, Inc. All rights reserved.
           </p>
         </div>
       </DialogContent>

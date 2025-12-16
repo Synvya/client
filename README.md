@@ -1,6 +1,6 @@
 # synvya-client-2
 
-Synvya's merchant-facing web client for onboarding, profile management, and Square catalog publishing. The repo contains the Vite/React frontend, supporting Lambda functions, and deployment plumbing for Synvya's second-generation client site (`https://account.dinedirect.app`).
+Synvya's merchant-facing web client for onboarding, profile management, and Square catalog publishing. The repo contains the Vite/React frontend, supporting Lambda functions, and deployment plumbing for Synvya's second-generation client site (`https://account.synvya.com`).
 
 ## Repository Layout
 - `client/` – Vite + React application (TypeScript, Tailwind) and local dev tooling.
@@ -77,11 +77,11 @@ Synvya's merchant-facing web client for onboarding, profile management, and Squa
 | `AWS_REGION` | `us-east-1` |
 | `AWS_ROLE_ARN` | `arn:aws:iam::123456789012:role/SynvyaClientGithubActions` |
 | `CLOUDFRONT_DISTRIBUTION_ID` | `E1234567890ABC` |
-| `VITE_UPLOAD_PROXY_URL` | `https://account.dinedirect.app` |
+| `VITE_UPLOAD_PROXY_URL` | `https://account.synvya.com` |
 | `VITE_API_BASE_URL` | `https://abc123.execute-api.us-east-1.amazonaws.com` |
 | `VITE_SQUARE_ENV` | `sandbox` |
 | `VITE_SQUARE_APPLICATION_ID` | `sandbox-sq0idb-xxxxxxxxxxxxxxxxxxxx` |
-| `VITE_SQUARE_REDIRECT_URI` | `https://account.dinedirect.app/square/callback` |
+| `VITE_SQUARE_REDIRECT_URI` | `https://account.synvya.com/square/callback` |
 
 ## AWS Infrastructure
 
@@ -93,10 +93,10 @@ The static hosting stack was configured directly via the AWS console:
    - Versioning left disabled (deploy pipeline uses `--delete` sync).
 2. **CloudFront distribution** pointing at the S3 bucket
    - Origin Access Control connected to the bucket.
-   - Alternate domain name `account.dinedirect.app` with an ACM certificate in `us-east-1`.
+   - Alternate domain name `account.synvya.com` with an ACM certificate in `us-east-1`.
    - Default root object `index.html`, error responses mapped for SPA routing (404 → 200).
    - Additional behavior: `/media/*` (and other API paths such as `/square/*`) forward to the API Gateway domain created below.
-3. **Route 53** record – `account.dinedirect.app` ALIAS → CloudFront distribution.
+3. **Route 53** record – `account.synvya.com` ALIAS → CloudFront distribution.
 
 
 ### Backend API (current state)
@@ -124,7 +124,7 @@ The API Gateway, Lambda functions, and DynamoDB table were provisioned once (man
    - Separate secret storing the backend signing `nsec` used by the Square Lambda (referenced via parameter `NostrNsec`).
 3. **Square Developer Portal**
    - Created an application in the Square dashboard (production mode).
-   - Added redirect URI `https://account.dinedirect.app/square/callback` and sandbox equivalent for testing.
+   - Added redirect URI `https://account.synvya.com/square/callback` and sandbox equivalent for testing.
    - Captured Application ID and Client Secret for both SAM template parameters and local `.env`.
 
 ### IAM & GitHub Integration (manual console steps)
@@ -163,11 +163,11 @@ The API Gateway, Lambda functions, and DynamoDB table were provisioned once (man
 
 | Variable | Example Value | Notes |
 | --- | --- | --- |
-| `CORS_ALLOW_ORIGIN` | `https://account.dinedirect.app` | Must include the frontend origin so fetches succeed. |
-| `NOSTR_RELAYS` | `wss://relay.damus.io,wss://nos.lol` | Relays queried for the merchant’s kind‑0 profile. |
+| `CORS_ALLOW_ORIGIN` | `https://account.synvya.com` | Must include the frontend origin so fetches succeed. |
+| `NOSTR_RELAYS` | `wss://relay.damus.io,wss://nos.lol` | Relays queried for the merchant's kind‑0 profile. |
 | `SQUARE_ENV` | `sandbox` | `sandbox` or `production`. |
 | `SQUARE_APPLICATION_ID` | `sandbox-sq0idb-...` | Copied from Square developer portal. |
-| `SQUARE_REDIRECT_URI` | `https://account.dinedirect.app/square/callback` | Must match the Square app configuration. |
+| `SQUARE_REDIRECT_URI` | `https://account.synvya.com/square/callback` | Must match the Square app configuration. |
 | `SQUARE_CONNECTIONS_TABLE` | `SynvyaSquareConnections` | DynamoDB table name created by the SAM template. |
 | `SQUARE_PRIMARY_KEY` | `npub` | DynamoDB partition key (defaults to `npub`). |
 | `SQUARE_VERSION` | `2025-01-23` | Square API version header. |

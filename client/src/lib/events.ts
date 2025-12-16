@@ -159,7 +159,7 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   if (profile.acceptsReservations === false) {
     tags.push(["schema.org:FoodEstablishment:acceptsReservations", "False", "https://schema.org/acceptsReservations"]);
   } else if (profile.acceptsReservations === true) {
-    tags.push(["schema.org:FoodEstablishment:acceptsReservations", "https://dinedirect.app", "https://schema.org/acceptsReservations"]);
+    tags.push(["schema.org:FoodEstablishment:acceptsReservations", "https://synvya.com", "https://schema.org/acceptsReservations"]);
     tags.push(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
     tags.push(["k", "nip"]);
   }
