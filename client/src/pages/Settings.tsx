@@ -18,6 +18,7 @@ import { publishToRelays } from "@/lib/relayPool";
 import { validateEvent } from "@/validation/nostrValidation";
 import { resolveProfileLocation } from "@/lib/profileLocation";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
+import { useWebsiteData } from "@/state/useWebsiteData";
 import { PublicationPreview } from "@/components/PublicationPreview";
 import {
   Dialog,
@@ -41,6 +42,7 @@ export function SettingsPage(): JSX.Element {
     location: state.location,
     setLocation: state.setLocation
   }));
+  const updateWebsiteSchema = useWebsiteData((state) => state.updateSchema);
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
@@ -336,6 +338,44 @@ export function SettingsPage(): JSX.Element {
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
+      }
+
+      // Update website data schema with the published menu
+      if (updateSuccesses.length > 0 || deletionSuccesses.length > 0) {
+        try {
+          // Fetch current profile to regenerate complete schema
+          const { getPool } = await import("@/lib/relayPool");
+          const pool = getPool();
+          const profileEvent = await pool.get(relays, {
+            kinds: [0],
+            authors: [pubkey]
+          });
+
+          if (profileEvent) {
+            // Parse profile content
+            const content = JSON.parse(profileEvent.content || "{}");
+            const profile = {
+              name: content.name || "",
+              displayName: content.display_name || content.name || "",
+              about: content.about || "",
+              website: content.website || "",
+              nip05: content.nip05 || "",
+              picture: content.picture || "",
+              banner: content.banner || "",
+              businessType: "restaurant" as const, // Default, could parse from tags
+              categories: []
+            };
+
+            // Extract geohash from profile event tags
+            const geohashTag = profileEvent.tags.find((t: string[]) => t[0] === "g")?.[1];
+
+            // Update schema with profile and menu events
+            updateWebsiteSchema(profile, events, geohashTag || null);
+          }
+        } catch (error) {
+          console.warn("Failed to update website schema:", error);
+          // Don't fail the operation if schema update fails
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish catalog to Nostr.";

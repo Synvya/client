@@ -15,6 +15,7 @@ import { uploadMedia } from "@/services/upload";
 import type { Event } from "nostr-tools";
 import { Image as ImageIcon, UploadCloud, Clock } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
+import { useWebsiteData } from "@/state/useWebsiteData";
 import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
 import type { OpeningHoursSpec } from "@/types/profile";
 
@@ -358,6 +359,7 @@ export function BusinessProfileForm(): JSX.Element {
   const memberOfDomain = useMemberOf((state) => state.domain);
   const setProfileLocation = useBusinessProfile((state) => state.setLocation);
   const setProfileBusinessType = useBusinessProfile((state) => state.setBusinessType);
+  const updateWebsiteSchema = useWebsiteData((state) => state.updateSchema);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
   const [categoriesInput, setCategoriesInput] = useState("");
   const [cuisineInput, setCuisineInput] = useState("");
@@ -500,6 +502,14 @@ export function BusinessProfileForm(): JSX.Element {
       });
 
       setStatus({ type: "success", message: "Profile published to relays", eventId: signed.id });
+
+      // Update website data schema with the published profile
+      try {
+        updateWebsiteSchema(finalPayload, null, geohash);
+      } catch (error) {
+        console.warn("Failed to update website schema:", error);
+        // Don't fail the operation if schema update fails
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish profile";
       setStatus({ type: "error", message });

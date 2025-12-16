@@ -30,6 +30,17 @@ export function Header(): JSX.Element {
             >
               Reservations
             </NavLink>
+            <NavLink
+              to="/app/website-data"
+              className={({ isActive }) =>
+                cn(
+                  "transition-colors hover:text-primary",
+                  isActive ? "text-primary" : "text-muted-foreground"
+                )
+              }
+            >
+              Website Data
+            </NavLink>
             {import.meta.env.DEV && (
               <NavLink
                 to="/app/test-harness"
