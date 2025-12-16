@@ -38,6 +38,23 @@ interface SchemaOrgOffer extends SchemaOrgThing {
   priceCurrency: string;
 }
 
+interface SchemaOrgEntryPoint extends SchemaOrgThing {
+  "@type": "EntryPoint";
+  urlTemplate: string;
+  actionPlatform?: string;
+}
+
+interface SchemaOrgReservation extends SchemaOrgThing {
+  "@type": "Reservation";
+  name: string;
+}
+
+interface SchemaOrgReserveAction extends SchemaOrgThing {
+  "@type": "ReserveAction";
+  target: SchemaOrgEntryPoint;
+  result: SchemaOrgReservation;
+}
+
 interface SchemaOrgMenuItem extends SchemaOrgThing {
   "@type": "MenuItem";
   name: string;
@@ -74,7 +91,8 @@ interface SchemaOrgFoodEstablishment extends SchemaOrgThing {
   priceRange?: string;
   geo?: SchemaOrgGeoCoordinates;
   openingHoursSpecification?: SchemaOrgOpeningHoursSpecification[];
-  acceptsReservations?: string | boolean;
+  acceptsReservations?: boolean;
+  potentialAction?: SchemaOrgReserveAction;
   hasMenu?: { "@id": string } | Array<{ "@id": string }>;
 }
 
@@ -268,9 +286,21 @@ export function buildFoodEstablishmentSchema(
     }));
   }
 
-  // Accepts reservations
+  // Accepts reservations with potentialAction
   if (profile.acceptsReservations) {
-    schema.acceptsReservations = "https://synvya.com";
+    schema.acceptsReservations = true;
+    schema.potentialAction = {
+      "@type": "ReserveAction",
+      target: {
+        "@type": "EntryPoint",
+        urlTemplate: "https://synvya.com",
+        actionPlatform: "https://chatgpt.com/g/g-691d8219c93c819192573c805a6edfaf-synvya"
+      },
+      result: {
+        "@type": "Reservation",
+        name: "Restaurant Reservation"
+      }
+    };
   } else if (profile.acceptsReservations === false) {
     schema.acceptsReservations = false;
   }

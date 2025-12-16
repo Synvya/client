@@ -191,7 +191,7 @@ describe("schemaOrg", () => {
       expect(schema.geo?.longitude).toBeCloseTo(-122.3, 0);
     });
 
-    it("should set acceptsReservations", () => {
+    it("should set acceptsReservations and potentialAction", () => {
       const profileTrue: BusinessProfile = {
         name: "test",
         displayName: "Test",
@@ -206,7 +206,18 @@ describe("schemaOrg", () => {
       };
 
       const schemaTrue = buildFoodEstablishmentSchema(profileTrue);
-      expect(schemaTrue.acceptsReservations).toBe("https://synvya.com");
+      expect(schemaTrue.acceptsReservations).toBe(true);
+      expect(schemaTrue.potentialAction).toBeDefined();
+      expect(schemaTrue.potentialAction?.["@type"]).toBe("ReserveAction");
+      expect(schemaTrue.potentialAction?.target).toEqual({
+        "@type": "EntryPoint",
+        urlTemplate: "https://synvya.com",
+        actionPlatform: "https://chatgpt.com/g/g-691d8219c93c819192573c805a6edfaf-synvya"
+      });
+      expect(schemaTrue.potentialAction?.result).toEqual({
+        "@type": "Reservation",
+        name: "Restaurant Reservation"
+      });
 
       const profileFalse: BusinessProfile = {
         ...profileTrue,
@@ -215,6 +226,7 @@ describe("schemaOrg", () => {
 
       const schemaFalse = buildFoodEstablishmentSchema(profileFalse);
       expect(schemaFalse.acceptsReservations).toBe(false);
+      expect(schemaFalse.potentialAction).toBeUndefined();
     });
 
     it("should handle minimal profile", () => {
