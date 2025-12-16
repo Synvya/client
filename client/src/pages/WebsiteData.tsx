@@ -3,14 +3,23 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useWebsiteData } from "@/state/useWebsiteData";
 import { useAuth } from "@/state/useAuth";
+import { useRelays } from "@/state/useRelays";
+import { getPool } from "@/lib/relayPool";
+import { parseKind0ProfileEvent } from "@/components/BusinessProfileForm";
+import type { BusinessProfile } from "@/types/profile";
+import type { SquareEventTemplate } from "@/services/square";
 import { Copy, Download, Code, RefreshCw, AlertCircle } from "lucide-react";
 
 export function WebsiteDataPage(): JSX.Element {
   const schema = useWebsiteData((state) => state.schema);
   const lastUpdated = useWebsiteData((state) => state.lastUpdated);
+  const updateWebsiteSchema = useWebsiteData((state) => state.updateSchema);
+  const clearSchema = useWebsiteData((state) => state.clearSchema);
   const pubkey = useAuth((state) => state.pubkey);
+  const relays = useRelays((state) => state.relays);
   const [copied, setCopied] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
+  const [refreshing, setRefreshing] = useState(false);
 
   // Reset copied state after 2 seconds
   useEffect(() => {
@@ -27,6 +36,14 @@ export function WebsiteDataPage(): JSX.Element {
       return () => clearTimeout(timer);
     }
   }, [downloadStatus]);
+
+  // Auto-refresh on mount if we have auth and no schema
+  useEffect(() => {
+    if (pubkey && relays.length && !schema && !refreshing) {
+      handleRefresh();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pubkey, relays.length]); // Only run when auth/relays change
 
   const handleCopy = async () => {
     if (!schema) return;
@@ -56,10 +73,83 @@ export function WebsiteDataPage(): JSX.Element {
     }
   };
 
-  const handleRefresh = () => {
-    // Trigger a re-render by navigating to profile page
-    // This is a placeholder - actual refresh will happen when profile/menu is updated
-    window.location.reload();
+  const handleRefresh = async () => {
+    if (!pubkey || !relays.length) return;
+    
+    setRefreshing(true);
+    try {
+      const pool = getPool();
+      
+      // Fetch profile (kind 0)
+      const profileEvent = await pool.get(relays, {
+        kinds: [0],
+        authors: [pubkey]
+      });
+      
+      if (!profileEvent) {
+        // No profile published yet
+        clearSchema();
+        return;
+      }
+      
+      // Parse profile using the same logic as BusinessProfileForm
+      const { patch } = parseKind0ProfileEvent(profileEvent);
+      const profile: BusinessProfile = {
+        name: patch.name || "",
+        displayName: patch.displayName || patch.name || "",
+        about: patch.about || "",
+        website: patch.website || "",
+        nip05: patch.nip05 || "",
+        picture: patch.picture || "",
+        banner: patch.banner || "",
+        businessType: patch.businessType || ("restaurant" as const),
+        categories: patch.categories || [],
+        phone: patch.phone,
+        email: patch.email,
+        street: patch.street,
+        city: patch.city,
+        state: patch.state,
+        zip: patch.zip,
+        country: patch.country,
+        cuisine: patch.cuisine,
+        openingHours: patch.openingHours,
+        acceptsReservations: patch.acceptsReservations
+      };
+      
+      // Extract geohash from profile event tags
+      const geohashTag = profileEvent.tags.find((t: string[]) => t[0] === "g")?.[1];
+      
+      // Fetch menu events (kinds 30402 and 30405)
+      const menuEvents: SquareEventTemplate[] = [];
+      
+      // Query for both product and collection events at once
+      const allMenuEvents = await pool.querySync(relays, {
+        kinds: [30402, 30405],
+        authors: [pubkey]
+      });
+      
+      // Convert to SquareEventTemplate format
+      for (const event of allMenuEvents) {
+        menuEvents.push({
+          kind: event.kind,
+          created_at: event.created_at,
+          content: event.content,
+          tags: event.tags
+        });
+      }
+      
+      // Generate and store schema
+      updateWebsiteSchema(
+        profile,
+        menuEvents.length > 0 ? menuEvents : null,
+        geohashTag || null
+      );
+    } catch (error) {
+      console.error("Failed to refresh website data:", error);
+      // Could show error toast here in the future
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const formatLastUpdated = (date: Date | null): string => {
@@ -120,7 +210,7 @@ export function WebsiteDataPage(): JSX.Element {
                 <li>Integration with voice assistants and AI services</li>
               </ul>
               <p className="text-sm text-muted-foreground">
-                The data automatically updates when you publish your profile or menu through this app.
+                Click "Refresh" to pull the latest data from Nostr and generate your schema.
               </p>
             </div>
           </div>
@@ -141,10 +231,11 @@ export function WebsiteDataPage(): JSX.Element {
                   variant="ghost"
                   size="sm"
                   onClick={handleRefresh}
+                  disabled={refreshing || !pubkey || !relays.length}
                   className="text-sm"
                 >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Refresh
+                  <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                  {refreshing ? "Refreshing..." : "Refresh"}
                 </Button>
               </div>
             </div>
@@ -216,16 +307,25 @@ export function WebsiteDataPage(): JSX.Element {
             </div>
             <h3 className="mt-6 text-lg font-semibold">No data available yet</h3>
             <p className="mt-2 text-sm text-muted-foreground">
-              Publish your business profile to generate structured data for your website.
+              Publish your business profile and menu, then click "Refresh" to generate structured data for your website.
             </p>
-            <Button
-              className="mt-6"
-              onClick={() => {
-                window.location.href = "/app/profile";
-              }}
-            >
-              Go to Profile
-            </Button>
+            <div className="mt-6 flex gap-3 justify-center">
+              <Button
+                onClick={handleRefresh}
+                disabled={refreshing || !pubkey || !relays.length}
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                {refreshing ? "Refreshing..." : "Refresh from Nostr"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  window.location.href = "/app/profile";
+                }}
+              >
+                Go to Profile
+              </Button>
+            </div>
           </div>
         )}
 
