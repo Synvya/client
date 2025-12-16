@@ -49,3 +49,33 @@ export function buildDeletionEvent(
   };
 }
 
+/**
+ * Build a NIP-09 Event Deletion event (kind 5) using address tags (a tags)
+ * 
+ * This event requests deletion of one or more previously published events by their
+ * address (kind:pubkey:d-tag identifier).
+ * 
+ * @param addresses - Array of event addresses in format "kind:pubkey:d-tag"
+ * @param eventKinds - Array of event kinds being deleted (for k tags)
+ * @param content - Optional content for the deletion event (default: "removing menu")
+ * @returns EventTemplate for kind 5
+ */
+export function buildDeletionEventByAddress(
+  addresses: string[],
+  eventKinds: number[],
+  content: string = "removing menu"
+): EventTemplate {
+  const tags: string[][] = addresses.map((address) => ["a", address]);
+  
+  eventKinds.forEach((kind) => {
+    tags.push(["k", kind.toString()]);
+  });
+  
+  return {
+    kind: 5,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content
+  };
+}
+

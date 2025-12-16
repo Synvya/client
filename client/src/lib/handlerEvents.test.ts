@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildDeletionEvent,
   buildDmRelayEvent,
+  buildDeletionEventByAddress,
 } from "./handlerEvents";
 
 describe("handlerEvents", () => {
@@ -158,6 +159,62 @@ describe("handlerEvents", () => {
 
       expect(event.created_at).toBeGreaterThanOrEqual(before);
       expect(event.created_at).toBeLessThanOrEqual(after);
+    });
+  });
+
+  describe("buildDeletionEventByAddress", () => {
+    const testAddress1 = "30402:pubkey123:product-d-tag";
+    const testAddress2 = "30405:pubkey123:collection-d-tag";
+
+    it("builds a valid kind 5 event template with a tags", () => {
+      const event = buildDeletionEventByAddress([testAddress1], [30402, 30405]);
+
+      expect(event.kind).toBe(5);
+      expect(event.content).toBe("removing menu");
+      expect(event.created_at).toBeGreaterThan(0);
+      expect(event.tags).toBeDefined();
+    });
+
+    it("includes a tags for each address", () => {
+      const event = buildDeletionEventByAddress([testAddress1, testAddress2], [30402, 30405]);
+
+      const aTags = event.tags.filter((tag) => tag[0] === "a");
+      expect(aTags).toHaveLength(2);
+      expect(aTags[0][1]).toBe(testAddress1);
+      expect(aTags[1][1]).toBe(testAddress2);
+    });
+
+    it("includes k tags for each event kind", () => {
+      const event = buildDeletionEventByAddress([testAddress1], [30402, 30405]);
+
+      const kTags = event.tags.filter((tag) => tag[0] === "k");
+      expect(kTags).toHaveLength(2);
+      
+      const kinds = kTags.map((tag) => tag[1]);
+      expect(kinds).toContain("30402");
+      expect(kinds).toContain("30405");
+    });
+
+    it("uses custom content when provided", () => {
+      const event = buildDeletionEventByAddress([testAddress1], [30402, 30405], "custom message");
+
+      expect(event.content).toBe("custom message");
+    });
+
+    it("handles single address", () => {
+      const event = buildDeletionEventByAddress([testAddress1], [30402, 30405]);
+
+      const aTags = event.tags.filter((tag) => tag[0] === "a");
+      expect(aTags).toHaveLength(1);
+      expect(aTags[0][1]).toBe(testAddress1);
+    });
+
+    it("handles multiple addresses", () => {
+      const addresses = [testAddress1, testAddress2, "30402:pubkey123:another-product"];
+      const event = buildDeletionEventByAddress(addresses, [30402, 30405]);
+
+      const aTags = event.tags.filter((tag) => tag[0] === "a");
+      expect(aTags).toHaveLength(3);
     });
   });
 });

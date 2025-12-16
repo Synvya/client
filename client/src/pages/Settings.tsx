@@ -14,11 +14,12 @@ import {
   type SquareConnectionStatus,
   type SquareEventTemplate,
 } from "@/services/square";
-import { publishToRelays } from "@/lib/relayPool";
+import { publishToRelays, getPool } from "@/lib/relayPool";
 import { validateEvent } from "@/validation/nostrValidation";
 import { resolveProfileLocation } from "@/lib/profileLocation";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { PublicationPreview } from "@/components/PublicationPreview";
+import { buildDeletionEventByAddress } from "@/lib/handlerEvents";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ export function SettingsPage(): JSX.Element {
   const [previewPendingCount, setPreviewPendingCount] = useState(0);
   const [previewTotalEvents, setPreviewTotalEvents] = useState(0);
   const [previewDeletionCount, setPreviewDeletionCount] = useState(0);
+  const [unpublishBusy, setUnpublishBusy] = useState(false);
 
   const handleReveal = async () => {
     setBusy(true);
@@ -200,6 +202,63 @@ export function SettingsPage(): JSX.Element {
       setSquareError(message);
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  const handleUnpublishMenu = async () => {
+    if (!pubkey) return;
+    setSquareError(null);
+    setSquareNotice(null);
+    setUnpublishBusy(true);
+    try {
+      const pool = getPool();
+      
+      // Query for all 30402 and 30405 events
+      const menuEvents = await pool.querySync(relays, {
+        kinds: [30402, 30405],
+        authors: [pubkey]
+      });
+      
+      if (menuEvents.length === 0) {
+        setSquareNotice("No menu events found to unpublish.");
+        return;
+      }
+      
+      // Build addresses from events: "kind:pubkey:d-tag"
+      const addresses: string[] = [];
+      for (const event of menuEvents) {
+        const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
+        if (dTag) {
+          addresses.push(`${event.kind}:${pubkey}:${dTag}`);
+        }
+      }
+      
+      if (addresses.length === 0) {
+        setSquareError("No valid menu events found (missing d tags).");
+        return;
+      }
+      
+      // Build deletion event with a tags
+      const deletionEvent = buildDeletionEventByAddress(
+        addresses,
+        [30402, 30405],
+        "removing menu"
+      );
+      
+      // Sign and publish
+      const signed = await signEvent(deletionEvent);
+      validateEvent(signed);
+      await publishToRelays(signed, relays);
+      
+      setSquareNotice(`Unpublished ${addresses.length} menu event${addresses.length === 1 ? "" : "s"}.`);
+      setStatusVersion((value) => value + 1);
+      setPreviewViewed(false);
+      setPreviewEvents(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to unpublish menu.";
+      setSquareError(message);
+    } finally {
+      setUnpublishBusy(false);
     }
   };
 
@@ -523,7 +582,14 @@ export function SettingsPage(): JSX.Element {
                 onClick={() => setPublishConfirmOpen(true)}
                 disabled={resyncBusy || squareLoading || !previewViewed}
               >
-                {resyncBusy ? "Publishing…" : "Publish Latest Catalog"}
+                {resyncBusy ? "Publishing…" : "Publish Menu"}
+              </Button>
+              <Button
+                onClick={handleUnpublishMenu}
+                disabled={unpublishBusy || squareLoading}
+                variant="destructive"
+              >
+                {unpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
               </Button>
               <Button variant="ghost" onClick={handleConnectSquare} disabled={connectBusy}>
                 {connectBusy ? "Opening Square…" : "Reconnect Square"}
