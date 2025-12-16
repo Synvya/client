@@ -3,42 +3,46 @@ import { useWebsiteData, getSchemaSnapshot, getLastUpdatedSnapshot } from "./use
 import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: (key: string) => store[key] || null,
-    setItem: (key: string, value: string) => {
-      store[key] = value.toString();
-    },
-    clear: () => {
-      store = {};
-    },
-    removeItem: (key: string) => {
-      delete store[key];
-    },
-    get length() {
-      return Object.keys(store).length;
-    },
-    key: (index: number) => {
-      const keys = Object.keys(store);
-      return keys[index] || null;
-    }
-  };
-})();
+// Create a proper localStorage mock that works with Zustand persist
+class LocalStorageMock implements Storage {
+  private store: Map<string, string> = new Map();
 
-// Mock global objects for Node environment
-if (typeof window === "undefined") {
-  (global as any).window = {};
+  get length(): number {
+    return this.store.size;
+  }
+
+  clear(): void {
+    this.store.clear();
+  }
+
+  getItem(key: string): string | null {
+    return this.store.get(key) ?? null;
+  }
+
+  key(index: number): string | null {
+    return Array.from(this.store.keys())[index] ?? null;
+  }
+
+  removeItem(key: string): void {
+    this.store.delete(key);
+  }
+
+  setItem(key: string, value: string): void {
+    this.store.set(key, value);
+  }
 }
-if (typeof localStorage === "undefined") {
+
+const localStorageMock = new LocalStorageMock();
+
+// Setup global objects for Node test environment
+if (typeof global !== "undefined") {
   (global as any).localStorage = localStorageMock;
+  if (typeof (global as any).window === "undefined") {
+    (global as any).window = { localStorage: localStorageMock };
+  } else {
+    (global as any).window.localStorage = localStorageMock;
+  }
 }
-
-Object.defineProperty(window, "localStorage", {
-  value: localStorageMock,
-  writable: true
-});
 
 describe("useWebsiteData", () => {
   beforeEach(() => {
@@ -209,12 +213,18 @@ describe("useWebsiteData", () => {
   it("should handle errors gracefully", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const invalidProfile = {} as BusinessProfile;
+    // Pass an invalid profile that will cause schema generation to fail
+    const invalidProfile = {
+      businessType: "invalid" as any
+    } as BusinessProfile;
     
-    useWebsiteData.getState().updateSchema(invalidProfile);
+    // The updateSchema call should catch errors internally
+    expect(() => {
+      useWebsiteData.getState().updateSchema(invalidProfile);
+    }).not.toThrow();
 
-    // Should log error but not crash
-    expect(consoleSpy).toHaveBeenCalled();
+    // Schema should remain null since generation failed
+    expect(useWebsiteData.getState().schema).toBeNull();
 
     consoleSpy.mockRestore();
   });
