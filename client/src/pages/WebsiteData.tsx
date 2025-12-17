@@ -120,29 +120,22 @@ export function WebsiteDataPage(): JSX.Element {
       const geohashTag = profileEvent.tags.find((t: string[]) => t[0] === "g")?.[1];
       
       // Fetch menu events (kinds 30402 and 30405)
-      const menuEvents: SquareEventTemplate[] = [];
-      
       // Query for both product and collection events at once
       const allMenuEvents = await pool.querySync(relays, {
         kinds: [30402, 30405],
         authors: [pubkey]
       });
       
-      // Convert to SquareEventTemplate format
-      for (const event of allMenuEvents) {
-        menuEvents.push({
-          kind: event.kind,
-          created_at: event.created_at,
-          content: event.content,
-          tags: event.tags
-        });
-      }
+      // Deduplicate events (filter invalid format, then by d-tag, then by name)
+      const { deduplicateEvents } = await import("@/lib/nostrEventProcessing");
+      const menuEvents = deduplicateEvents(allMenuEvents, pubkey);
       
       // Generate and store schema
       updateWebsiteSchema(
         profile,
         menuEvents.length > 0 ? menuEvents : null,
-        geohashTag || null
+        geohashTag || null,
+        pubkey
       );
     } catch (error) {
       console.error("Failed to refresh website data:", error);

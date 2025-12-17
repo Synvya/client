@@ -106,7 +106,7 @@ describe("useWebsiteData", () => {
       }
     ];
 
-    useWebsiteData.getState().updateSchema(profile, menuEvents);
+    useWebsiteData.getState().updateSchema(profile, menuEvents, undefined, "pubkey123");
 
     const state = useWebsiteData.getState();
     expect(state.schema).toContain('"@type": "Menu"');

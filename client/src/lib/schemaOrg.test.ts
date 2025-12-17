@@ -278,7 +278,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events);
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
       expect(menus).toHaveLength(1);
       expect(menus[0]["@type"]).toBe("Menu");
       expect(menus[0].name).toBe("Test Restaurant Menu");
@@ -327,7 +327,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events);
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
       expect(menus).toHaveLength(1);
       expect(menus[0].name).toBe("Lunch Menu");
       expect(menus[0].hasMenuSection).toHaveLength(1);
@@ -352,7 +352,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events);
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
       expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("https://schema.org/VeganDiet");
       expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("https://schema.org/GlutenFreeDiet");
     });
@@ -372,12 +372,12 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events);
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
       expect(menus[0].hasMenuItem![0].image).toBe("https://example.com/pasta.jpg");
     });
 
     it("should handle empty menu events", () => {
-      const menus = buildMenuSchema("Test Restaurant", []);
+      const menus = buildMenuSchema("Test Restaurant", [], "pubkey123");
       expect(menus).toHaveLength(0);
     });
 
@@ -394,7 +394,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events);
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
       expect(menus[0].hasMenuItem).toHaveLength(0);
     });
 
@@ -432,7 +432,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events);
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
       expect(menus).toHaveLength(1);
       // Daily Special is uncategorized, so it should be in hasMenuItem
       // Ribeye Steak references Dinner menu but has no sections, so it should also be in hasMenuItem
@@ -476,7 +476,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events);
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
       expect(menus).toHaveLength(1);
       expect(menus[0].name).toBe("Dinner Menu");
       
@@ -549,7 +549,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const script = generateLDJsonScript(profile, menuEvents);
+      const script = generateLDJsonScript(profile, menuEvents, undefined, "pubkey123");
 
       expect(script).toContain('"@type": "Menu"');
       expect(script).toContain('"@type": "MenuItem"');

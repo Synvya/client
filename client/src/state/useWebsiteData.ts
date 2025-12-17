@@ -10,7 +10,8 @@ interface WebsiteDataState {
   updateSchema: (
     profile: BusinessProfile,
     menuEvents?: SquareEventTemplate[] | null,
-    geohash?: string | null
+    geohash?: string | null,
+    merchantPubkey?: string
   ) => void;
   clearSchema: () => void;
 }
@@ -24,9 +25,9 @@ export const useWebsiteData = create<WebsiteDataState>()(
     (set) => ({
       schema: null,
       lastUpdated: null,
-      updateSchema: (profile, menuEvents, geohash) => {
+      updateSchema: (profile, menuEvents, geohash, merchantPubkey) => {
         try {
-          const schema = generateLDJsonScript(profile, menuEvents, geohash);
+          const schema = generateLDJsonScript(profile, menuEvents, geohash, merchantPubkey);
           set({ schema, lastUpdated: new Date() });
         } catch (error) {
           console.error("Failed to generate schema:", error);

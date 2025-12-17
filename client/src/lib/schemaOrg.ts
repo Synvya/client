@@ -308,12 +308,16 @@ export function buildFoodEstablishmentSchema(
   return schema;
 }
 
+import { extractCollectionRefs } from "./nostrEventProcessing";
+
 /**
  * Builds Menu and MenuItem schemas from Square catalog events
+ * Properly handles menu/section hierarchy and item placement
  */
 export function buildMenuSchema(
   merchantName: string,
-  menuEvents: SquareEventTemplate[]
+  menuEvents: SquareEventTemplate[],
+  merchantPubkey: string
 ): SchemaOrgMenu[] {
   if (!menuEvents || menuEvents.length === 0) {
     return [];
@@ -323,42 +327,55 @@ export function buildMenuSchema(
   const productEvents = menuEvents.filter((e) => e.kind === 30402);
   const collectionEvents = menuEvents.filter((e) => e.kind === 30405);
 
+  // Step 1: Classify collections (menus vs sections)
   // Build a map of collection d-tags to collection data
-  const collectionsMap = new Map<string, { name: string; products: SchemaOrgMenuItem[] }>();
+  const collectionsMap = new Map<
+    string,
+    {
+      name: string;
+      title: string;
+      type: "menu" | "section";
+      products: SchemaOrgMenuItem[];
+    }
+  >();
 
   for (const collectionEvent of collectionEvents) {
     const dTag = collectionEvent.tags.find((t) => t[0] === "d")?.[1];
     const titleTag = collectionEvent.tags.find((t) => t[0] === "title")?.[1];
-    if (dTag && titleTag) {
-      collectionsMap.set(dTag, {
-        name: titleTag,
-        products: []
-      });
-    }
+    if (!dTag || !titleTag) continue;
+
+    // Classify as menu or section
+    const isTopLevel = titleTag.includes(" Menu") && !titleTag.includes("Menu Section");
+    const type = isTopLevel ? "menu" : "section";
+
+    collectionsMap.set(dTag, {
+      name: dTag,
+      title: titleTag,
+      type,
+      products: []
+    });
   }
 
-  // Build MenuItems and assign them to collections
+  // Step 2: Build menu items and extract product-to-collection references
   const uncategorizedItems: SchemaOrgMenuItem[] = [];
+  const productToMenuItem = new Map<SquareEventTemplate, SchemaOrgMenuItem>();
+  const productToCollectionRefs = new Map<SquareEventTemplate, string[]>();
 
   for (const productEvent of productEvents) {
     const menuItem = buildMenuItem(productEvent);
     if (!menuItem) continue;
 
-    // Find all collection references in 'a' tags
-    const collectionRefs = productEvent.tags
-      .filter((t) => t[0] === "a" && t[1]?.startsWith("30405:"))
-      .map((t) => {
-        // Extract d-tag from "30405:<pubkey>:<d-tag>"
-        const parts = t[1].split(":");
-        return parts[2];
-      })
-      .filter(Boolean);
+    productToMenuItem.set(productEvent, menuItem);
+
+    // Extract collection references using proper parsing
+    const collectionRefs = extractCollectionRefs(productEvent, merchantPubkey);
+    productToCollectionRefs.set(productEvent, collectionRefs);
 
     if (collectionRefs.length === 0) {
       // No collection reference, add to uncategorized
       uncategorizedItems.push(menuItem);
     } else {
-      // Add to each referenced collection
+      // Add item to each referenced collection
       for (const collectionDTag of collectionRefs) {
         const collection = collectionsMap.get(collectionDTag);
         if (collection) {
@@ -368,82 +385,112 @@ export function buildMenuSchema(
     }
   }
 
-  // Build Menu objects (one per top-level collection)
-  const menus: SchemaOrgMenu[] = [];
+  // Step 3: Build section-to-menu relationships
+  // A section belongs to a menu if items in that section also reference the menu
+  const sectionToMenuMap = new Map<string, string>(); // section-d-tag -> menu-d-tag
 
-  // First, identify which items belong to sections (to exclude from menu.hasMenuItem)
-  // Items in sections should ONLY appear in sections, not in menu.hasMenuItem
+  for (const [sectionDTag, sectionCollection] of collectionsMap.entries()) {
+    if (sectionCollection.type !== "section") continue;
+
+    // Get all products that reference this section
+    const productsInSection = Array.from(productToCollectionRefs.entries())
+      .filter(([, refs]) => refs.includes(sectionDTag))
+      .map(([product]) => product);
+
+    // Check if any of those products also reference a top-level menu
+    for (const product of productsInSection) {
+      const refs = productToCollectionRefs.get(product) || [];
+      for (const refDTag of refs) {
+        const refCollection = collectionsMap.get(refDTag);
+        if (refCollection && refCollection.type === "menu") {
+          // This section belongs to this menu
+          sectionToMenuMap.set(sectionDTag, refDTag);
+          break; // One menu per section is enough
+        }
+      }
+      if (sectionToMenuMap.has(sectionDTag)) break;
+    }
+  }
+
+  // Step 4: Categorize items
+  // Items in sections should only appear in sections, not directly in menus
   const itemsInSections = new Set<SchemaOrgMenuItem>();
 
-  for (const [dTag, collection] of Array.from(collectionsMap.entries())) {
-    const isSection = collection.name.includes("Menu Section");
-    if (isSection) {
-      // Mark all items in sections so they don't go in menu.hasMenuItem
+  for (const [dTag, collection] of collectionsMap.entries()) {
+    if (collection.type === "section") {
+      // Mark all items in sections
       for (const item of collection.products) {
         itemsInSections.add(item);
       }
     }
   }
 
-  for (const [dTag, collection] of Array.from(collectionsMap.entries())) {
-    // Check if this is a top-level menu (ends with "Menu") or a section
-    const isTopLevel = collection.name.includes(" Menu") && !collection.name.includes("Menu Section");
+  // Step 5: Build menu structure
+  const menus: SchemaOrgMenu[] = [];
 
-    if (isTopLevel) {
-      const menu: SchemaOrgMenu = {
-        "@type": "Menu",
-        "@id": `#${dTag.toLowerCase().replace(/\s+/g, "-")}`,
-        "name": collection.name
-      };
+  // Build top-level menus
+  for (const [menuDTag, menuCollection] of collectionsMap.entries()) {
+    if (menuCollection.type !== "menu") continue;
 
-      // Find sub-sections that belong to this menu
-      const menuSections: SchemaOrgMenuSection[] = [];
-      for (const [subDTag, subCollection] of Array.from(collectionsMap.entries())) {
-        const isSection = subCollection.name.includes("Menu Section");
-        if (isSection && subCollection.products.length > 0) {
-          menuSections.push({
-            "@type": "MenuSection",
-            "name": subCollection.name.replace(" Menu Section", ""),
-            "hasMenuItem": subCollection.products
-          });
-        }
-      }
+    const menu: SchemaOrgMenu = {
+      "@type": "Menu",
+      "name": menuCollection.title
+    };
 
-      if (menuSections.length > 0) {
-        menu.hasMenuSection = menuSections;
-      }
+    // Find sections that belong to this menu
+    const menuSections: SchemaOrgMenuSection[] = [];
+    for (const [sectionDTag, sectionCollection] of collectionsMap.entries()) {
+      if (sectionCollection.type !== "section") continue;
+      if (sectionToMenuMap.get(sectionDTag) !== menuDTag) continue;
+      if (sectionCollection.products.length === 0) continue;
 
-      // Add items directly to menu ONLY if:
-      // 1. They're uncategorized (no a tags), OR
-      // 2. They reference this top-level menu but are NOT in any section
-      const directMenuItems: SchemaOrgMenuItem[] = [];
-      
-      // Add uncategorized items to the first menu only
-      if (menus.length === 0 && uncategorizedItems.length > 0) {
-        directMenuItems.push(...uncategorizedItems);
-      }
-      
-      // Add items from this collection that aren't in sections
-      for (const item of collection.products) {
-        if (!itemsInSections.has(item)) {
-          directMenuItems.push(item);
-        }
-      }
-      
-      if (directMenuItems.length > 0) {
-        menu.hasMenuItem = directMenuItems;
-      }
+      menuSections.push({
+        "@type": "MenuSection",
+        "name": sectionCollection.title.replace(" Menu Section", ""),
+        "hasMenuItem": sectionCollection.products
+      });
+    }
 
+    if (menuSections.length > 0) {
+      menu.hasMenuSection = menuSections;
+    }
+
+    // Add items directly to menu if they:
+    // 1. Reference this menu but are NOT in any section, OR
+    // 2. Are uncategorized (only for first menu)
+    const directMenuItems: SchemaOrgMenuItem[] = [];
+
+    // Add uncategorized items to the first menu only
+    if (menus.length === 0 && uncategorizedItems.length > 0) {
+      directMenuItems.push(...uncategorizedItems);
+    }
+
+    // Add items from this collection that aren't in sections
+    for (const item of menuCollection.products) {
+      if (!itemsInSections.has(item)) {
+        directMenuItems.push(item);
+      }
+    }
+
+    if (directMenuItems.length > 0) {
+      menu.hasMenuItem = directMenuItems;
+    }
+
+    // Only add menu if it has sections or items
+    if (menuSections.length > 0 || directMenuItems.length > 0) {
       menus.push(menu);
     }
   }
 
   // If no menus were created but we have items, create a default menu
   if (menus.length === 0 && (uncategorizedItems.length > 0 || productEvents.length > 0)) {
-    const allItems = uncategorizedItems.length > 0 ? uncategorizedItems : productEvents.map(buildMenuItem).filter(Boolean) as SchemaOrgMenuItem[];
+    const allItems =
+      uncategorizedItems.length > 0
+        ? uncategorizedItems
+        : (productEvents.map(buildMenuItem).filter(Boolean) as SchemaOrgMenuItem[]);
+
     menus.push({
       "@type": "Menu",
-      "@id": "#menu",
       "name": `${merchantName} Menu`,
       "hasMenuItem": allItems
     });
@@ -512,17 +559,18 @@ function buildMenuItem(productEvent: SquareEventTemplate): SchemaOrgMenuItem | n
 export function generateLDJsonScript(
   profile: BusinessProfile,
   menuEvents?: SquareEventTemplate[] | null,
-  geohash?: string | null
+  geohash?: string | null,
+  merchantPubkey?: string
 ): string {
   // Build FoodEstablishment with all properties
   const establishment = buildFoodEstablishmentSchema(profile, geohash);
   
   // If we have menu events, add them inline (no @id references needed)
-  if (menuEvents && menuEvents.length > 0) {
-    const menus = buildMenuSchema(profile.displayName || profile.name, menuEvents);
+  if (menuEvents && menuEvents.length > 0 && merchantPubkey) {
+    const menus = buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey);
     if (menus.length > 0) {
       // Inline the menus directly - remove @id since we're not using references
-      establishment.hasMenu = menus.map(menu => {
+      establishment.hasMenu = menus.map((menu) => {
         // Remove @id property since we're inlining
         const { "@id": _, ...menuWithoutId } = menu;
         return menuWithoutId;
