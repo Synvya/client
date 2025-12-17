@@ -9,6 +9,10 @@ import { parseKind0ProfileEvent } from "@/components/BusinessProfileForm";
 import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
 import { Copy, Download, Code, RefreshCw, AlertCircle } from "lucide-react";
+import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
+import { slugify } from "@/lib/siteExport/slug";
+import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
+import { buildZipBlob, triggerBrowserDownload } from "@/lib/siteExport/zip";
 
 export function WebsiteDataPage(): JSX.Element {
   const schema = useWebsiteData((state) => state.schema);
@@ -20,6 +24,10 @@ export function WebsiteDataPage(): JSX.Element {
   const [copied, setCopied] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
   const [refreshing, setRefreshing] = useState(false);
+  const [lastProfile, setLastProfile] = useState<BusinessProfile | null>(null);
+  const [lastMenuEvents, setLastMenuEvents] = useState<SquareEventTemplate[] | null>(null);
+  const [lastGeohash, setLastGeohash] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Reset copied state after 2 seconds
   useEffect(() => {
@@ -118,6 +126,7 @@ export function WebsiteDataPage(): JSX.Element {
       
       // Extract geohash from profile event tags
       const geohashTag = profileEvent.tags.find((t: string[]) => t[0] === "g")?.[1];
+      setLastGeohash(geohashTag || null);
       
       // Fetch menu events (kinds 30402 and 30405)
       // Query for both product and collection events at once
@@ -129,6 +138,8 @@ export function WebsiteDataPage(): JSX.Element {
       // Deduplicate events (filter invalid format, then by d-tag, then by name)
       const { deduplicateEvents } = await import("@/lib/nostrEventProcessing");
       const menuEvents = deduplicateEvents(allMenuEvents, pubkey);
+      setLastMenuEvents(menuEvents.length > 0 ? menuEvents : null);
+      setLastProfile(profile);
       
       // Generate and store schema
       updateWebsiteSchema(
@@ -142,6 +153,31 @@ export function WebsiteDataPage(): JSX.Element {
       // Could show error toast here in the future
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleDownloadWebsiteZip = async () => {
+    if (!pubkey || !lastProfile) return;
+    setExporting(true);
+    try {
+      const typeSlug = mapBusinessTypeToEstablishmentSlug(lastProfile.businessType);
+      const nameSlug = slugify(lastProfile.name || lastProfile.displayName || "business");
+
+      const { files } = buildStaticSiteFiles({
+        profile: lastProfile,
+        geohash: lastGeohash,
+        menuEvents: lastMenuEvents,
+        merchantPubkey: pubkey,
+        typeSlug,
+        nameSlug,
+      });
+
+      const zipBlob = await buildZipBlob(files);
+      triggerBrowserDownload(zipBlob, `${typeSlug}-${nameSlug}-synvya-site.zip`);
+    } catch (error) {
+      console.error("Failed to export website zip:", error);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -236,6 +272,14 @@ export function WebsiteDataPage(): JSX.Element {
             {/* Code Display */}
             <div className="relative rounded-lg border bg-card shadow-sm">
               <div className="absolute right-2 top-2 flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleDownloadWebsiteZip}
+                  disabled={exporting || !lastProfile}
+                >
+                  {exporting ? "Building zip…" : "Download Website Zip"}
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
