@@ -216,11 +216,23 @@ export function WebsiteDataPage(): JSX.Element {
     <div className="container py-10">
       <div className="mx-auto max-w-4xl space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Website Data</h1>
-          <p className="mt-2 text-muted-foreground">
-            Schema.org structured data for your website. Copy and paste this into your website's &lt;head&gt; section for better SEO and rich search results.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Website</h1>
+            <p className="mt-2 text-muted-foreground">
+              Refresh pulls your latest profile + menu from Nostr, updates the schema snippet, and prepares the Synvya website files zip.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleRefresh}
+              disabled={refreshing || !pubkey || !relays.length}
+              className="shrink-0"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Refreshing..." : "Refresh"}
+            </Button>
+          </div>
         </div>
 
         {/* Explanation Card */}
@@ -230,24 +242,23 @@ export function WebsiteDataPage(): JSX.Element {
             <div className="space-y-2">
               <h2 className="text-lg font-semibold">What is this?</h2>
               <p className="text-sm text-muted-foreground">
-                This is <strong>structured data</strong> in JSON-LD format that helps search engines like Google understand your business information. It enables:
+                This page generates two outputs from your Nostr data:
               </p>
               <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                <li>Rich search results with your restaurant info, hours, and menu</li>
-                <li>Better visibility in local searches</li>
-                <li>Display of ratings, prices, and dietary options</li>
-                <li>Integration with voice assistants and AI services</li>
+                <li>
+                  <strong>Schema Data</strong>: JSON-LD you can paste into your own website’s <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code>.
+                </li>
+                <li>
+                  <strong>Synvya Website Files</strong>: a zip of static pages we can deploy under synvya.com.
+                </li>
               </ul>
-              <p className="text-sm text-muted-foreground">
-                Click "Refresh" to pull the latest data from Nostr and generate your schema.
-              </p>
             </div>
           </div>
         </div>
 
-        {/* Schema Display */}
+        {/* Outputs */}
         {schema ? (
-          <div className="space-y-4">
+          <div className="space-y-8">
             {/* Status Bar */}
             <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
               <div className="flex items-center gap-2 text-sm">
@@ -255,23 +266,91 @@ export function WebsiteDataPage(): JSX.Element {
                 <span className="font-medium">Last updated:</span>
                 <span className="text-muted-foreground">{formatLastUpdated(lastUpdated)}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleRefresh}
-                  disabled={refreshing || !pubkey || !relays.length}
-                  className="text-sm"
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                  {refreshing ? "Refreshing..." : "Refresh"}
-                </Button>
+            </div>
+
+            {/* Schema Data */}
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold">Schema Data</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Copy/paste this into your own website’s <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code>.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloadStatus === "success"}>
+                    <Download className="mr-2 h-4 w-4" />
+                    {downloadStatus === "success" ? "Downloaded!" : "Download"}
+                  </Button>
+                  <Button variant="default" size="sm" onClick={handleCopy} disabled={copied}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    {copied ? "Copied!" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-card shadow-sm">
+                <Textarea
+                  value={schema}
+                  readOnly
+                  className="min-h-[420px] resize-none rounded-lg border-0 font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
+                  style={{
+                    fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
+                  }}
+                />
+              </div>
+              <div className="rounded-lg border bg-card p-6 shadow-sm">
+                <h3 className="mb-3 font-semibold">How to use this code</h3>
+                <ol className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-foreground">1.</span>
+                    <span>Copy the code above by clicking the "Copy" button</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-foreground">2.</span>
+                    <span>
+                      Open your website's HTML file (usually{" "}
+                      <code className="rounded bg-muted px-1 py-0.5">index.html</code>)
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-foreground">3.</span>
+                    <span>
+                      Paste the code inside the{" "}
+                      <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section, before the closing{" "}
+                      <code className="rounded bg-muted px-1 py-0.5">&lt;/head&gt;</code> tag
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-foreground">4.</span>
+                    <span>Save and deploy your website</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-semibold text-foreground">5.</span>
+                    <span>
+                      Verify it's working using{" "}
+                      <a
+                        href="https://search.google.com/test/rich-results"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        Google's Rich Results Test
+                      </a>
+                    </span>
+                  </li>
+                </ol>
               </div>
             </div>
 
-            {/* Code Display */}
-            <div className="relative rounded-lg border bg-card shadow-sm">
-              <div className="absolute right-2 top-2 flex gap-2">
+            {/* Synvya Website Files */}
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold">Synvya Website Files</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Download a zip of static HTML pages (index/menu/item) with embedded schema.
+                  </p>
+                </div>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -280,60 +359,13 @@ export function WebsiteDataPage(): JSX.Element {
                 >
                   {exporting ? "Building zip…" : "Download Website Zip"}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownload}
-                  disabled={downloadStatus === "success"}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  {downloadStatus === "success" ? "Downloaded!" : "Download"}
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handleCopy}
-                  disabled={copied}
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  {copied ? "Copied!" : "Copy"}
-                </Button>
               </div>
-              <Textarea
-                value={schema}
-                readOnly
-                className="min-h-[500px] resize-none rounded-lg border-0 font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
-                style={{
-                  fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
-                }}
-              />
-            </div>
-
-            {/* Usage Instructions */}
-            <div className="rounded-lg border bg-card p-6 shadow-sm">
-              <h3 className="mb-3 font-semibold">How to use this code</h3>
-              <ol className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">1.</span>
-                  <span>Copy the code above by clicking the "Copy" button</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">2.</span>
-                  <span>Open your website's HTML file (usually <code className="rounded bg-muted px-1 py-0.5">index.html</code>)</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">3.</span>
-                  <span>Paste the code inside the <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section, before the closing <code className="rounded bg-muted px-1 py-0.5">&lt;/head&gt;</code> tag</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">4.</span>
-                  <span>Save and deploy your website</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-semibold text-foreground">5.</span>
-                  <span>Verify it's working using <a href="https://search.google.com/test/rich-results" target="_blank" rel="noopener noreferrer" className="text-primary underline-offset-4 hover:underline">Google's Rich Results Test</a></span>
-                </li>
-              </ol>
+              {lastProfile ? (
+                <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
+                  Deployment path will be based on your business type + name slug (e.g.{" "}
+                  <code className="rounded bg-muted px-1 py-0.5">restaurant/elcandado/</code>).
+                </div>
+              ) : null}
             </div>
           </div>
         ) : (
