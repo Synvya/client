@@ -220,7 +220,7 @@ export function WebsiteDataPage(): JSX.Element {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Website</h1>
             <p className="mt-2 text-muted-foreground">
-              Refresh pulls your latest profile + menu from Nostr, updates the schema snippet, and prepares the Synvya website files zip.
+              Refresh pulls your latest profile + menu published data to update the schema snippet and Synvya website files zip.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -242,7 +242,7 @@ export function WebsiteDataPage(): JSX.Element {
             <div className="space-y-2">
               <h2 className="text-lg font-semibold">What is this?</h2>
               <p className="text-sm text-muted-foreground">
-                This page generates two outputs from your Nostr data:
+                This page generates two outputs from your latest published profile and menu data:
               </p>
               <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                 <li>
