@@ -204,6 +204,14 @@ function mapDietaryToSchemaOrg(dietaryTag: string): string | null {
   return mapping[normalized] || null;
 }
 
+/**
+ * Exported helper: maps raw dietary tags (e.g. "DAIRY_FREE", "gluten-free") to schema.org Diet URLs.
+ * Kept in sync with the MenuItem schema generation used in buildMenuItem().
+ */
+export function mapDietaryTagToSchemaOrgUrl(dietaryTag: string): string | null {
+  return mapDietaryToSchemaOrg(dietaryTag);
+}
+
 // ============================================================================
 // Schema Generation Functions
 // ============================================================================

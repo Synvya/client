@@ -4,6 +4,7 @@ import { buildFoodEstablishmentSchema, buildMenuSchema } from "@/lib/schemaOrg";
 import { buildExportSiteModel, renderIndexHtml, renderMenuHtml, renderMenuItemHtml, type ExportSiteModel } from "./templates";
 import { menuSlugFromMenuName, slugify } from "./slug";
 import { naddrForAddressableEvent } from "./naddr";
+import { mapDietaryTagToSchemaOrgUrl } from "@/lib/schemaOrg";
 
 type FileMap = Record<string, string>;
 
@@ -118,10 +119,12 @@ export function buildStaticSiteFiles(params: {
       const productEvent = productByTitle.get(it.name);
       const dTag = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1] || "";
       const img = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "image")?.[1] || it.image;
+      // Build schema.org suitableForDiet URLs (match copy/paste schema generator behavior)
       const suitableForDiet = productEvent
         ? productEvent.tags
-            .filter((t) => Array.isArray(t) && t[0] === "schema.org:MenuItem:suitableForDiet")
+            .filter((t) => Array.isArray(t) && t[0] === "t")
             .map((t) => t[1])
+            .map((raw) => (typeof raw === "string" ? mapDietaryTagToSchemaOrgUrl(raw) : null))
             .filter((v): v is string => typeof v === "string" && v.length > 0)
         : [];
       const naddr = dTag ? naddrForAddressableEvent({ identifier: dTag, pubkey: merchantPubkey, kind: 30402 }) : "";
