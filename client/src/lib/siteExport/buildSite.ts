@@ -3,6 +3,7 @@ import type { SquareEventTemplate } from "@/services/square";
 import { buildFoodEstablishmentSchema, buildMenuSchema } from "@/lib/schemaOrg";
 import { buildExportSiteModel, renderIndexHtml, renderMenuHtml, renderMenuItemHtml, type ExportSiteModel } from "./templates";
 import { menuSlugFromMenuName, slugify } from "./slug";
+import { naddrForAddressableEvent } from "./naddr";
 
 type FileMap = Record<string, string>;
 
@@ -35,25 +36,25 @@ function toScopedMenuSchema(
   };
 }
 
-function toScopedItemSchema(
-  establishment: Record<string, unknown>,
-  baseUrl: string,
-  item: { name: string; slug: string; schema: unknown }
-) {
+function toMenuItemOnlySchema(params: {
+  dTag: string;
+  naddr: string;
+  url: string;
+  name: string;
+  description?: string;
+  image?: string;
+  suitableForDiet?: string[];
+}) {
   return {
     "@context": "https://schema.org",
-    ...establishment,
-    // Include the item as a single MenuItem; demo does more, but this is sufficient and scoped
-    hasMenu: {
-      "@type": "Menu",
-      name: "Menu",
-      hasMenuItem: [
-        {
-          ...(item.schema as Record<string, unknown>),
-          url: `${baseUrl}/${item.slug}`,
-        },
-      ],
-    },
+    "@type": "MenuItem",
+    "@id": params.dTag,
+    identifier: `nostr:${params.naddr}`,
+    url: params.url,
+    name: params.name,
+    description: params.description,
+    image: params.image,
+    suitableForDiet: params.suitableForDiet && params.suitableForDiet.length ? params.suitableForDiet : undefined,
   };
 }
 
@@ -76,6 +77,16 @@ export function buildStaticSiteFiles(params: {
   const basePath = model.basePath;
 
   const files: FileMap = {};
+
+  const productByTitle = new Map<string, SquareEventTemplate>();
+  if (menuEvents?.length) {
+    for (const evt of menuEvents) {
+      if (evt.kind !== 30402) continue;
+      const title = evt.tags.find((t) => Array.isArray(t) && t[0] === "title")?.[1];
+      if (!title) continue;
+      productByTitle.set(title, evt);
+    }
+  }
 
   // index.html
   const indexSchema = toScopedIndexSchema(
@@ -104,14 +115,35 @@ export function buildStaticSiteFiles(params: {
     }
 
     for (const it of bySlug.values()) {
-      const itemSchema = {
-        "@type": "MenuItem",
+      const productEvent = productByTitle.get(it.name);
+      const dTag = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1] || "";
+      const img = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "image")?.[1] || it.image;
+      const suitableForDiet = productEvent
+        ? productEvent.tags
+            .filter((t) => Array.isArray(t) && t[0] === "schema.org:MenuItem:suitableForDiet")
+            .map((t) => t[1])
+            .filter((v): v is string => typeof v === "string" && v.length > 0)
+        : [];
+      const naddr = dTag ? naddrForAddressableEvent({ identifier: dTag, pubkey: merchantPubkey, kind: 30402 }) : "";
+      const url = `${baseUrl}/${it.slug}`;
+
+      const menuItemSchema = toMenuItemOnlySchema({
+        dTag,
+        naddr,
+        url,
         name: it.name,
         description: it.description,
-        image: it.image,
-      };
-      const scopedItemSchema = toScopedItemSchema(establishment, baseUrl, { name: it.name, slug: it.slug, schema: itemSchema });
-      files[`${basePath}/${it.slug}`] = renderMenuItemHtml(model, menu.name, menuSlug, { ...it, contains: it.contains ?? [] }, scopedItemSchema);
+        image: img,
+        suitableForDiet,
+      });
+
+      files[`${basePath}/${it.slug}`] = renderMenuItemHtml(
+        model,
+        menu.name,
+        menuSlug,
+        { ...it, image: img, naddr, contains: it.contains ?? [] },
+        menuItemSchema
+      );
     }
   }
 

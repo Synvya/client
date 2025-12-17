@@ -50,6 +50,7 @@ describe("siteExport buildSite", () => {
 
     expect(files["restaurant/elcandado/index.html"]).toContain("Restaurante El Candado");
     expect(files["restaurant/elcandado/index.html"]).toContain("application/ld+json");
+    expect(files["restaurant/elcandado/index.html"]).not.toContain("Deploy under");
   });
 });
 
