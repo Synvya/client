@@ -1,5 +1,8 @@
-import type { BusinessProfile, BusinessType, OpeningHoursSpec } from "@/types/profile";
+import type { BusinessProfile, BusinessType } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
+import { nip19 } from "nostr-tools";
+import { menuSlugFromMenuName, slugify } from "@/lib/siteExport/slug";
+import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
 
 // ============================================================================
 // Schema.org Type Definitions
@@ -74,20 +77,26 @@ interface SchemaOrgMenu extends SchemaOrgThing {
   "@type": "Menu";
   "@id"?: string; // Optional - only needed when using @graph with references
   name: string;
+  description?: string;
+  url?: string;
   hasMenuItem?: SchemaOrgMenuItem[];
   hasMenuSection?: SchemaOrgMenuSection[];
 }
 
 interface SchemaOrgFoodEstablishment extends SchemaOrgThing {
   "@type": string;
+  "@id"?: string;
   name: string;
+  alternateName?: string;
   description?: string;
-  image?: string | string[];
+  image?: string;
+  logo?: string;
   address?: SchemaOrgPostalAddress;
   telephone?: string;
   email?: string;
   url?: string;
   servesCuisine?: string;
+  keywords?: string;
   priceRange?: string;
   geo?: SchemaOrgGeoCoordinates;
   openingHoursSpecification?: SchemaOrgOpeningHoursSpecification[];
@@ -221,26 +230,43 @@ export function mapDietaryTagToSchemaOrgUrl(dietaryTag: string): string | null {
  */
 export function buildFoodEstablishmentSchema(
   profile: BusinessProfile,
-  geohash?: string | null
+  geohashOrOptions?: string | null | { geohash?: string | null; pubkeyHex?: string; kind0Tags?: string[][] }
 ): SchemaOrgFoodEstablishment {
+  const geohash = typeof geohashOrOptions === "string" || geohashOrOptions == null ? geohashOrOptions : geohashOrOptions.geohash;
+  const pubkeyHex = typeof geohashOrOptions === "object" && geohashOrOptions ? geohashOrOptions.pubkeyHex : undefined;
+  const kind0Tags = typeof geohashOrOptions === "object" && geohashOrOptions ? geohashOrOptions.kind0Tags : undefined;
+
   const schema: SchemaOrgFoodEstablishment = {
     "@type": mapBusinessTypeToSchemaOrg(profile.businessType),
     "name": profile.displayName || profile.name
   };
+
+  // Identity
+  if (pubkeyHex) {
+    try {
+      const npub = nip19.npubEncode(pubkeyHex);
+      schema["@id"] = `nostr:${npub}`;
+    } catch (e) {
+      // If pubkey is invalid, skip @id
+    }
+  }
+  if (profile.name) {
+    schema.alternateName = profile.name;
+  }
 
   // Description
   if (profile.about) {
     schema.description = profile.about;
   }
 
-  // Images
-  const images: string[] = [];
-  if (profile.picture) images.push(profile.picture);
-  if (profile.banner) images.push(profile.banner);
-  if (images.length === 1) {
-    schema.image = images[0];
-  } else if (images.length > 1) {
-    schema.image = images;
+  // Images (CSV format)
+  // - image = banner
+  // - logo = picture
+  if (profile.banner) {
+    schema.image = profile.banner;
+  }
+  if (profile.picture) {
+    schema.logo = profile.picture;
   }
 
   // Address
@@ -258,10 +284,17 @@ export function buildFoodEstablishmentSchema(
 
   // Contact information
   if (profile.phone) {
-    schema.telephone = profile.phone;
+    const raw = profile.phone.trim();
+    if (raw.toLowerCase().startsWith("tel:")) {
+      schema.telephone = raw;
+    } else {
+      const sanitized = raw.replace(/[^\d+]/g, "");
+      schema.telephone = `tel:${sanitized || raw}`;
+    }
   }
   if (profile.email) {
-    schema.email = profile.email;
+    const raw = profile.email.trim();
+    schema.email = raw.toLowerCase().startsWith("mailto:") ? raw : `mailto:${raw}`;
   }
   if (profile.website) {
     schema.url = profile.website;
@@ -270,6 +303,15 @@ export function buildFoodEstablishmentSchema(
   // Cuisine
   if (profile.cuisine) {
     schema.servesCuisine = profile.cuisine;
+  }
+
+  // Keywords (CSV format): comma-separated from kind:0 `t` tags, fallback to profile categories
+  const keywordValues =
+    kind0Tags && kind0Tags.length
+      ? kind0Tags.filter((t) => Array.isArray(t) && t[0] === "t" && typeof t[1] === "string").map((t) => t[1])
+      : profile.categories ?? [];
+  if (keywordValues.length) {
+    schema.keywords = Array.from(new Set(keywordValues)).join(", ");
   }
 
   // Geo coordinates from geohash
@@ -325,7 +367,8 @@ import { extractCollectionRefs } from "./nostrEventProcessing";
 export function buildMenuSchema(
   merchantName: string,
   menuEvents: SquareEventTemplate[],
-  merchantPubkey: string
+  merchantPubkey: string,
+  baseUrl?: string
 ): SchemaOrgMenu[] {
   if (!menuEvents || menuEvents.length === 0) {
     return [];
@@ -442,8 +485,15 @@ export function buildMenuSchema(
 
     const menu: SchemaOrgMenu = {
       "@type": "Menu",
+      "@id": menuDTag,
       "name": menuCollection.title
     };
+
+    // CSV format: menu description + url
+    menu.description = `${menuCollection.title} for ${merchantName}`;
+    if (baseUrl) {
+      menu.url = `${baseUrl}/${menuSlugFromMenuName(menuCollection.title)}`;
+    }
 
     // Find sections that belong to this menu
     const menuSections: SchemaOrgMenuSection[] = [];
@@ -497,11 +547,16 @@ export function buildMenuSchema(
         ? uncategorizedItems
         : (productEvents.map(buildMenuItem).filter(Boolean) as SchemaOrgMenuItem[]);
 
-    menus.push({
+    const fallbackMenu: SchemaOrgMenu = {
       "@type": "Menu",
       "name": `${merchantName} Menu`,
       "hasMenuItem": allItems
-    });
+    };
+    fallbackMenu.description = `${merchantName} Menu`;
+    if (baseUrl) {
+      fallbackMenu.url = `${baseUrl}/${menuSlugFromMenuName(fallbackMenu.name)}`;
+    }
+    menus.push(fallbackMenu);
   }
 
   return menus;
@@ -568,21 +623,24 @@ export function generateLDJsonScript(
   profile: BusinessProfile,
   menuEvents?: SquareEventTemplate[] | null,
   geohash?: string | null,
-  merchantPubkey?: string
+  merchantPubkey?: string,
+  kind0Tags?: string[][]
 ): string {
-  // Build FoodEstablishment with all properties
-  const establishment = buildFoodEstablishmentSchema(profile, geohash);
+  // For menu URLs, prefer synvya.com base path unless profile.website is already a synvya.com URL.
+  const typeSlug = mapBusinessTypeToEstablishmentSlug(profile.businessType);
+  const nameSlug = slugify(profile.name || profile.displayName || "business");
+  const synvyaBaseUrl = `https://synvya.com/${typeSlug}/${nameSlug}`;
+  const baseUrlForMenus =
+    profile.website && profile.website.startsWith("https://synvya.com") ? profile.website : synvyaBaseUrl;
+
+  // Build FoodEstablishment with all properties (CSV format)
+  const establishment = buildFoodEstablishmentSchema(profile, { geohash, pubkeyHex: merchantPubkey, kind0Tags });
   
   // If we have menu events, add them inline (no @id references needed)
   if (menuEvents && menuEvents.length > 0 && merchantPubkey) {
-    const menus = buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey);
+    const menus = buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey, baseUrlForMenus);
     if (menus.length > 0) {
-      // Inline the menus directly - remove @id since we're not using references
-      establishment.hasMenu = menus.map((menu) => {
-        // Remove @id property since we're inlining
-        const { "@id": _, ...menuWithoutId } = menu;
-        return menuWithoutId;
-      });
+      establishment.hasMenu = menus;
     }
   }
 

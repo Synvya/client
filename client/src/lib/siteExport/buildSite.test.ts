@@ -40,6 +40,7 @@ describe("siteExport buildSite", () => {
       geohash: null,
       menuEvents,
       merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+      profileTags: [["t", "production"], ["t", "spanish"]],
       typeSlug: "restaurant",
       nameSlug: "elcandado",
     });

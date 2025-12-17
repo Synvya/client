@@ -8,35 +8,6 @@ import { mapDietaryTagToSchemaOrgUrl } from "@/lib/schemaOrg";
 
 type FileMap = Record<string, string>;
 
-function toScopedIndexSchema(establishment: Record<string, unknown>, baseUrl: string, menus: { name: string; slug: string }[]) {
-  return {
-    "@context": "https://schema.org",
-    ...establishment,
-    hasMenu: menus.map((m) => ({
-      "@type": "Menu",
-      name: m.name,
-      url: `${baseUrl}/${m.slug}`,
-    })),
-  };
-}
-
-function toScopedMenuSchema(
-  establishment: Record<string, unknown>,
-  baseUrl: string,
-  menu: { name: string; slug: string; schema: unknown }
-) {
-  return {
-    "@context": "https://schema.org",
-    ...establishment,
-    hasMenu: [
-      {
-        ...(menu.schema as Record<string, unknown>),
-        url: `${baseUrl}/${menu.slug}`,
-      },
-    ],
-  };
-}
-
 function toMenuItemOnlySchema(params: {
   dTag: string;
   naddr: string;
@@ -64,15 +35,22 @@ export function buildStaticSiteFiles(params: {
   geohash?: string | null;
   menuEvents: SquareEventTemplate[] | null;
   merchantPubkey: string;
+  profileTags?: string[][] | null;
   typeSlug: string;
   nameSlug: string;
 }): { model: ExportSiteModel; files: FileMap } {
-  const { profile, geohash, menuEvents, merchantPubkey, typeSlug, nameSlug } = params;
+  const { profile, geohash, menuEvents, merchantPubkey, profileTags, typeSlug, nameSlug } = params;
   const model = buildExportSiteModel({ profile, geohash, menuEvents, merchantPubkey, typeSlug, nameSlug });
 
-  const establishment = buildFoodEstablishmentSchema(profile, geohash ?? null) as unknown as Record<string, unknown>;
+  const establishment = buildFoodEstablishmentSchema(profile, {
+    geohash: geohash ?? null,
+    pubkeyHex: merchantPubkey,
+    kind0Tags: profileTags ?? undefined,
+  }) as unknown as Record<string, unknown>;
   const menusSchema =
-    menuEvents && menuEvents.length ? buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey) : [];
+    menuEvents && menuEvents.length
+      ? buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey, model.baseUrl)
+      : [];
 
   const baseUrl = model.baseUrl;
   const basePath = model.basePath;
@@ -90,11 +68,11 @@ export function buildStaticSiteFiles(params: {
   }
 
   // index.html
-  const indexSchema = toScopedIndexSchema(
-    establishment,
-    baseUrl,
-    model.menus.map((m) => ({ name: m.name, slug: m.slug }))
-  );
+  const indexSchema = {
+    "@context": "https://schema.org",
+    ...establishment,
+    ...(menusSchema.length ? { hasMenu: menusSchema } : {}),
+  };
   const indexModel = { ...model, jsonLdIndex: indexSchema };
   files[`${basePath}/index.html`] = renderIndexHtml(indexModel);
 
@@ -102,7 +80,16 @@ export function buildStaticSiteFiles(params: {
   for (const menu of model.menus) {
     const menuSlug = menu.slug;
     const menuSchema = menusSchema.find((m) => menuSlugFromMenuName(m.name) === menuSlugFromMenuName(menu.name));
-    const scopedMenuSchema = toScopedMenuSchema(establishment, baseUrl, { name: menu.name, slug: menuSlug, schema: menuSchema ?? { "@type": "Menu", name: menu.name } });
+    const scopedMenuSchema = {
+      "@context": "https://schema.org",
+      ...establishment,
+      hasMenu: [
+        {
+          ...((menuSchema ?? { "@type": "Menu", name: menu.name }) as Record<string, unknown>),
+          url: `${baseUrl}/${menuSlug}`,
+        },
+      ],
+    };
     files[`${basePath}/${menuSlug}`] = renderMenuHtml(model, menu, scopedMenuSchema);
 
     // Item pages for section items + direct items (dedupe by slug)

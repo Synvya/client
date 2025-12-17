@@ -29,10 +29,13 @@ describe("schemaOrg", () => {
 
       expect(schema["@type"]).toBe("Restaurant");
       expect(schema.name).toBe("Test Restaurant");
+      expect(schema.alternateName).toBe("testrestaurant");
       expect(schema.description).toBe("A great place to eat");
-      expect(schema.telephone).toBe("(206) 555-1234");
-      expect(schema.email).toBe("info@test.com");
+      expect(schema.telephone).toBe("tel:2065551234");
+      expect(schema.email).toBe("mailto:info@test.com");
       expect(schema.url).toBe("https://test.com");
+      expect(schema.image).toBe("https://example.com/banner.jpg");
+      expect(schema.logo).toBe("https://example.com/pic.jpg");
       expect(schema.address).toEqual({
         "@type": "PostalAddress",
         streetAddress: "123 Main St",
@@ -74,7 +77,7 @@ describe("schemaOrg", () => {
       }
     });
 
-    it("should include multiple images", () => {
+    it("should map banner to image and picture to logo", () => {
       const profile: BusinessProfile = {
         name: "test",
         displayName: "Test",
@@ -88,13 +91,11 @@ describe("schemaOrg", () => {
       };
 
       const schema = buildFoodEstablishmentSchema(profile);
-      expect(schema.image).toEqual([
-        "https://example.com/pic.jpg",
-        "https://example.com/banner.jpg"
-      ]);
+      expect(schema.image).toBe("https://example.com/banner.jpg");
+      expect(schema.logo).toBe("https://example.com/pic.jpg");
     });
 
-    it("should include single image when only one is provided", () => {
+    it("should omit image when banner is missing (logo still allowed)", () => {
       const profile: BusinessProfile = {
         name: "test",
         displayName: "Test",
@@ -108,7 +109,8 @@ describe("schemaOrg", () => {
       };
 
       const schema = buildFoodEstablishmentSchema(profile);
-      expect(schema.image).toBe("https://example.com/pic.jpg");
+      expect(schema.image).toBeUndefined();
+      expect(schema.logo).toBe("https://example.com/pic.jpg");
     });
 
     it("should include cuisine", () => {
@@ -278,10 +280,12 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus).toHaveLength(1);
       expect(menus[0]["@type"]).toBe("Menu");
       expect(menus[0].name).toBe("Test Restaurant Menu");
+      expect(menus[0].description).toBe("Test Restaurant Menu");
+      expect(menus[0].url).toContain("https://synvya.com/restaurant/test/");
       expect(menus[0].hasMenuItem).toHaveLength(2);
       expect(menus[0].hasMenuItem![0].name).toBe("Spaghetti Carbonara");
       expect(menus[0].hasMenuItem![0].description).toBe("Classic Italian pasta");
@@ -327,9 +331,11 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus).toHaveLength(1);
+      expect(menus[0]["@id"]).toBe("Lunch");
       expect(menus[0].name).toBe("Lunch Menu");
+      expect(menus[0].description).toBe("Lunch Menu for Test Restaurant");
       expect(menus[0].hasMenuSection).toHaveLength(1);
       expect(menus[0].hasMenuSection![0].name).toBe("Appetizers");
       expect(menus[0].hasMenuSection![0].hasMenuItem).toHaveLength(1);
@@ -352,7 +358,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("https://schema.org/VeganDiet");
       expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("https://schema.org/GlutenFreeDiet");
     });
@@ -372,12 +378,12 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus[0].hasMenuItem![0].image).toBe("https://example.com/pasta.jpg");
     });
 
     it("should handle empty menu events", () => {
-      const menus = buildMenuSchema("Test Restaurant", [], "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", [], "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus).toHaveLength(0);
     });
 
@@ -394,7 +400,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus[0].hasMenuItem).toHaveLength(0);
     });
 
@@ -432,7 +438,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus).toHaveLength(1);
       // Daily Special is uncategorized, so it should be in hasMenuItem
       // Ribeye Steak references Dinner menu but has no sections, so it should also be in hasMenuItem
@@ -476,7 +482,7 @@ describe("schemaOrg", () => {
         }
       ];
 
-      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123");
+      const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus).toHaveLength(1);
       expect(menus[0].name).toBe("Dinner Menu");
       
@@ -538,24 +544,31 @@ describe("schemaOrg", () => {
 
       const menuEvents: SquareEventTemplate[] = [
         {
+          kind: 30405,
+          created_at: Date.now(),
+          content: "",
+          tags: [["d", "Drinks"], ["title", "Drinks Menu"]],
+        },
+        {
           kind: 30402,
           created_at: Date.now(),
           content: "Coffee description",
           tags: [
             ["d", "coffee"],
             ["title", "Espresso"],
-            ["price", "399", "USD"]
+            ["price", "399", "USD"],
+            ["a", "30405:pubkey123:Drinks"]
           ]
         }
       ];
 
-      const script = generateLDJsonScript(profile, menuEvents, undefined, "pubkey123");
+      const script = generateLDJsonScript(profile, menuEvents, undefined, "pubkey123", [["t", "production"]]);
 
       expect(script).toContain('"@type": "Menu"');
       expect(script).toContain('"@type": "MenuItem"');
       expect(script).toContain('"name": "Espresso"');
       expect(script).toContain('"hasMenu"');
-      expect(script).not.toContain('"@id"'); // Menus should be inline, no @id references
+      expect(script).toContain('"@id"'); // CSV format includes Menu @id
       expect(script).not.toContain('"@graph"'); // Should be single entity, not graph
     });
 

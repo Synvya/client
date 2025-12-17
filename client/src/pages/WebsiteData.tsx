@@ -27,6 +27,7 @@ export function WebsiteDataPage(): JSX.Element {
   const [lastProfile, setLastProfile] = useState<BusinessProfile | null>(null);
   const [lastMenuEvents, setLastMenuEvents] = useState<SquareEventTemplate[] | null>(null);
   const [lastGeohash, setLastGeohash] = useState<string | null>(null);
+  const [lastProfileTags, setLastProfileTags] = useState<string[][] | null>(null);
   const [exporting, setExporting] = useState(false);
 
   // Reset copied state after 2 seconds
@@ -127,6 +128,7 @@ export function WebsiteDataPage(): JSX.Element {
       // Extract geohash from profile event tags
       const geohashTag = profileEvent.tags.find((t: string[]) => t[0] === "g")?.[1];
       setLastGeohash(geohashTag || null);
+      setLastProfileTags((profileEvent.tags as string[][]) || null);
       
       // Fetch menu events (kinds 30402 and 30405)
       // Query for both product and collection events at once
@@ -146,7 +148,8 @@ export function WebsiteDataPage(): JSX.Element {
         profile,
         menuEvents.length > 0 ? menuEvents : null,
         geohashTag || null,
-        pubkey
+        pubkey,
+        profileEvent.tags as string[][]
       );
     } catch (error) {
       console.error("Failed to refresh website data:", error);
@@ -168,6 +171,7 @@ export function WebsiteDataPage(): JSX.Element {
         geohash: lastGeohash,
         menuEvents: lastMenuEvents,
         merchantPubkey: pubkey,
+        profileTags: lastProfileTags,
         typeSlug,
         nameSlug,
       });
