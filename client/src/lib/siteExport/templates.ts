@@ -193,16 +193,33 @@ function baseHtml(title: string, schemaTag: string, body: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>${title}</title>
 <style>
-body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:900px;margin:0 auto;padding:24px;line-height:1.5}
+body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:1100px;margin:0 auto;padding:24px;line-height:1.5}
 .header{border-bottom:1px solid #eee;padding-bottom:16px;margin-bottom:16px}
 .badges{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
-.badge{display:inline-block;padding:4px 10px;border-radius:999px;background:#f3f4f6;font-size:12px}
+.badge{display:inline-block;padding:8px 14px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:14px}
 .card{border:1px solid #eee;border-radius:12px;padding:16px;margin:12px 0}
 .small{color:#6b7280;font-size:14px}
 a{color:#2563eb;text-decoration:none}
 a:hover{text-decoration:underline}
 .menuGrid{display:grid;gap:12px}
 @media(min-width:768px){.menuGrid{grid-template-columns:1fr 1fr}}
+
+/* Hero */
+.hero{position:relative;border-radius:16px;overflow:hidden;border:1px solid #eee}
+.heroImg{width:100%;height:300px;object-fit:cover;display:block;filter:saturate(1.05)}
+.heroShade{position:absolute;inset:0;background:linear-gradient(180deg, rgba(0,0,0,.25) 0%, rgba(0,0,0,.35) 55%, rgba(0,0,0,.0) 100%)}
+.heroInner{position:absolute;left:24px;right:24px;bottom:18px;display:flex;align-items:flex-end;gap:18px}
+.avatar{width:104px;height:104px;border-radius:999px;object-fit:cover;border:4px solid #fff;box-shadow:0 10px 30px rgba(0,0,0,.25);background:#fff}
+.heroTitle{margin:0;font-size:44px;line-height:1.05;color:#fff;text-shadow:0 2px 16px rgba(0,0,0,.45)}
+.heroSub{margin-top:6px;font-size:18px;color:rgba(255,255,255,.88);text-shadow:0 2px 16px rgba(0,0,0,.45)}
+.heroText{padding-bottom:8px}
+
+@media(max-width:640px){
+  .heroImg{height:220px}
+  .heroInner{left:16px;right:16px}
+  .avatar{width:84px;height:84px}
+  .heroTitle{font-size:32px}
+}
 </style>
 ${schemaTag}
 </head>
@@ -219,11 +236,19 @@ export function renderIndexHtml(model: ExportSiteModel): string {
     .join("\n");
 
   const body = `
-${model.bannerUrl ? `<div class="card" style="padding:0;overflow:hidden"><img src="${model.bannerUrl}" alt="${model.displayName} banner" style="width:100%;height:220px;object-fit:cover;display:block"/></div>` : ""}
-<div class="header">
-  ${model.logoUrl ? `<img src="${model.logoUrl}" alt="${model.displayName} logo" style="width:96px;height:96px;border-radius:16px;object-fit:cover;border:1px solid #eee" />` : ""}
-  <h1>${model.displayName}</h1>
-  <div class="small">${[model.cuisine, model.addressLines[1]].filter(Boolean).join(" • ")}</div>
+<div class="hero">
+  ${model.bannerUrl ? `<img class="heroImg" src="${model.bannerUrl}" alt="${model.displayName} banner" />` : `<div class="heroImg" style="background:#111"></div>`}
+  <div class="heroShade"></div>
+  <div class="heroInner">
+    ${model.logoUrl ? `<img class="avatar" src="${model.logoUrl}" alt="${model.displayName} logo" />` : ""}
+    <div class="heroText">
+      <h1 class="heroTitle">${model.displayName}</h1>
+      <div class="heroSub">${[model.cuisine, model.addressLines[1]].filter(Boolean).join(" • ")}</div>
+    </div>
+  </div>
+</div>
+
+<div class="header" style="margin-top:14px">
   ${
     model.categoryBadges.length
       ? `<div class="badges">${model.categoryBadges.map((c) => `<span class="badge">${c}</span>`).join("")}</div>`
