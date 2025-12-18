@@ -743,7 +743,7 @@ ${item.description || ""}`.trim();
       if (Array.isArray(item.ingredients)) {
         for (const ingredient of item.ingredients) {
           if (typeof ingredient === "string" && ingredient.trim()) {
-            tags.push(["t", `ingredients:${ingredient.trim()}`]);
+            tags.push(["t", `ingredients:${ingredient.trim().toLowerCase()}`]);
           }
         }
       }

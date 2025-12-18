@@ -697,15 +697,15 @@ describe("buildEvents - New Tag Strategy", () => {
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["t", `ingredients:${ingredient.trim()}`]);
+          tags.push(["t", `ingredients:${ingredient.trim().toLowerCase()}`]);
         }
       }
     }
 
     const ingredientTags = tags.filter((t) => t[0] === "t");
     expect(ingredientTags).toHaveLength(2);
-    expect(ingredientTags[0]).toEqual(["t", "ingredients:GLUTEN"]);
-    expect(ingredientTags[1]).toEqual(["t", "ingredients:WHEAT"]);
+    expect(ingredientTags[0]).toEqual(["t", "ingredients:gluten"]);
+    expect(ingredientTags[1]).toEqual(["t", "ingredients:wheat"]);
   });
 
   it("should map Square dietary preferences to <Word>Diet / <Word>FreeDiet", () => {
@@ -738,7 +738,7 @@ describe("buildEvents - New Tag Strategy", () => {
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["t", `ingredients:${ingredient.trim()}`]);
+          tags.push(["t", `ingredients:${ingredient.trim().toLowerCase()}`]);
         }
       }
     }
@@ -753,7 +753,7 @@ describe("buildEvents - New Tag Strategy", () => {
       }
     }
 
-    expect(tags).toContainEqual(["t", "ingredients:GLUTEN"]);
+    expect(tags).toContainEqual(["t", "ingredients:gluten"]);
     expect(tags).toContainEqual(["t", "GlutenFreeDiet"]);
   });
 
@@ -786,7 +786,7 @@ describe("buildEvents - New Tag Strategy", () => {
   it("should not add schema.org suitableForDiet tags", () => {
     const tags = [
       ["t", "HalalDiet"],
-      ["t", "ingredients:GLUTEN"]
+      ["t", "ingredients:gluten"]
     ];
     const suitableForDietTags = tags.filter((t) => t[0] === "schema.org:MenuItem:suitableForDiet");
     expect(suitableForDietTags).toHaveLength(0);
