@@ -599,7 +599,7 @@ export function MenuPage(): JSX.Element {
           {squareStatus?.connected ? (
             <>
               <Button onClick={handlePreviewSquare} disabled={previewLoading || squareLoading} variant="outline">
-                {previewLoading ? "Loading Preview…" : "Preview Publication"}
+                {previewLoading ? "Loading Preview…" : "Preview Menu"}
               </Button>
               <Button onClick={() => setPublishConfirmOpen(true)} disabled={resyncBusy || squareLoading || !previewViewed}>
                 {resyncBusy ? "Publishing…" : "Publish Menu"}
@@ -725,7 +725,7 @@ export function MenuPage(): JSX.Element {
             disabled={sheetPreviewLoading || !sheetParsed}
             variant="outline"
           >
-            {sheetPreviewLoading ? "Loading Preview…" : "Preview Publication"}
+            {sheetPreviewLoading ? "Loading Preview…" : "Preview Menu"}
           </Button>
           <Button onClick={handlePublishSpreadsheet} disabled={sheetPublishBusy || !sheetPreviewViewed}>
             {sheetPublishBusy ? "Publishing…" : "Publish Menu"}
