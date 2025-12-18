@@ -521,6 +521,20 @@ function slug(itemId, variationId) {
   return `sq-${h}`;
 }
 
+function mapSquareDietaryPreferenceToTag(squareValue) {
+  const raw = typeof squareValue === "string" ? squareValue.trim() : String(squareValue || "").trim();
+  if (!raw) return null;
+
+  const upper = raw.toUpperCase();
+  const isFree = upper.endsWith("_FREE");
+  const base = isFree ? upper.slice(0, -"_FREE".length) : upper;
+  const parts = base.split("_").filter(Boolean);
+  if (!parts.length) return null;
+
+  const word = parts.map((p) => p.slice(0, 1) + p.slice(1).toLowerCase()).join("");
+  return isFree ? `${word}FreeDiet` : `${word}Diet`;
+}
+
 function precisionWithinBounds(value) {
   if (!Number.isInteger(value)) return 9;
   return Math.min(Math.max(value, 1), 12);
@@ -697,22 +711,12 @@ ${item.description || ""}`.trim();
       
       // title: use item.name directly (no variation suffix)
       tags.push(["title", item.name]);
-      
-      // summary: from item.description
-      if (item.description) {
-        const summary =
-          item.description.length > 140 ? `${item.description.slice(0, 140)}…` : item.description;
-        tags.push(["summary", summary]);
-      }
-      
-      // type: fixed to ["simple", "physical"]
-      tags.push(["type", "simple", "physical"]);
-      
-      // image: reuse existing approach
+
+      // image: 2-element tag
       for (const imageId of item.imageIds || []) {
         const url = imgById.get(imageId);
         if (url) {
-          tags.push(["image", url, ""]);
+          tags.push(["image", url]);
         }
       }
       
@@ -735,19 +739,23 @@ ${item.description || ""}`.trim();
         ]);
       }
 
-      // contains: use contents of ingredients field
+      // t: ingredients tags (one per ingredient)
       if (Array.isArray(item.ingredients)) {
         for (const ingredient of item.ingredients) {
           if (typeof ingredient === "string" && ingredient.trim()) {
-            tags.push(["schema.org:Recipe:recipeIngredient", ingredient.trim(), "https://schema.org/recipeIngredient"]);
+            tags.push(["t", `ingredients:${ingredient.trim()}`]);
           }
         }
       }
-      // t: use contents of dietary_preferences field
+
+      // t: dietary preferences tags (transformed)
       if (Array.isArray(item.dietaryPreferences)) {
         for (const pref of item.dietaryPreferences) {
           if (typeof pref === "string" && pref.trim()) {
-            tags.push(["t", pref.trim()]);
+            const mapped = mapSquareDietaryPreferenceToTag(pref.trim());
+            if (mapped) {
+              tags.push(["t", mapped]);
+            }
           }
         }
       }
@@ -781,18 +789,7 @@ ${item.description || ""}`.trim();
           tags.push(["a", `30405:${merchantPubkey.trim()}:${categoryName}`]);
         }
       }
-
-      // suitableForDiet: use contents of dietary_preferences field
-      if (Array.isArray(item.dietaryPreferences)) {
-        for (const pref of item.dietaryPreferences) {
-          if (typeof pref === "string" && pref.trim()) {
-            tags.push(["schema.org:MenuItem:suitableForDiet", pref.trim(), "https://schema.org/suitableForDiet"]);
-          }
-        }
-      }
-
       const createdAt = Math.floor(Date.now() / 1000);
-      tags.push(["published_at", String(createdAt)]);
 
       if (process.env.DEBUG_SQUARE_SYNC === "true") {
         console.debug(

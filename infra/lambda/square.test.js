@@ -689,15 +689,7 @@ describe("buildEvents - New Tag Strategy", () => {
     expect(title).toBe("Bocadillo de Jamón");
   });
 
-  it("should add type tag with simple and physical", () => {
-    const tags = [];
-    tags.push(["type", "simple", "physical"]);
-
-    const typeTag = tags.find((t) => t[0] === "type");
-    expect(typeTag).toEqual(["type", "simple", "physical"]);
-  });
-
-  it("should add contains tags from ingredients array", () => {
+  it("should add t tags for ingredients with ingredients: prefix", () => {
     const item = {
       ingredients: ["GLUTEN", "WHEAT"]
     };
@@ -705,37 +697,39 @@ describe("buildEvents - New Tag Strategy", () => {
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["schema.org:Recipe:recipeIngredient", ingredient.trim(), "https://schema.org/recipeIngredient"]);
+          tags.push(["t", `ingredients:${ingredient.trim()}`]);
         }
       }
     }
 
-    const containsTags = tags.filter((t) => t[0] === "schema.org:Recipe:recipeIngredient");
-    expect(containsTags).toHaveLength(2);
-    expect(containsTags[0]).toEqual(["schema.org:Recipe:recipeIngredient", "GLUTEN", "https://schema.org/recipeIngredient"]);
-    expect(containsTags[1]).toEqual(["schema.org:Recipe:recipeIngredient", "WHEAT", "https://schema.org/recipeIngredient"]);
+    const ingredientTags = tags.filter((t) => t[0] === "t");
+    expect(ingredientTags).toHaveLength(2);
+    expect(ingredientTags[0]).toEqual(["t", "ingredients:GLUTEN"]);
+    expect(ingredientTags[1]).toEqual(["t", "ingredients:WHEAT"]);
   });
 
-  it("should add t tags from dietary_preferences array", () => {
-    const item = {
-      dietaryPreferences: ["GLUTEN_FREE", "DAIRY_FREE"]
-    };
-    const tags = [];
-    if (Array.isArray(item.dietaryPreferences)) {
-      for (const pref of item.dietaryPreferences) {
-        if (typeof pref === "string" && pref.trim()) {
-          tags.push(["t", pref.trim()]);
-        }
-      }
+  it("should map Square dietary preferences to <Word>Diet / <Word>FreeDiet", () => {
+    function mapSquareDietaryPreferenceToTag(squareValue) {
+      const raw = typeof squareValue === "string" ? squareValue.trim() : String(squareValue || "").trim();
+      if (!raw) return null;
+
+      const upper = raw.toUpperCase();
+      const isFree = upper.endsWith("_FREE");
+      const base = isFree ? upper.slice(0, -"_FREE".length) : upper;
+      const parts = base.split("_").filter(Boolean);
+      if (!parts.length) return null;
+
+      const word = parts.map((p) => p.slice(0, 1) + p.slice(1).toLowerCase()).join("");
+      return isFree ? `${word}FreeDiet` : `${word}Diet`;
     }
 
-    const tTags = tags.filter((t) => t[0] === "t");
-    expect(tTags).toHaveLength(2);
-    expect(tTags[0]).toEqual(["t", "GLUTEN_FREE"]);
-    expect(tTags[1]).toEqual(["t", "DAIRY_FREE"]);
+    expect(mapSquareDietaryPreferenceToTag("HALAL")).toBe("HalalDiet");
+    expect(mapSquareDietaryPreferenceToTag("NUT_FREE")).toBe("NutFreeDiet");
+    expect(mapSquareDietaryPreferenceToTag("GLUTEN_FREE")).toBe("GlutenFreeDiet");
+    expect(mapSquareDietaryPreferenceToTag("")).toBe(null);
   });
 
-  it("should add contains tags from ingredients and t tags from dietary_preferences", () => {
+  it("should add ingredient and mapped dietary t tags", () => {
     const item = {
       ingredients: ["GLUTEN"],
       dietaryPreferences: ["GLUTEN_FREE"]
@@ -744,85 +738,73 @@ describe("buildEvents - New Tag Strategy", () => {
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["schema.org:Recipe:recipeIngredient", ingredient.trim(), "https://schema.org/recipeIngredient"]);
+          tags.push(["t", `ingredients:${ingredient.trim()}`]);
         }
       }
     }
     if (Array.isArray(item.dietaryPreferences)) {
       for (const pref of item.dietaryPreferences) {
         if (typeof pref === "string" && pref.trim()) {
-          tags.push(["t", pref.trim()]);
+          const mapped = pref.trim().toUpperCase().endsWith("_FREE")
+            ? `${pref.trim().slice(0, -"_FREE".length).split("_").filter(Boolean).map((p) => p.slice(0, 1) + p.slice(1).toLowerCase()).join("")}FreeDiet`
+            : `${pref.trim().split("_").filter(Boolean).map((p) => p.slice(0, 1) + p.slice(1).toLowerCase()).join("")}Diet`;
+          tags.push(["t", mapped]);
         }
       }
     }
 
-    const containsTags = tags.filter((t) => t[0] === "schema.org:Recipe:recipeIngredient");
-    const tTags = tags.filter((t) => t[0] === "t");
-    expect(containsTags).toHaveLength(1);
-    expect(containsTags).toContainEqual(["schema.org:Recipe:recipeIngredient", "GLUTEN", "https://schema.org/recipeIngredient"]);
-    expect(tTags).toHaveLength(1);
-    expect(tTags).toContainEqual(["t", "GLUTEN_FREE"]);
+    expect(tags).toContainEqual(["t", "ingredients:GLUTEN"]);
+    expect(tags).toContainEqual(["t", "GlutenFreeDiet"]);
   });
 
-  it("should add a tag for each category the item belongs to", () => {
+  it("should add a tag for each category the item belongs to in 30405:<pubkey>:<d-tag> format", () => {
     const item = {
       categoryIds: ["cat1", "cat2"]
     };
     const catById = new Map([
-      ["cat1", "Lunch"],
-      ["cat2", "Dinner"]
+      ["cat1", { name: "Lunch", category_type: "MENU_CATEGORY" }],
+      ["cat2", { name: "Dinner", category_type: "MENU_CATEGORY" }]
     ]);
     const merchantPubkey = "abc123";
     const tags = [];
 
     if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
       for (const categoryId of item.categoryIds || []) {
-        const categoryName = catById.get(categoryId);
-        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
-          tags.push(["a", "30405", merchantPubkey.trim(), categoryName.trim()]);
+        const category = catById.get(categoryId);
+        if (category && category.category_type === "MENU_CATEGORY" && category.name) {
+          tags.push(["a", `30405:${merchantPubkey.trim()}:${category.name.trim()}`]);
         }
       }
     }
 
     const aTags = tags.filter((t) => t[0] === "a");
     expect(aTags).toHaveLength(2);
-    expect(aTags[0]).toEqual(["a", "30405", merchantPubkey, "Lunch"]);
-    expect(aTags[1]).toEqual(["a", "30405", merchantPubkey, "Dinner"]);
+    expect(aTags[0]).toEqual(["a", "30405:abc123:Lunch"]);
+    expect(aTags[1]).toEqual(["a", "30405:abc123:Dinner"]);
   });
 
-  it("should add suitableForDiet tags from dietary_preferences", () => {
-    const item = {
-      dietaryPreferences: ["GLUTEN_FREE", "DAIRY_FREE", "NUT_FREE"]
-    };
-    const tags = [];
-    if (Array.isArray(item.dietaryPreferences)) {
-      for (const pref of item.dietaryPreferences) {
-        if (typeof pref === "string" && pref.trim()) {
-          tags.push(["schema.org:MenuItem:suitableForDiet", pref.trim(), "https://schema.org/suitableForDiet"]);
-        }
-      }
-    }
-
+  it("should not add schema.org suitableForDiet tags", () => {
+    const tags = [
+      ["t", "HalalDiet"],
+      ["t", "ingredients:GLUTEN"]
+    ];
     const suitableForDietTags = tags.filter((t) => t[0] === "schema.org:MenuItem:suitableForDiet");
-    expect(suitableForDietTags).toHaveLength(3);
-    expect(suitableForDietTags[0]).toEqual(["schema.org:MenuItem:suitableForDiet", "GLUTEN_FREE", "https://schema.org/suitableForDiet"]);
-    expect(suitableForDietTags[1]).toEqual(["schema.org:MenuItem:suitableForDiet", "DAIRY_FREE", "https://schema.org/suitableForDiet"]);
-    expect(suitableForDietTags[2]).toEqual(["schema.org:MenuItem:suitableForDiet", "NUT_FREE", "https://schema.org/suitableForDiet"]);
+    expect(suitableForDietTags).toHaveLength(0);
   });
 
   it("should not add a tags when merchantPubkey is missing", () => {
     const item = {
       categoryIds: ["cat1"]
     };
-    const catById = new Map([["cat1", "Lunch"]]);
+    const catById = new Map([["cat1", { name: "Lunch", category_type: "MENU_CATEGORY" }]]);
     const merchantPubkey = null;
     const tags = [];
 
     if (merchantPubkey && typeof merchantPubkey === "string" && merchantPubkey.trim()) {
       for (const categoryId of item.categoryIds || []) {
-        const categoryName = catById.get(categoryId);
-        if (categoryName && typeof categoryName === "string" && categoryName.trim()) {
-          tags.push(["a", "30405", merchantPubkey.trim(), categoryName.trim()]);
+        const category = catById.get(categoryId);
+        if (category && category.category_type === "MENU_CATEGORY" && category.name) {
+          tags.push(["a", `30405:${merchantPubkey.trim()}:${category.name.trim()}`]);
         }
       }
     }
@@ -852,23 +834,20 @@ ${item.description || ""}`.trim();
     if (Array.isArray(item.ingredients)) {
       for (const ingredient of item.ingredients) {
         if (typeof ingredient === "string" && ingredient.trim()) {
-          tags.push(["schema.org:Recipe:recipeIngredient", ingredient.trim(), "https://schema.org/recipeIngredient"]);
+          tags.push(["t", `ingredients:${ingredient.trim()}`]);
         }
       }
     }
     if (Array.isArray(item.dietaryPreferences)) {
       for (const pref of item.dietaryPreferences) {
         if (typeof pref === "string" && pref.trim()) {
-          tags.push(["t", pref.trim()]);
-          tags.push(["schema.org:MenuItem:suitableForDiet", pref.trim(), "https://schema.org/suitableForDiet"]);
+          // mapped dietary tags would go here, but preferences array is empty in this test
         }
       }
     }
 
     const tTags = tags.filter((t) => t[0] === "t");
-    const suitableForDietTags = tags.filter((t) => t[0] === "schema.org:MenuItem:suitableForDiet");
     expect(tTags).toHaveLength(0);
-    expect(suitableForDietTags).toHaveLength(0);
   });
 });
 
