@@ -52,6 +52,38 @@ function extractAllTags(tags: string[][], key: string): string[] {
   return tags.filter((t) => t[0] === key && typeof t[1] === "string").map((t) => t[1]);
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// Minimal markdown rendering for exported static pages.
+// Supports:
+// - **bold**
+// - paragraphs separated by blank lines
+// - single newlines -> <br/>
+function markdownToHtml(markdown: string): string {
+  const src = (markdown || "").trim();
+  if (!src) return "";
+
+  // Escape HTML first, then render markdown tokens.
+  const escaped = escapeHtml(src);
+
+  // Bold: **text**
+  const withBold = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+
+  // Paragraphs: split on blank lines
+  const paragraphs = withBold.split(/\n{2,}/g);
+  return paragraphs
+    .map((p) => p.replace(/\n/g, "<br/>"))
+    .map((p) => `<p style="margin:0 0 10px 0">${p}</p>`)
+    .join("");
+}
+
 function buildMenuItemLink(
   itemEvent: SquareEventTemplate,
   merchantPubkey: string,
@@ -63,7 +95,7 @@ function buildMenuItemLink(
   if (!title) return null;
 
   const slug = `${slugify(title)}.html`;
-  const description = extractTag(itemEvent.tags, "summary");
+  const description = itemEvent.content || "";
   const image = extractTag(itemEvent.tags, "image");
 
   const dietaryBadges = extractAllTags(itemEvent.tags, "t").map((t) =>
@@ -73,9 +105,9 @@ function buildMenuItemLink(
       .replace(/\b\w/g, (c) => c.toUpperCase())
   );
 
-  const contains = itemEvent.tags
-    .filter((t) => t[0] === "schema.org:Recipe:recipeIngredient")
-    .map((t) => t[1])
+  const contains = extractAllTags(itemEvent.tags, "t")
+    .filter((t) => t.toLowerCase().startsWith("ingredients:"))
+    .map((t) => t.slice("ingredients:".length).trim())
     .filter(Boolean);
 
   const priceTag = itemEvent.tags.find((t) => t[0] === "price");
@@ -289,7 +321,7 @@ export function renderMenuHtml(model: ExportSiteModel, menu: MenuLink, menuSchem
               ${it.image ? `<img src="${it.image}" alt="${it.name}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid #eee;flex:0 0 auto" />` : ""}
               <div style="min-width:0">
                 <a href="./${it.slug}"><strong>${it.name}</strong></a>
-                <div class="small">${it.description || ""}</div>
+                <div class="small">${markdownToHtml(it.description || "")}</div>
               </div>
             </div>`
         )
@@ -306,7 +338,7 @@ export function renderMenuHtml(model: ExportSiteModel, menu: MenuLink, menuSchem
               ${it.image ? `<img src="${it.image}" alt="${it.name}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid #eee;flex:0 0 auto" />` : ""}
               <div style="min-width:0">
                 <a href="./${it.slug}"><strong>${it.name}</strong></a>
-                <div class="small">${it.description || ""}</div>
+                <div class="small">${markdownToHtml(it.description || "")}</div>
               </div>
             </div>`
         )
@@ -340,7 +372,7 @@ export function renderMenuItemHtml(model: ExportSiteModel, menuName: string, men
 <div class="header">
   <h1>${item.name}</h1>
   ${item.image ? `<div class="card" style="padding:0;overflow:hidden"><img src="${item.image}" alt="${item.name}" style="width:100%;max-height:360px;object-fit:contain;background:#fff;display:block"/></div>` : ""}
-  <div class="small">${item.description || ""}</div>
+  <div class="small">${markdownToHtml(item.description || "")}</div>
   ${badges}
   ${contains}
 </div>
