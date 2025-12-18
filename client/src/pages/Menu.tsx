@@ -22,7 +22,6 @@ import { buildDeletionEventByAddress } from "@/lib/handlerEvents";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import sampleSpreadsheetUrl from "@/assets/Sample Menu Importer.xlsx?url";
 import { buildSpreadsheetPreviewEvents, parseMenuSpreadsheetXlsx } from "@/lib/spreadsheet/menuSpreadsheet";
-import { buildDeletionEvent } from "@/lib/handlerEvents";
 
 export function MenuPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
@@ -51,6 +50,8 @@ export function MenuPage(): JSX.Element {
   const [previewDeletionCount, setPreviewDeletionCount] = useState(0);
   const [unpublishBusy, setUnpublishBusy] = useState(false);
 
+  const [activeSource, setActiveSource] = useState<"square" | "spreadsheet" | null>(null);
+
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [sheetNotice, setSheetNotice] = useState<string | null>(null);
   const [sheetFileName, setSheetFileName] = useState<string | null>(null);
@@ -59,15 +60,13 @@ export function MenuPage(): JSX.Element {
   const [sheetPreviewEvents, setSheetPreviewEvents] = useState<SquareEventTemplate[] | null>(null);
   const [sheetPreviewLoading, setSheetPreviewLoading] = useState(false);
   const [sheetPublishBusy, setSheetPublishBusy] = useState(false);
-  const [sheetUnpublishBusy, setSheetUnpublishBusy] = useState(false);
-
-  const spreadsheetStorageKey = pubkey ? `synvya:menu:spreadsheet:publishedIds:${pubkey}` : null;
 
   useEffect(() => {
     if (!pubkey) {
       setSquareStatus(null);
       setPreviewViewed(false);
       setPreviewEvents(null);
+      setActiveSource(null);
       return;
     }
     setSquareLoading(true);
@@ -79,6 +78,9 @@ export function MenuPage(): JSX.Element {
           setSquareNotice(null);
           setPreviewViewed(false);
           setPreviewEvents(null);
+          if (activeSource === "square") {
+            setActiveSource(null);
+          }
         }
         if (status.profileLocation) {
           setCachedProfileLocation(status.profileLocation);
@@ -90,11 +92,14 @@ export function MenuPage(): JSX.Element {
         setSquareStatus(null);
         setPreviewViewed(false);
         setPreviewEvents(null);
+        if (activeSource === "square") {
+          setActiveSource(null);
+        }
       })
       .finally(() => {
         setSquareLoading(false);
       });
-  }, [pubkey, statusVersion, setCachedProfileLocation]);
+  }, [pubkey, statusVersion, setCachedProfileLocation, activeSource]);
 
   useEffect(() => {
     if (!pubkey || cachedProfileLocation) {
@@ -196,6 +201,7 @@ export function MenuPage(): JSX.Element {
       setPreviewDeletionCount(result.deletionCount || 0);
       setPreviewOpen(true);
       setPreviewViewed(true);
+      setActiveSource("square");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to preview catalog.";
       setSquareError(message);
@@ -245,6 +251,7 @@ export function MenuPage(): JSX.Element {
       setPreviewOpen(true);
       setSheetPreviewViewed(true);
       setPreviewViewed(true);
+      setActiveSource("spreadsheet");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to build preview events from spreadsheet.";
       setSheetError(message);
@@ -275,50 +282,19 @@ export function MenuPage(): JSX.Element {
         await publishToRelays(signed, relays);
         publishedIds.push(signed.id);
       }
-      if (spreadsheetStorageKey) {
-        localStorage.setItem(spreadsheetStorageKey, JSON.stringify(publishedIds));
-      }
       setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} from spreadsheet.`);
       setSheetPreviewViewed(false);
       setPreviewViewed(false);
       setSheetPreviewEvents(null);
       setPreviewEvents(null);
+      if (activeSource === "spreadsheet") {
+        setActiveSource(null);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish spreadsheet menu.";
       setSheetError(message);
     } finally {
       setSheetPublishBusy(false);
-    }
-  };
-
-  const handleUnpublishSpreadsheet = async () => {
-    if (!pubkey) return;
-    setSheetError(null);
-    setSheetNotice(null);
-    setSheetUnpublishBusy(true);
-    try {
-      if (!spreadsheetStorageKey) {
-        setSheetError("Missing storage key.");
-        return;
-      }
-      const raw = localStorage.getItem(spreadsheetStorageKey);
-      const ids = raw ? (JSON.parse(raw) as string[]) : [];
-      const eventIds = Array.isArray(ids) ? ids.filter((v) => typeof v === "string" && v.trim()) : [];
-      if (eventIds.length === 0) {
-        setSheetNotice("No spreadsheet-published event IDs found to unpublish (nothing recorded locally).");
-        return;
-      }
-      const deletionEvent = buildDeletionEvent(eventIds, [30402, 30405]);
-      const signed = await signEvent(deletionEvent);
-      validateEvent(signed);
-      await publishToRelays(signed, relays);
-      localStorage.removeItem(spreadsheetStorageKey);
-      setSheetNotice(`Unpublished ${eventIds.length} event${eventIds.length === 1 ? "" : "s"} from spreadsheet.`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to unpublish spreadsheet menu.";
-      setSheetError(message);
-    } finally {
-      setSheetUnpublishBusy(false);
     }
   };
 
@@ -357,16 +333,11 @@ export function MenuPage(): JSX.Element {
       validateEvent(signed);
       await publishToRelays(signed, relays);
 
-      try {
-        await clearSquareCache(pubkey);
-      } catch (error) {
-        console.warn("Failed to clear Square cache:", error);
-      }
-
       setSquareNotice(`Unpublished ${addresses.length} menu event${addresses.length === 1 ? "" : "s"}.`);
       setStatusVersion((value) => value + 1);
       setPreviewViewed(false);
       setPreviewEvents(null);
+      setActiveSource(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to unpublish menu.";
       setSquareError(message);
@@ -601,12 +572,6 @@ export function MenuPage(): JSX.Element {
               <Button onClick={handlePreviewSquare} disabled={previewLoading || squareLoading} variant="outline">
                 {previewLoading ? "Loading Preview…" : "Preview Menu"}
               </Button>
-              <Button onClick={() => setPublishConfirmOpen(true)} disabled={resyncBusy || squareLoading || !previewViewed}>
-                {resyncBusy ? "Publishing…" : "Publish Menu"}
-              </Button>
-              <Button onClick={handleUnpublishMenu} disabled={unpublishBusy || squareLoading} variant="destructive">
-                {unpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
-              </Button>
               <Button variant="ghost" onClick={handleConnectSquare} disabled={connectBusy}>
                 {connectBusy ? "Opening Square…" : "Reconnect Square"}
               </Button>
@@ -666,7 +631,14 @@ export function MenuPage(): JSX.Element {
               <Button
                 onClick={async () => {
                   setPublishConfirmOpen(false);
-                  await handleResyncSquare();
+                  if (activeSource === "square") {
+                    await handleResyncSquare();
+                    return;
+                  }
+                  if (activeSource === "spreadsheet") {
+                    await handlePublishSpreadsheet();
+                    return;
+                  }
                 }}
                 disabled={resyncBusy}
               >
@@ -727,17 +699,37 @@ export function MenuPage(): JSX.Element {
           >
             {sheetPreviewLoading ? "Loading Preview…" : "Preview Menu"}
           </Button>
-          <Button onClick={handlePublishSpreadsheet} disabled={sheetPublishBusy || !sheetPreviewViewed}>
-            {sheetPublishBusy ? "Publishing…" : "Publish Menu"}
-          </Button>
-          <Button onClick={handleUnpublishSpreadsheet} disabled={sheetUnpublishBusy} variant="destructive">
-            {sheetUnpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
-          </Button>
         </div>
 
         {!sheetPreviewViewed && (
           <p className="text-sm text-muted-foreground">Please preview your publication before publishing.</p>
         )}
+      </section>
+
+      <section className="space-y-3 rounded-lg border bg-card p-6">
+        <header>
+          <h2 className="text-lg font-semibold">Menu Actions</h2>
+          <p className="text-sm text-muted-foreground">
+            Preview a menu first (Square or Spreadsheet), then publish. Unpublish removes all published menu events (30402/30405).
+          </p>
+          {activeSource ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Active preview source: <span className="font-medium text-foreground">{activeSource === "square" ? "Square" : "Spreadsheet"}</span>
+            </p>
+          ) : null}
+        </header>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            onClick={() => setPublishConfirmOpen(true)}
+            disabled={!previewViewed || !activeSource || (activeSource === "spreadsheet" ? sheetPublishBusy : resyncBusy)}
+          >
+            {activeSource === "spreadsheet" ? (sheetPublishBusy ? "Publishing…" : "Publish Menu") : resyncBusy ? "Publishing…" : "Publish Menu"}
+          </Button>
+          <Button onClick={handleUnpublishMenu} disabled={unpublishBusy} variant="destructive">
+            {unpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
+          </Button>
+        </div>
       </section>
     </div>
   );
