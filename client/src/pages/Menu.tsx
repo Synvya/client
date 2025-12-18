@@ -20,6 +20,9 @@ import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { buildDeletionEventByAddress } from "@/lib/handlerEvents";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import sampleSpreadsheetUrl from "@/assets/Sample Menu Importer.xlsx?url";
+import { buildSpreadsheetPreviewEvents, parseMenuSpreadsheetXlsx } from "@/lib/spreadsheet/menuSpreadsheet";
+import { buildDeletionEvent } from "@/lib/handlerEvents";
 
 export function MenuPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
@@ -47,6 +50,20 @@ export function MenuPage(): JSX.Element {
   const [previewTotalEvents, setPreviewTotalEvents] = useState(0);
   const [previewDeletionCount, setPreviewDeletionCount] = useState(0);
   const [unpublishBusy, setUnpublishBusy] = useState(false);
+
+  const [menuSource, setMenuSource] = useState<"square" | "spreadsheet">("square");
+
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [sheetNotice, setSheetNotice] = useState<string | null>(null);
+  const [sheetFileName, setSheetFileName] = useState<string | null>(null);
+  const [sheetParsed, setSheetParsed] = useState<{ menus: any[]; items: any[] } | null>(null);
+  const [sheetPreviewViewed, setSheetPreviewViewed] = useState(false);
+  const [sheetPreviewEvents, setSheetPreviewEvents] = useState<SquareEventTemplate[] | null>(null);
+  const [sheetPreviewLoading, setSheetPreviewLoading] = useState(false);
+  const [sheetPublishBusy, setSheetPublishBusy] = useState(false);
+  const [sheetUnpublishBusy, setSheetUnpublishBusy] = useState(false);
+
+  const spreadsheetStorageKey = pubkey ? `synvya:menu:spreadsheet:publishedIds:${pubkey}` : null;
 
   useEffect(() => {
     if (!pubkey) {
@@ -186,6 +203,124 @@ export function MenuPage(): JSX.Element {
       setSquareError(message);
     } finally {
       setPreviewLoading(false);
+    }
+  };
+
+  const handleSpreadsheetUpload = async (file: File) => {
+    if (!pubkey) return;
+    setSheetError(null);
+    setSheetNotice(null);
+    setSheetPreviewViewed(false);
+    setSheetPreviewEvents(null);
+    setSheetFileName(file.name);
+    try {
+      const parsed = await parseMenuSpreadsheetXlsx(file);
+      setSheetParsed(parsed);
+      setSheetNotice(`Loaded spreadsheet: ${file.name}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to parse spreadsheet.";
+      setSheetError(message);
+      setSheetParsed(null);
+    }
+  };
+
+  const handlePreviewSpreadsheet = async () => {
+    if (!pubkey) return;
+    if (!sheetParsed) {
+      setSheetError("Please upload a spreadsheet first.");
+      return;
+    }
+    setSheetError(null);
+    setSheetNotice(null);
+    setSheetPreviewLoading(true);
+    try {
+      const events = buildSpreadsheetPreviewEvents({
+        merchantPubkey: pubkey,
+        menus: sheetParsed.menus,
+        items: sheetParsed.items,
+      });
+      setSheetPreviewEvents(events);
+      setPreviewEvents(events);
+      setPreviewPendingCount(events.length);
+      setPreviewTotalEvents(events.length);
+      setPreviewDeletionCount(0);
+      setPreviewOpen(true);
+      setSheetPreviewViewed(true);
+      setPreviewViewed(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to build preview events from spreadsheet.";
+      setSheetError(message);
+    } finally {
+      setSheetPreviewLoading(false);
+    }
+  };
+
+  const handlePublishSpreadsheet = async () => {
+    if (!pubkey) return;
+    if (!sheetPreviewEvents || sheetPreviewEvents.length === 0) {
+      setSheetError("No preview events. Please preview before publishing.");
+      return;
+    }
+    setSheetError(null);
+    setSheetNotice(null);
+    setSheetPublishBusy(true);
+    try {
+      const publishedIds: string[] = [];
+      // Publish products first, then collections (safer for references)
+      const ordered = [
+        ...sheetPreviewEvents.filter((e) => e.kind === 30402),
+        ...sheetPreviewEvents.filter((e) => e.kind === 30405),
+      ];
+      for (const template of ordered) {
+        const signed = await signEvent(template as any);
+        validateEvent(signed);
+        await publishToRelays(signed, relays);
+        publishedIds.push(signed.id);
+      }
+      if (spreadsheetStorageKey) {
+        localStorage.setItem(spreadsheetStorageKey, JSON.stringify(publishedIds));
+      }
+      setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} from spreadsheet.`);
+      setSheetPreviewViewed(false);
+      setPreviewViewed(false);
+      setSheetPreviewEvents(null);
+      setPreviewEvents(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to publish spreadsheet menu.";
+      setSheetError(message);
+    } finally {
+      setSheetPublishBusy(false);
+    }
+  };
+
+  const handleUnpublishSpreadsheet = async () => {
+    if (!pubkey) return;
+    setSheetError(null);
+    setSheetNotice(null);
+    setSheetUnpublishBusy(true);
+    try {
+      if (!spreadsheetStorageKey) {
+        setSheetError("Missing storage key.");
+        return;
+      }
+      const raw = localStorage.getItem(spreadsheetStorageKey);
+      const ids = raw ? (JSON.parse(raw) as string[]) : [];
+      const eventIds = Array.isArray(ids) ? ids.filter((v) => typeof v === "string" && v.trim()) : [];
+      if (eventIds.length === 0) {
+        setSheetNotice("No spreadsheet-published event IDs found to unpublish (nothing recorded locally).");
+        return;
+      }
+      const deletionEvent = buildDeletionEvent(eventIds, [30402, 30405]);
+      const signed = await signEvent(deletionEvent);
+      validateEvent(signed);
+      await publishToRelays(signed, relays);
+      localStorage.removeItem(spreadsheetStorageKey);
+      setSheetNotice(`Unpublished ${eventIds.length} event${eventIds.length === 1 ? "" : "s"} from spreadsheet.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to unpublish spreadsheet menu.";
+      setSheetError(message);
+    } finally {
+      setSheetUnpublishBusy(false);
     }
   };
 
@@ -357,6 +492,29 @@ export function MenuPage(): JSX.Element {
 
   return (
     <div className="container space-y-8 py-10">
+      <section className="space-y-4 rounded-lg border bg-card p-6">
+        <header className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Menu Source</h2>
+            <p className="text-sm text-muted-foreground">Choose how you import menu data before preview/publish.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant={menuSource === "square" ? "default" : "outline"}
+              onClick={() => setMenuSource("square")}
+            >
+              Square
+            </Button>
+            <Button
+              variant={menuSource === "spreadsheet" ? "default" : "outline"}
+              onClick={() => setMenuSource("spreadsheet")}
+            >
+              Spreadsheet
+            </Button>
+          </div>
+        </header>
+      </section>
+
       <section className="space-y-4 rounded-lg border bg-card p-6">
         <header className="flex items-center gap-3">
           <Store className="h-5 w-5 text-muted-foreground" />
@@ -543,6 +701,71 @@ export function MenuPage(): JSX.Element {
           </DialogContent>
         </Dialog>
       </section>
+
+      {menuSource === "spreadsheet" ? (
+        <section className="space-y-4 rounded-lg border bg-card p-6">
+          <header className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Spreadsheet Import</h2>
+              <p className="text-sm text-muted-foreground">
+                Upload an XLSX file to generate menu events (30402/30405) using the template.
+              </p>
+            </div>
+            <a
+              href={sampleSpreadsheetUrl}
+              download
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Download template
+            </a>
+          </header>
+
+          {sheetError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {sheetError}
+            </div>
+          ) : null}
+
+          {sheetNotice ? (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
+              {sheetNotice}
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium">Upload XLSX</label>
+            <input
+              type="file"
+              accept=".xlsx"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleSpreadsheetUpload(f);
+              }}
+            />
+            {sheetFileName ? <div className="text-xs text-muted-foreground">Loaded: {sheetFileName}</div> : null}
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button
+              onClick={handlePreviewSpreadsheet}
+              disabled={sheetPreviewLoading || !sheetParsed}
+              variant="outline"
+            >
+              {sheetPreviewLoading ? "Loading Preview…" : "Preview Publication"}
+            </Button>
+            <Button onClick={handlePublishSpreadsheet} disabled={sheetPublishBusy || !sheetPreviewViewed}>
+              {sheetPublishBusy ? "Publishing…" : "Publish Menu"}
+            </Button>
+            <Button onClick={handleUnpublishSpreadsheet} disabled={sheetUnpublishBusy} variant="destructive">
+              {sheetUnpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
+            </Button>
+          </div>
+
+          {!sheetPreviewViewed && (
+            <p className="text-sm text-muted-foreground">Please preview your publication before publishing.</p>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
