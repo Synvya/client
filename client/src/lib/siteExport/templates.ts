@@ -319,9 +319,14 @@ export function renderMenuHtml(model: ExportSiteModel, menu: MenuLink, menuSchem
           (it) =>
             `<div class="card" style="display:flex;gap:12px;align-items:flex-start">
               ${it.image ? `<img src="${it.image}" alt="${it.name}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid #eee;flex:0 0 auto" />` : ""}
-              <div style="min-width:0">
-                <a href="./${it.slug}"><strong>${it.name}</strong></a>
-                <div class="small">${markdownToHtml(it.description || "")}</div>
+              <div style="min-width:0;flex:1">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                  <div style="flex:1">
+                    <a href="./${it.slug}"><strong>${it.name}</strong></a>
+                    <div class="small">${markdownToHtml(it.description || "")}</div>
+                  </div>
+                  ${it.price ? `<div style="flex:0 0 auto;font-weight:600;color:#1d4ed8;white-space:nowrap">$${it.price.amount}</div>` : ""}
+                </div>
               </div>
             </div>`
         )
@@ -336,9 +341,14 @@ export function renderMenuHtml(model: ExportSiteModel, menu: MenuLink, menuSchem
           (it) =>
             `<div class="card" style="display:flex;gap:12px;align-items:flex-start">
               ${it.image ? `<img src="${it.image}" alt="${it.name}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid #eee;flex:0 0 auto" />` : ""}
-              <div style="min-width:0">
-                <a href="./${it.slug}"><strong>${it.name}</strong></a>
-                <div class="small">${markdownToHtml(it.description || "")}</div>
+              <div style="min-width:0;flex:1">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+                  <div style="flex:1">
+                    <a href="./${it.slug}"><strong>${it.name}</strong></a>
+                    <div class="small">${markdownToHtml(it.description || "")}</div>
+                  </div>
+                  ${it.price ? `<div style="flex:0 0 auto;font-weight:600;color:#1d4ed8;white-space:nowrap">$${it.price.amount}</div>` : ""}
+                </div>
               </div>
             </div>`
         )
@@ -367,11 +377,14 @@ export function renderMenuItemHtml(model: ExportSiteModel, menuName: string, men
     item.section ? ` - ${sectionNameFromTitle(item.section)} Section` : ""
   }</div></div>`;
 
+  const priceHtml = item.price ? `<div class="card"><div style="font-size:24px;font-weight:600;color:#1d4ed8">$${item.price.amount} ${item.price.currency}</div></div>` : "";
+
   const body = `
 <a href="./${menuSlug}">← Back to ${menuName}</a>
 <div class="header">
   <h1>${item.name}</h1>
   ${item.image ? `<div class="card" style="padding:0;overflow:hidden"><img src="${item.image}" alt="${item.name}" style="width:100%;max-height:360px;object-fit:contain;background:#fff;display:block"/></div>` : ""}
+  ${priceHtml}
   <div class="small">${markdownToHtml(item.description || "")}</div>
   ${badges}
   ${contains}
