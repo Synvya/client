@@ -592,7 +592,9 @@ export function buildMenuSchema(
     const allItems =
       uncategorizedItems.length > 0
         ? uncategorizedItems
-        : (productEvents.map(buildMenuItem).filter(Boolean) as SchemaOrgMenuItem[]);
+        : (productEvents
+            .map((evt) => buildMenuItem(evt, { merchantPubkey, baseUrl }))
+            .filter(Boolean) as SchemaOrgMenuItem[]);
 
     const fallbackMenu: SchemaOrgMenu = {
       "@type": "Menu",
