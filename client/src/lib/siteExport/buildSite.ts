@@ -4,10 +4,6 @@ import { buildFoodEstablishmentSchema, buildMenuSchema } from "@/lib/schemaOrg";
 import { buildExportSiteModel, renderIndexHtml, renderMenuHtml, renderMenuItemHtml, type ExportSiteModel } from "./templates";
 import { menuSlugFromMenuName, slugify } from "./slug";
 import { naddrForAddressableEvent } from "./naddr";
-import {
-  extractRecipeIngredientsFromEventTags,
-  extractSuitableForDietFromEventTags,
-} from "@/lib/schemaOrg";
 
 type FileMap = Record<string, string>;
 
@@ -54,6 +50,26 @@ export function buildStaticSiteFiles(params: {
     menuEvents && menuEvents.length
       ? buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey, model.baseUrl)
       : [];
+
+  // Build a lookup of canonical MenuItem schema objects by their URL.
+  // This ensures we generate schema once (from Nostr events) and embed/scope it into HTML pages
+  // without recomputing semantic fields like description/diets/allergens in the export layer.
+  const menuItemByUrl = new Map<string, Record<string, unknown>>();
+  for (const menu of menusSchema as Array<Record<string, unknown>>) {
+    const direct = (menu.hasMenuItem as unknown as Array<Record<string, unknown>> | undefined) ?? [];
+    for (const it of direct) {
+      const url = typeof it.url === "string" ? it.url : undefined;
+      if (url) menuItemByUrl.set(url, it);
+    }
+    const sections = (menu.hasMenuSection as unknown as Array<Record<string, unknown>> | undefined) ?? [];
+    for (const sec of sections) {
+      const items = (sec.hasMenuItem as unknown as Array<Record<string, unknown>> | undefined) ?? [];
+      for (const it of items) {
+        const url = typeof it.url === "string" ? it.url : undefined;
+        if (url) menuItemByUrl.set(url, it);
+      }
+    }
+  }
 
   const baseUrl = model.baseUrl;
   const basePath = model.basePath;
@@ -106,24 +122,31 @@ export function buildStaticSiteFiles(params: {
       const productEvent = productByTitle.get(it.name);
       const dTag = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1] || "";
       const img = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "image")?.[1] || it.image;
-      const suitableForDiet = productEvent ? extractSuitableForDietFromEventTags(productEvent.tags) : [];
-      const ingredients = productEvent ? extractRecipeIngredientsFromEventTags(productEvent.tags) : [];
       const naddr = dTag ? naddrForAddressableEvent({ identifier: dTag, pubkey: merchantPubkey, kind: 30402 }) : "";
       const url = `${baseUrl}/${it.slug}`;
+      const canonical = menuItemByUrl.get(url);
 
-      const baseDescription = it.description || "";
-      const suffix = ingredients.length ? `Allergens: ${ingredients.join(", ")}` : "";
-      const description = [baseDescription, suffix].filter(Boolean).join(baseDescription && suffix ? " " : "");
-
-      const menuItemSchema = toMenuItemOnlySchema({
-        dTag,
-        naddr,
-        url,
-        name: it.name,
-        description,
-        image: img,
-        suitableForDiet,
-      });
+      // MenuItem-only JSON-LD for item pages:
+      // - Use canonical schema (already derived from Nostr events) when possible
+      // - Only scope/ensure required top-level fields (context, url) and keep MenuItem as root
+      const menuItemSchema: Record<string, unknown> = canonical
+        ? {
+            "@context": "https://schema.org",
+            ...canonical,
+            // Ensure URL matches the generated website file URL exactly
+            url,
+            // Ensure image uses the page-selected image if present
+            image: img ?? canonical.image,
+          }
+        : toMenuItemOnlySchema({
+            dTag,
+            naddr,
+            url,
+            name: it.name,
+            description: it.description,
+            image: img,
+            suitableForDiet: [],
+          });
 
       files[`${basePath}/${it.slug}`] = renderMenuItemHtml(
         model,
