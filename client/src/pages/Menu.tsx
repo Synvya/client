@@ -51,8 +51,6 @@ export function MenuPage(): JSX.Element {
   const [previewDeletionCount, setPreviewDeletionCount] = useState(0);
   const [unpublishBusy, setUnpublishBusy] = useState(false);
 
-  const [menuSource, setMenuSource] = useState<"square" | "spreadsheet">("square");
-
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [sheetNotice, setSheetNotice] = useState<string | null>(null);
   const [sheetFileName, setSheetFileName] = useState<string | null>(null);
@@ -493,29 +491,6 @@ export function MenuPage(): JSX.Element {
   return (
     <div className="container space-y-8 py-10">
       <section className="space-y-4 rounded-lg border bg-card p-6">
-        <header className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Menu Source</h2>
-            <p className="text-sm text-muted-foreground">Choose how you import menu data before preview/publish.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant={menuSource === "square" ? "default" : "outline"}
-              onClick={() => setMenuSource("square")}
-            >
-              Square
-            </Button>
-            <Button
-              variant={menuSource === "spreadsheet" ? "default" : "outline"}
-              onClick={() => setMenuSource("spreadsheet")}
-            >
-              Spreadsheet
-            </Button>
-          </div>
-        </header>
-      </section>
-
-      <section className="space-y-4 rounded-lg border bg-card p-6">
         <header className="flex items-center gap-3">
           <Store className="h-5 w-5 text-muted-foreground" />
           <div>
@@ -702,70 +677,68 @@ export function MenuPage(): JSX.Element {
         </Dialog>
       </section>
 
-      {menuSource === "spreadsheet" ? (
-        <section className="space-y-4 rounded-lg border bg-card p-6">
-          <header className="flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Spreadsheet Import</h2>
-              <p className="text-sm text-muted-foreground">
-                Upload an XLSX file to generate menu events (30402/30405) using the template.
-              </p>
-            </div>
-            <a
-              href={sampleSpreadsheetUrl}
-              download
-              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-            >
-              Download template
-            </a>
-          </header>
-
-          {sheetError ? (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-              {sheetError}
-            </div>
-          ) : null}
-
-          {sheetNotice ? (
-            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
-              {sheetNotice}
-            </div>
-          ) : null}
-
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium">Upload XLSX</label>
-            <input
-              type="file"
-              accept=".xlsx"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void handleSpreadsheetUpload(f);
-              }}
-            />
-            {sheetFileName ? <div className="text-xs text-muted-foreground">Loaded: {sheetFileName}</div> : null}
+      <section className="space-y-4 rounded-lg border bg-card p-6">
+        <header className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Spreadsheet Import</h2>
+            <p className="text-sm text-muted-foreground">
+              Upload an XLSX file to generate menu events (30402/30405) using the template.
+            </p>
           </div>
+          <a
+            href={sampleSpreadsheetUrl}
+            download
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Download template
+          </a>
+        </header>
 
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={handlePreviewSpreadsheet}
-              disabled={sheetPreviewLoading || !sheetParsed}
-              variant="outline"
-            >
-              {sheetPreviewLoading ? "Loading Preview…" : "Preview Publication"}
-            </Button>
-            <Button onClick={handlePublishSpreadsheet} disabled={sheetPublishBusy || !sheetPreviewViewed}>
-              {sheetPublishBusy ? "Publishing…" : "Publish Menu"}
-            </Button>
-            <Button onClick={handleUnpublishSpreadsheet} disabled={sheetUnpublishBusy} variant="destructive">
-              {sheetUnpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
-            </Button>
+        {sheetError ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            {sheetError}
           </div>
+        ) : null}
 
-          {!sheetPreviewViewed && (
-            <p className="text-sm text-muted-foreground">Please preview your publication before publishing.</p>
-          )}
-        </section>
-      ) : null}
+        {sheetNotice ? (
+          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
+            {sheetNotice}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-medium">Upload XLSX</label>
+          <input
+            type="file"
+            accept=".xlsx"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void handleSpreadsheetUpload(f);
+            }}
+          />
+          {sheetFileName ? <div className="text-xs text-muted-foreground">Loaded: {sheetFileName}</div> : null}
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            onClick={handlePreviewSpreadsheet}
+            disabled={sheetPreviewLoading || !sheetParsed}
+            variant="outline"
+          >
+            {sheetPreviewLoading ? "Loading Preview…" : "Preview Publication"}
+          </Button>
+          <Button onClick={handlePublishSpreadsheet} disabled={sheetPublishBusy || !sheetPreviewViewed}>
+            {sheetPublishBusy ? "Publishing…" : "Publish Menu"}
+          </Button>
+          <Button onClick={handleUnpublishSpreadsheet} disabled={sheetUnpublishBusy} variant="destructive">
+            {sheetUnpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
+          </Button>
+        </div>
+
+        {!sheetPreviewViewed && (
+          <p className="text-sm text-muted-foreground">Please preview your publication before publishing.</p>
+        )}
+      </section>
     </div>
   );
 }
