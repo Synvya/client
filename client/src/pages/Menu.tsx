@@ -467,7 +467,7 @@ export function MenuPage(): JSX.Element {
           <div>
             <h2 className="text-lg font-semibold">Square Integration</h2>
             <p className="text-sm text-muted-foreground">
-              Connect your Square account to sync catalog items and make them visible to AI assistants.
+              Connect your Square account to retrieve your menu.
             </p>
           </div>
         </header>
@@ -654,7 +654,7 @@ export function MenuPage(): JSX.Element {
           <div>
             <h2 className="text-lg font-semibold">Spreadsheet Import</h2>
             <p className="text-sm text-muted-foreground">
-              Upload an XLSX file to generate menu events (30402/30405) using the template.
+              Upload an XLSX file with your menu. Use the template to help you.
             </p>
           </div>
           <a
