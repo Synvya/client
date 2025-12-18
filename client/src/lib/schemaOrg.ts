@@ -3,6 +3,7 @@ import type { SquareEventTemplate } from "@/services/square";
 import { nip19 } from "nostr-tools";
 import { menuSlugFromMenuName, slugify } from "@/lib/siteExport/slug";
 import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
+import { naddrForAddressableEvent } from "@/lib/siteExport/naddr";
 
 // ============================================================================
 // Schema.org Type Definitions
@@ -60,6 +61,9 @@ interface SchemaOrgReserveAction extends SchemaOrgThing {
 
 interface SchemaOrgMenuItem extends SchemaOrgThing {
   "@type": "MenuItem";
+  "@id"?: string;
+  identifier?: string;
+  url?: string;
   name: string;
   description?: string;
   offers?: SchemaOrgOffer;
@@ -76,6 +80,7 @@ interface SchemaOrgMenuSection extends SchemaOrgThing {
 interface SchemaOrgMenu extends SchemaOrgThing {
   "@type": "Menu";
   "@id"?: string; // Optional - only needed when using @graph with references
+  identifier?: string;
   name: string;
   description?: string;
   url?: string;
@@ -219,6 +224,38 @@ function mapDietaryToSchemaOrg(dietaryTag: string): string | null {
  */
 export function mapDietaryTagToSchemaOrgUrl(dietaryTag: string): string | null {
   return mapDietaryToSchemaOrg(dietaryTag);
+}
+
+export function extractRecipeIngredientsFromEventTags(tags: string[][]): string[] {
+  return tags
+    .filter((t) => Array.isArray(t) && t[0] === "schema.org:Recipe:recipeIngredient" && typeof t[1] === "string")
+    .map((t) => t[1])
+    .filter(Boolean);
+}
+
+export function extractSuitableForDietFromEventTags(tags: string[][]): string[] {
+  // Preferred (CSV): schema.org:MenuItem:suitableForDiet tag values already as schema.org URLs
+  const explicit = tags
+    .filter((t) => Array.isArray(t) && t[0] === "schema.org:MenuItem:suitableForDiet" && typeof t[1] === "string")
+    .map((t) => t[1])
+    .filter(Boolean);
+  if (explicit.length) return Array.from(new Set(explicit));
+
+  // Fallback: map generic t-tags (historical)
+  const mapped = tags
+    .filter((t) => Array.isArray(t) && t[0] === "t" && typeof t[1] === "string")
+    .map((t) => t[1])
+    .map(mapDietaryToSchemaOrg)
+    .filter((d): d is string => d !== null);
+  return Array.from(new Set(mapped));
+}
+
+function menuUrlForTitle(baseUrl: string, menuTitle: string): string {
+  return `${baseUrl}/${menuSlugFromMenuName(menuTitle)}.html`;
+}
+
+function menuItemUrlForTitle(baseUrl: string, itemTitle: string): string {
+  return `${baseUrl}/${slugify(itemTitle)}.html`;
 }
 
 // ============================================================================
@@ -385,6 +422,7 @@ export function buildMenuSchema(
     {
       name: string;
       title: string;
+      summary?: string;
       type: "menu" | "section";
       products: SchemaOrgMenuItem[];
     }
@@ -393,6 +431,7 @@ export function buildMenuSchema(
   for (const collectionEvent of collectionEvents) {
     const dTag = collectionEvent.tags.find((t) => t[0] === "d")?.[1];
     const titleTag = collectionEvent.tags.find((t) => t[0] === "title")?.[1];
+    const summaryTag = collectionEvent.tags.find((t) => t[0] === "summary")?.[1];
     if (!dTag || !titleTag) continue;
 
     // Classify as menu or section
@@ -402,6 +441,7 @@ export function buildMenuSchema(
     collectionsMap.set(dTag, {
       name: dTag,
       title: titleTag,
+      summary: summaryTag,
       type,
       products: []
     });
@@ -413,7 +453,7 @@ export function buildMenuSchema(
   const productToCollectionRefs = new Map<SquareEventTemplate, string[]>();
 
   for (const productEvent of productEvents) {
-    const menuItem = buildMenuItem(productEvent);
+    const menuItem = buildMenuItem(productEvent, { merchantPubkey, baseUrl });
     if (!menuItem) continue;
 
     productToMenuItem.set(productEvent, menuItem);
@@ -489,10 +529,17 @@ export function buildMenuSchema(
       "name": menuCollection.title
     };
 
-    // CSV format: menu description + url
-    menu.description = `${menuCollection.title} for ${merchantName}`;
+    // CSV format: description from summary if present, else fallback
+    menu.description = menuCollection.summary || `${menuCollection.title} for ${merchantName}`;
     if (baseUrl) {
-      menu.url = `${baseUrl}/${menuSlugFromMenuName(menuCollection.title)}`;
+      menu.url = menuUrlForTitle(baseUrl, menuCollection.title);
+    }
+    // CSV format: identifier as nostr:naddr
+    try {
+      const naddr = naddrForAddressableEvent({ identifier: menuDTag, pubkey: merchantPubkey, kind: 30405 });
+      menu.identifier = `nostr:${naddr}`;
+    } catch (e) {
+      // ignore
     }
 
     // Find sections that belong to this menu
@@ -554,7 +601,7 @@ export function buildMenuSchema(
     };
     fallbackMenu.description = `${merchantName} Menu`;
     if (baseUrl) {
-      fallbackMenu.url = `${baseUrl}/${menuSlugFromMenuName(fallbackMenu.name)}`;
+      fallbackMenu.url = menuUrlForTitle(baseUrl, fallbackMenu.name);
     }
     menus.push(fallbackMenu);
   }
@@ -565,7 +612,10 @@ export function buildMenuSchema(
 /**
  * Builds a single MenuItem from a product event
  */
-function buildMenuItem(productEvent: SquareEventTemplate): SchemaOrgMenuItem | null {
+function buildMenuItem(
+  productEvent: SquareEventTemplate,
+  opts: { merchantPubkey?: string; baseUrl?: string }
+): SchemaOrgMenuItem | null {
   const titleTag = productEvent.tags.find((t) => t[0] === "title")?.[1];
   if (!titleTag) return null;
 
@@ -576,10 +626,11 @@ function buildMenuItem(productEvent: SquareEventTemplate): SchemaOrgMenuItem | n
 
   // Description
   const summaryTag = productEvent.tags.find((t) => t[0] === "summary")?.[1];
-  if (summaryTag) {
-    menuItem.description = summaryTag;
-  } else if (productEvent.content) {
-    menuItem.description = productEvent.content;
+  const baseDescription = summaryTag || productEvent.content || "";
+  const ingredients = extractRecipeIngredientsFromEventTags(productEvent.tags);
+  if (baseDescription || ingredients.length) {
+    const suffix = ingredients.length ? `Allergens: ${ingredients.join(", ")}` : "";
+    menuItem.description = [baseDescription, suffix].filter(Boolean).join(baseDescription && suffix ? " " : "");
   }
 
   // Price - only include if present in Nostr event
@@ -602,14 +653,24 @@ function buildMenuItem(productEvent: SquareEventTemplate): SchemaOrgMenuItem | n
   }
 
   // Dietary preferences
-  const dietaryTags = productEvent.tags
-    .filter((t) => t[0] === "t")
-    .map((t) => t[1])
-    .map(mapDietaryToSchemaOrg)
-    .filter((d): d is string => d !== null);
+  const dietaryTags = extractSuitableForDietFromEventTags(productEvent.tags);
+  if (dietaryTags.length > 0) menuItem.suitableForDiet = dietaryTags;
 
-  if (dietaryTags.length > 0) {
-    menuItem.suitableForDiet = dietaryTags;
+  // CSV format: @id, identifier, url
+  const dTag = productEvent.tags.find((t) => t[0] === "d")?.[1];
+  if (dTag) {
+    menuItem["@id"] = dTag;
+    if (opts.merchantPubkey) {
+      try {
+        const naddr = naddrForAddressableEvent({ identifier: dTag, pubkey: opts.merchantPubkey, kind: 30402 });
+        menuItem.identifier = `nostr:${naddr}`;
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+  if (opts.baseUrl) {
+    menuItem.url = menuItemUrlForTitle(opts.baseUrl, titleTag);
   }
 
   return menuItem;

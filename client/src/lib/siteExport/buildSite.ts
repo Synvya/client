@@ -4,7 +4,10 @@ import { buildFoodEstablishmentSchema, buildMenuSchema } from "@/lib/schemaOrg";
 import { buildExportSiteModel, renderIndexHtml, renderMenuHtml, renderMenuItemHtml, type ExportSiteModel } from "./templates";
 import { menuSlugFromMenuName, slugify } from "./slug";
 import { naddrForAddressableEvent } from "./naddr";
-import { mapDietaryTagToSchemaOrgUrl } from "@/lib/schemaOrg";
+import {
+  extractRecipeIngredientsFromEventTags,
+  extractSuitableForDietFromEventTags,
+} from "@/lib/schemaOrg";
 
 type FileMap = Record<string, string>;
 
@@ -106,23 +109,21 @@ export function buildStaticSiteFiles(params: {
       const productEvent = productByTitle.get(it.name);
       const dTag = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1] || "";
       const img = productEvent?.tags.find((t) => Array.isArray(t) && t[0] === "image")?.[1] || it.image;
-      // Build schema.org suitableForDiet URLs (match copy/paste schema generator behavior)
-      const suitableForDiet = productEvent
-        ? productEvent.tags
-            .filter((t) => Array.isArray(t) && t[0] === "t")
-            .map((t) => t[1])
-            .map((raw) => (typeof raw === "string" ? mapDietaryTagToSchemaOrgUrl(raw) : null))
-            .filter((v): v is string => typeof v === "string" && v.length > 0)
-        : [];
+      const suitableForDiet = productEvent ? extractSuitableForDietFromEventTags(productEvent.tags) : [];
+      const ingredients = productEvent ? extractRecipeIngredientsFromEventTags(productEvent.tags) : [];
       const naddr = dTag ? naddrForAddressableEvent({ identifier: dTag, pubkey: merchantPubkey, kind: 30402 }) : "";
       const url = `${baseUrl}/${it.slug}`;
+
+      const baseDescription = it.description || "";
+      const suffix = ingredients.length ? `Allergens: ${ingredients.join(", ")}` : "";
+      const description = [baseDescription, suffix].filter(Boolean).join(baseDescription && suffix ? " " : "");
 
       const menuItemSchema = toMenuItemOnlySchema({
         dTag,
         naddr,
         url,
         name: it.name,
-        description: it.description,
+        description,
         image: img,
         suitableForDiet,
       });
