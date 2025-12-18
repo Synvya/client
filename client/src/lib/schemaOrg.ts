@@ -207,13 +207,19 @@ function decodeGeohash(geohash: string): { latitude: number; longitude: number }
 function mapDietaryToSchemaOrg(dietaryTag: string): string | null {
   const normalized = dietaryTag.toLowerCase().replace(/[_-\s]/g, "");
   const mapping: Record<string, string> = {
-    "vegan": "https://schema.org/VeganDiet",
-    "vegetarian": "https://schema.org/VegetarianDiet",
-    "glutenfree": "https://schema.org/GlutenFreeDiet",
-    "kosher": "https://schema.org/KosherDiet",
-    "halal": "https://schema.org/HalalDiet",
-    "dairyfree": "https://schema.org/DiabeticDiet", // Closest match
-    "nutfree": "https://schema.org/LowLactoseDiet" // No direct match, using placeholder
+    "vegan": "http://schema.org/VeganDiet",
+    "vegetarian": "http://schema.org/VegetarianDiet",
+    "glutenfree": "http://schema.org/GlutenFreeDiet",
+    "kosher": "http://schema.org/KosherDiet",
+    "halal": "http://schema.org/HalalDiet",
+    // Best-effort legacy mappings; keep outputs within allowed schema.org Diet URLs
+    "dairyfree": "http://schema.org/LowLactoseDiet",
+    "lowlactose": "http://schema.org/LowLactoseDiet",
+    "lowfat": "http://schema.org/LowFatDiet",
+    "lowcalorie": "http://schema.org/LowCalorieDiet",
+    "lowsalt": "http://schema.org/LowSaltDiet",
+    "diabetic": "http://schema.org/DiabeticDiet",
+    "hindudiet": "http://schema.org/HinduDiet"
   };
   return mapping[normalized] || null;
 }
@@ -234,11 +240,39 @@ export function extractRecipeIngredientsFromEventTags(tags: string[][]): string[
 }
 
 export function extractSuitableForDietFromEventTags(tags: string[][]): string[] {
+  const ALLOWED = new Set([
+    "http://schema.org/DiabeticDiet",
+    "http://schema.org/GlutenFreeDiet",
+    "http://schema.org/HalalDiet",
+    "http://schema.org/HinduDiet",
+    "http://schema.org/KosherDiet",
+    "http://schema.org/LowCalorieDiet",
+    "http://schema.org/LowFatDiet",
+    "http://schema.org/LowLactoseDiet",
+    "http://schema.org/LowSaltDiet",
+    "http://schema.org/VeganDiet",
+    "http://schema.org/VegetarianDiet",
+  ]);
+
+  const normalizeSchemaOrgDietUrl = (raw: string): string | null => {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    // Accept both http/https and normalize to http://schema.org/...
+    const m = trimmed.match(/^https?:\/\/schema\.org\/([A-Za-z]+Diet)$/);
+    if (m) {
+      const normalizedUrl = `http://schema.org/${m[1]}`;
+      return ALLOWED.has(normalizedUrl) ? normalizedUrl : null;
+    }
+    // If someone stored just the diet token, try mapping
+    const mapped = mapDietaryToSchemaOrg(trimmed);
+    return mapped && ALLOWED.has(mapped) ? mapped : null;
+  };
+
   // Preferred (CSV): schema.org:MenuItem:suitableForDiet tag values already as schema.org URLs
   const explicit = tags
     .filter((t) => Array.isArray(t) && t[0] === "schema.org:MenuItem:suitableForDiet" && typeof t[1] === "string")
-    .map((t) => t[1])
-    .filter(Boolean);
+    .map((t) => normalizeSchemaOrgDietUrl(t[1]))
+    .filter((v): v is string => typeof v === "string" && v.length > 0);
   if (explicit.length) return Array.from(new Set(explicit));
 
   // Fallback: map generic t-tags (historical)
@@ -247,7 +281,7 @@ export function extractSuitableForDietFromEventTags(tags: string[][]): string[] 
     .map((t) => t[1])
     .map(mapDietaryToSchemaOrg)
     .filter((d): d is string => d !== null);
-  return Array.from(new Set(mapped));
+  return Array.from(new Set(mapped)).filter((u) => ALLOWED.has(u));
 }
 
 function menuUrlForTitle(baseUrl: string, menuTitle: string): string {

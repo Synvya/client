@@ -359,8 +359,8 @@ describe("schemaOrg", () => {
       ];
 
       const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
-      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("https://schema.org/VeganDiet");
-      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("https://schema.org/GlutenFreeDiet");
+      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("http://schema.org/VeganDiet");
+      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("http://schema.org/GlutenFreeDiet");
     });
 
     it("should handle items with images", () => {
