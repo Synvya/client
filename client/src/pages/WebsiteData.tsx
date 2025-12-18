@@ -163,6 +163,34 @@ export function WebsiteDataPage(): JSX.Element {
         }, {}),
       });
 
+      // High-signal detail: what actually survived dedupe?
+      // Helps diagnose why new menus/items don't appear in schema/zip.
+      const summarize = (evt: SquareEventTemplate) => {
+        const d = evt.tags.find((t) => Array.isArray(t) && t[0] === "d")?.[1] ?? null;
+        const title = evt.tags.find((t) => Array.isArray(t) && t[0] === "title")?.[1] ?? null;
+        const a = evt.tags
+          .filter((t) => Array.isArray(t) && t[0] === "a" && typeof t[1] === "string")
+          .map((t) => t[1] as string);
+        return { kind: evt.kind, created_at: evt.created_at, d, title, aCount: a.length, a };
+      };
+      console.log("[Website] menu dedupe survivors", menuEvents.map(summarize));
+
+      try {
+        const { buildMenuSchema } = await import("@/lib/schemaOrg");
+        const menus = buildMenuSchema(profile.displayName || profile.name, menuEvents, pubkey, undefined);
+        console.log("[Website] buildMenuSchema summary", {
+          menuCount: menus.length,
+          menuNames: menus.map((m) => m.name),
+          topLevelCounts: menus.map((m) => ({
+            name: m.name,
+            directItems: Array.isArray(m.hasMenuItem) ? m.hasMenuItem.length : 0,
+            sections: Array.isArray(m.hasMenuSection) ? m.hasMenuSection.length : 0,
+          })),
+        });
+      } catch (e) {
+        console.warn("[Website] buildMenuSchema debug failed", e);
+      }
+
       setLastMenuEvents(menuEvents.length > 0 ? menuEvents : null);
       setLastProfile(profile);
       
