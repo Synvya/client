@@ -83,15 +83,12 @@ export function buildStaticSiteFiles(params: {
   for (const menu of model.menus) {
     const menuSlug = menu.slug;
     const menuSchema = menusSchema.find((m) => menuSlugFromMenuName(m.name) === menuSlugFromMenuName(menu.name));
-    const scopedMenuSchema = {
+    // Menu pages should embed Menu-only JSON-LD (no FoodEstablishment wrapper).
+    // MenuItems remain nested without their own @context.
+    const scopedMenuSchema: Record<string, unknown> = {
       "@context": "https://schema.org",
-      ...establishment,
-      hasMenu: [
-        {
-          ...((menuSchema ?? { "@type": "Menu", name: menu.name }) as Record<string, unknown>),
-          url: `${baseUrl}/${menuSlug}`,
-        },
-      ],
+      ...((menuSchema ?? { "@type": "Menu", name: menu.name }) as Record<string, unknown>),
+      url: `${baseUrl}/${menuSlug}`,
     };
     files[`${basePath}/${menuSlug}`] = renderMenuHtml(model, menu, scopedMenuSchema);
 
