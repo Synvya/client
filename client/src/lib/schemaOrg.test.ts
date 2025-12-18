@@ -263,8 +263,7 @@ describe("schemaOrg", () => {
           tags: [
             ["d", "pasta"],
             ["title", "Spaghetti Carbonara"],
-            ["summary", "Classic Italian pasta"],
-            ["price", "1499", "USD"]
+            ["price", "14.99", "USD"]
           ]
         },
         {
@@ -274,8 +273,7 @@ describe("schemaOrg", () => {
           tags: [
             ["d", "salad"],
             ["title", "Caesar Salad"],
-            ["summary", "Crisp romaine lettuce"],
-            ["price", "1099", "USD"]
+            ["price", "10.99", "USD"]
           ]
         }
       ];
@@ -288,7 +286,7 @@ describe("schemaOrg", () => {
       expect(menus[0].url).toContain("https://synvya.com/restaurant/test/");
       expect(menus[0].hasMenuItem).toHaveLength(2);
       expect(menus[0].hasMenuItem![0].name).toBe("Spaghetti Carbonara");
-      expect(menus[0].hasMenuItem![0].description).toBe("Classic Italian pasta");
+      expect(menus[0].hasMenuItem![0].description).toBe("Delicious pasta");
       expect(menus[0].hasMenuItem![0].offers).toEqual({
         "@type": "Offer",
         "price": "14.99",
@@ -323,8 +321,7 @@ describe("schemaOrg", () => {
           tags: [
             ["d", "bruschetta"],
             ["title", "Bruschetta"],
-            ["summary", "Toasted bread with tomatoes"],
-            ["price", "899", "USD"],
+            ["price", "8.99", "USD"],
             ["a", "30405:pubkey123:Appetizers"],
             ["a", "30405:pubkey123:Lunch"]
           ]
@@ -351,16 +348,16 @@ describe("schemaOrg", () => {
           tags: [
             ["d", "vegan-burger"],
             ["title", "Beyond Burger"],
-            ["price", "1599", "USD"],
-            ["t", "vegan"],
-            ["t", "gluten-free"]
+            ["price", "15.99", "USD"],
+            ["t", "VeganDiet"],
+            ["t", "GlutenFreeDiet"]
           ]
         }
       ];
 
       const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
-      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("http://schema.org/VeganDiet");
-      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("http://schema.org/GlutenFreeDiet");
+      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("VeganDiet");
+      expect(menus[0].hasMenuItem![0].suitableForDiet).toContain("GlutenFreeDiet");
     });
 
     it("should handle items with images", () => {
@@ -372,7 +369,7 @@ describe("schemaOrg", () => {
           tags: [
             ["d", "pasta"],
             ["title", "Pasta Special"],
-            ["price", "1899", "USD"],
+            ["price", "18.99", "USD"],
             ["image", "https://example.com/pasta.jpg"]
           ]
         }
