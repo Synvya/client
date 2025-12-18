@@ -203,9 +203,11 @@ export function buildSpreadsheetPreviewEvents(params: {
     const description = asString(row.Description);
     const parent = asString((row as any)["Parent Menu"]);
 
-    // Title: if spreadsheet provided description, use it; else infer suffix.
-    const inferredSuffix = parent ? "Menu Section" : "Menu";
-    const title = description || `${name} ${/menu section/i.test(menuType) ? "Menu Section" : inferredSuffix}`;
+    // Title: MUST include suffix so downstream menu/section classification works.
+    // - If Parent Menu is set -> section
+    // - Otherwise -> menu
+    const isSection = Boolean(parent);
+    const title = `${name} ${isSection ? "Menu Section" : "Menu"}`;
 
     const productDTags = collectionToProductDTags.get(name) || [];
     if (!productDTags.length) {
@@ -216,7 +218,7 @@ export function buildSpreadsheetPreviewEvents(params: {
     const tags: string[][] = [];
     tags.push(["d", name]);
     tags.push(["title", title]);
-    tags.push(["summary", title]);
+    tags.push(["summary", description || title]);
 
     for (const dTag of Array.from(new Set(productDTags))) {
       tags.push(["a", `30402:${merchantPubkey}:${dTag}`]);

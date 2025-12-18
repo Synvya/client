@@ -136,10 +136,33 @@ export function WebsiteDataPage(): JSX.Element {
         kinds: [30402, 30405],
         authors: [pubkey]
       });
+
+      // Debug visibility into what we fetched (helps diagnose relay/query issues)
+      console.log("[Website] menu fetch", {
+        relayCount: relays.length,
+        relays,
+        fetchedCount: allMenuEvents.length,
+        fetchedKinds: allMenuEvents.reduce<Record<string, number>>((acc, evt) => {
+          const k = String(evt.kind);
+          acc[k] = (acc[k] || 0) + 1;
+          return acc;
+        }, {}),
+      });
       
       // Deduplicate events (filter invalid format, then by d-tag, then by name)
       const { deduplicateEvents } = await import("@/lib/nostrEventProcessing");
       const menuEvents = deduplicateEvents(allMenuEvents, pubkey);
+
+      console.log("[Website] menu dedupe", {
+        inputCount: allMenuEvents.length,
+        outputCount: menuEvents.length,
+        outputKinds: menuEvents.reduce<Record<string, number>>((acc, evt) => {
+          const k = String(evt.kind);
+          acc[k] = (acc[k] || 0) + 1;
+          return acc;
+        }, {}),
+      });
+
       setLastMenuEvents(menuEvents.length > 0 ? menuEvents : null);
       setLastProfile(profile);
       
