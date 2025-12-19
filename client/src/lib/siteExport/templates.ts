@@ -20,6 +20,7 @@ type MenuItemLink = {
 type MenuLink = {
   name: string;
   slug: string;
+  description?: string;
   sections: Array<{ name: string; items: MenuItemLink[] }>;
   directItems: MenuItemLink[];
   naddr?: string;
@@ -29,6 +30,7 @@ export type ExportSiteModel = {
   typeSlug: string;
   nameSlug: string;
   displayName: string;
+  about?: string;
   cuisine?: string;
   addressLines: string[];
   phone?: string;
@@ -194,13 +196,14 @@ export function buildExportSiteModel(params: {
         image: mi.image,
       })) ?? [];
 
-    return { name: menu.name, slug: menuSlug, sections, directItems };
+    return { name: menu.name, slug: menuSlug, description: menu.description, sections, directItems };
   });
 
   return {
     typeSlug,
     nameSlug,
     displayName: profile.displayName || profile.name,
+    about: profile.about,
     cuisine: profile.cuisine,
     addressLines,
     phone: profile.phone,
@@ -225,16 +228,49 @@ function baseHtml(title: string, schemaTag: string, body: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>${title}</title>
 <style>
-body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;max-width:1100px;margin:0 auto;padding:24px;line-height:1.5}
-.header{border-bottom:1px solid #eee;padding-bottom:16px;margin-bottom:16px}
-.badges{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
-.badge{display:inline-block;padding:8px 14px;border-radius:999px;background:#eff6ff;color:#1d4ed8;font-size:14px}
-.card{border:1px solid #eee;border-radius:12px;padding:16px;margin:12px 0}
-.small{color:#6b7280;font-size:14px}
-a{color:#2563eb;text-decoration:none}
-a:hover{text-decoration:underline}
-.menuGrid{display:grid;gap:12px}
+*{box-sizing:border-box}
+body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;max-width:1100px;margin:0 auto;padding:0;line-height:1.6;color:#1f2937;background:#fff}
+.container{padding:24px;max-width:1100px;margin:0 auto}
+.header{border-bottom:1px solid #e5e7eb;padding-bottom:20px;margin-bottom:24px}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.badge{display:inline-block;padding:6px 12px;border-radius:6px;background:#f3f4f6;color:#374151;font-size:13px;font-weight:500}
+.card{border:1px solid #e5e7eb;border-radius:12px;padding:20px;margin:16px 0;background:#fff;transition:box-shadow 0.2s}
+.card:hover{box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06)}
+.small{color:#6b7280;font-size:14px;line-height:1.5}
+a{color:#2563eb;text-decoration:none;transition:color 0.2s}
+a:hover{color:#1d4ed8;text-decoration:underline}
+h1,h2,h3{margin:0 0 16px 0;font-weight:600;line-height:1.2}
+h1{font-size:32px;color:#111827}
+h2{font-size:24px;color:#1f2937;margin-top:32px;margin-bottom:20px}
+h3{font-size:20px;color:#374151}
+.menuGrid{display:grid;gap:16px;margin:24px 0}
 @media(min-width:768px){.menuGrid{grid-template-columns:1fr 1fr}}
+.menuCard{display:block;border:1px solid #e5e7eb;border-radius:12px;padding:20px;background:#fff;transition:all 0.2s;text-decoration:none;color:inherit}
+.menuCard:hover{border-color:#d1d5db;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06);transform:translateY(-2px)}
+.menuCard h3{margin:0 0 8px 0;font-size:20px;color:#111827}
+.menuCard p{margin:0;color:#6b7280;font-size:15px;line-height:1.5}
+.ctaSection{margin:48px 0;padding:32px;background:#f9fafb;border-radius:12px;border:1px solid #e5e7eb}
+.ctaSection h2{margin:0 0 12px 0;font-size:28px;color:#111827}
+.ctaSection p{margin:0 0 20px 0;color:#4b5563;font-size:16px;line-height:1.6}
+.ctaLink{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;background:#2563eb;color:#fff;border-radius:8px;font-weight:500;font-size:16px;text-decoration:none;transition:all 0.2s}
+.ctaLink:hover{background:#1d4ed8;text-decoration:none;transform:translateY(-1px);box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)}
+.ctaExample{margin-top:16px;padding:12px;background:#fff;border-radius:8px;border:1px solid #e5e7eb;color:#6b7280;font-size:14px;font-style:italic}
+.footer{margin-top:64px;padding:32px 0;border-top:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:14px}
+.footer a{color:#2563eb}
+.description{margin:24px 0;color:#4b5563;font-size:16px;line-height:1.7}
+.backLink{display:inline-block;margin-bottom:20px;color:#2563eb;font-size:14px;text-decoration:none}
+.backLink:hover{text-decoration:underline}
+.itemImage{width:100%;max-width:600px;border-radius:12px;margin:20px 0;object-fit:cover}
+.itemPrice{font-size:28px;font-weight:600;color:#2563eb;margin:16px 0}
+.itemBadges{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}
+.itemBadge{display:inline-block;padding:6px 12px;border-radius:6px;background:#eff6ff;color:#1e40af;font-size:13px;font-weight:500}
+.itemCard{display:flex;gap:16px;padding:16px;border:1px solid #e5e7eb;border-radius:12px;margin:12px 0;background:#fff;transition:all 0.2s}
+.itemCard:hover{border-color:#d1d5db;box-shadow:0 2px 4px rgba(0,0,0,0.05)}
+.itemCardImage{width:80px;height:80px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid #e5e7eb}
+.itemCardContent{flex:1;min-width:0}
+.itemCardTitle{margin:0 0 6px 0;font-size:18px;font-weight:600;color:#111827}
+.itemCardPrice{font-size:18px;font-weight:600;color:#2563eb;white-space:nowrap}
+.itemCardRow{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
 
 /* Book Restaurant Button */
 .book-restaurant-btn{position:fixed;top:16px;right:16px;z-index:1000;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font-size:14px;font-weight:500;height:36px;padding:0 12px;background:linear-gradient(to right, #2db85c 0%, #1f8f47 100%);color:#ffffff;text-decoration:none;border:0;box-shadow:0 1px 2px 0 rgba(0, 0, 0, 0.05);transition:all 0.2s ease;cursor:pointer}
@@ -276,8 +312,14 @@ ${body}
 
 export function renderIndexHtml(model: ExportSiteModel): string {
   const schemaTag = jsonLdScriptTag(model.jsonLdIndex);
+  
   const menusHtml = model.menus
-    .map((m) => `<div class=\"card\"><a href=\"./${m.slug}\"><strong>${m.name}</strong></a><div class=\"small\">View menu</div></div>`)
+    .map((m) => {
+      return `<a href="./${m.slug}" class="menuCard">
+  <h3>${escapeHtml(m.name)}</h3>
+  ${m.description ? `<p>${escapeHtml(m.description)}</p>` : ""}
+</a>`;
+    })
     .join("\n");
 
   const body = `
@@ -287,37 +329,36 @@ export function renderIndexHtml(model: ExportSiteModel): string {
   <div class="heroInner">
     ${model.logoUrl ? `<img class="avatar" src="${model.logoUrl}" alt="${model.displayName} logo" />` : ""}
     <div class="heroText">
-      <h1 class="heroTitle">${model.displayName}</h1>
-      <div class="heroSub">${[model.cuisine, model.addressLines[1]].filter(Boolean).join(" • ")}</div>
+      <h1 class="heroTitle">${escapeHtml(model.displayName)}</h1>
+      <div class="heroSub">${escapeHtml([model.cuisine, model.addressLines[1]].filter(Boolean).join(" • "))}</div>
     </div>
   </div>
 </div>
 
-<div class="header" style="margin-top:14px">
-  ${
-    model.categoryBadges.length
-      ? `<div class="badges">${model.categoryBadges.map((c) => `<span class="badge">${c}</span>`).join("")}</div>`
-      : ""
-  }
-  <div class="card">
-    ${model.addressLines.length ? `<div><strong>Address:</strong><br/>${model.addressLines.join("<br/>")}</div>` : ""}
-    ${model.phone ? `<div style="margin-top:8px"><strong>Phone:</strong> ${model.phone}</div>` : ""}
-    ${model.email ? `<div><strong>Email:</strong> ${model.email}</div>` : ""}
-    ${
-      model.openingHoursLines.length
-        ? `<div style="margin-top:8px"><strong>Hours:</strong><br/>${model.openingHoursLines.join("<br/>")}</div>`
-        : ""
-    }
-  </div>
-</div>
-
-<h2>Our Menus</h2>
-<div class="menuGrid">
+<div class="container">
+  ${model.about ? `<div class="description">${markdownToHtml(model.about)}</div>` : ""}
+  
+  ${model.categoryBadges.length ? `<div class="badges">${model.categoryBadges.map((c) => `<span class="badge">${escapeHtml(c)}</span>`).join("")}</div>` : ""}
+  
+  ${model.menus.length > 0 ? `<h2>Our Menus</h2>
+  <div class="menuGrid">
 ${menusHtml}
-</div>
-
-<div class="card">
-  <div class="small">Generated by Synvya.</div>
+  </div>` : ""}
+  
+  <div class="ctaSection">
+    <h2>Ready to Experience ${escapeHtml(model.displayName)}?</h2>
+    <p>Chat with our AI assistant to explore our menu, make a reservation, or learn more about ${escapeHtml(model.displayName)}.</p>
+    <a href="https://chatgpt.com/g/g-691d8219c93c819192573c805a6edfaf-synvya" target="_blank" rel="noopener noreferrer" class="ctaLink">
+      Chat with Synvya Assistant →
+    </a>
+    <div class="ctaExample">
+      Try asking: "Make a reservation at ${escapeHtml(model.displayName)}" or "What are your vegan options?"
+    </div>
+  </div>
+  
+  <footer class="footer">
+    <div>© ${new Date().getFullYear()} ${escapeHtml(model.displayName)} • Powered by <a href="https://synvya.com" target="_blank" rel="noopener noreferrer">Synvya</a></div>
+  </footer>
 </div>
 `;
   return baseHtml(model.displayName, schemaTag, body);
@@ -330,21 +371,21 @@ export function renderMenuHtml(model: ExportSiteModel, menu: MenuLink, menuSchem
       const items = sec.items
         .map(
           (it) =>
-            `<div class="card" style="display:flex;gap:12px;align-items:flex-start">
-              ${it.image ? `<img src="${it.image}" alt="${it.name}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid #eee;flex:0 0 auto" />` : ""}
-              <div style="min-width:0;flex:1">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            `<div class="itemCard">
+              ${it.image ? `<img src="${it.image}" alt="${escapeHtml(it.name)}" class="itemCardImage" />` : ""}
+              <div class="itemCardContent">
+                <div class="itemCardRow">
                   <div style="flex:1">
-                    <a href="./${it.slug}"><strong>${it.name}</strong></a>
-                    <div class="small">${markdownToHtml(it.description || "")}</div>
+                    <a href="./${it.slug}" class="itemCardTitle">${escapeHtml(it.name)}</a>
+                    ${it.description ? `<div class="small" style="margin-top:4px">${markdownToHtml(it.description)}</div>` : ""}
                   </div>
-                  ${it.price ? `<div style="flex:0 0 auto;font-weight:600;color:#1d4ed8;white-space:nowrap">$${it.price.amount}</div>` : ""}
+                  ${it.price ? `<div class="itemCardPrice">$${escapeHtml(it.price.amount)}</div>` : ""}
                 </div>
               </div>
             </div>`
         )
         .join("\n");
-      return `<h2>${sec.name}</h2>\n${items}`;
+      return `<h2>${escapeHtml(sec.name)}</h2>\n${items}`;
     })
     .join("\n");
 
@@ -352,15 +393,15 @@ export function renderMenuHtml(model: ExportSiteModel, menu: MenuLink, menuSchem
     ? `<h2>Items</h2>\n${menu.directItems
         .map(
           (it) =>
-            `<div class="card" style="display:flex;gap:12px;align-items:flex-start">
-              ${it.image ? `<img src="${it.image}" alt="${it.name}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;border:1px solid #eee;flex:0 0 auto" />` : ""}
-              <div style="min-width:0;flex:1">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            `<div class="itemCard">
+              ${it.image ? `<img src="${it.image}" alt="${escapeHtml(it.name)}" class="itemCardImage" />` : ""}
+              <div class="itemCardContent">
+                <div class="itemCardRow">
                   <div style="flex:1">
-                    <a href="./${it.slug}"><strong>${it.name}</strong></a>
-                    <div class="small">${markdownToHtml(it.description || "")}</div>
+                    <a href="./${it.slug}" class="itemCardTitle">${escapeHtml(it.name)}</a>
+                    ${it.description ? `<div class="small" style="margin-top:4px">${markdownToHtml(it.description)}</div>` : ""}
                   </div>
-                  ${it.price ? `<div style="flex:0 0 auto;font-weight:600;color:#1d4ed8;white-space:nowrap">$${it.price.amount}</div>` : ""}
+                  ${it.price ? `<div class="itemCardPrice">$${escapeHtml(it.price.amount)}</div>` : ""}
                 </div>
               </div>
             </div>`
@@ -369,13 +410,30 @@ export function renderMenuHtml(model: ExportSiteModel, menu: MenuLink, menuSchem
     : "";
 
   const body = `
-<a href="./index.html">← Back to ${model.displayName}</a>
-<div class="header">
-  <h1>${menu.name}</h1>
-  <div class="small">${model.displayName}</div>
+<div class="container">
+  <a href="./index.html" class="backLink">← Back to ${escapeHtml(model.displayName)}</a>
+  <div class="header">
+    <h1>${escapeHtml(menu.name)}</h1>
+    ${menu.description ? `<div class="description">${markdownToHtml(menu.description)}</div>` : `<div class="small">${escapeHtml(model.displayName)}</div>`}
+  </div>
+  ${sectionsHtml}
+  ${directHtml}
+  
+  <div class="ctaSection">
+    <h2>Ready to Order ${escapeHtml(menu.name)}?</h2>
+    <p>Chat with our AI assistant for menu details, dietary options, and reservations.</p>
+    <a href="https://chatgpt.com/g/g-691d8219c93c819192573c805a6edfaf-synvya" target="_blank" rel="noopener noreferrer" class="ctaLink">
+      Chat with Synvya Assistant →
+    </a>
+    <div class="ctaExample">
+      Try asking: "Show me vegan ${escapeHtml(menu.name.toLowerCase())} options" or "Book a table for ${escapeHtml(menu.name.toLowerCase())} tomorrow"
+    </div>
+  </div>
+  
+  <footer class="footer">
+    <div>© ${new Date().getFullYear()} ${escapeHtml(model.displayName)} • Powered by <a href="https://synvya.com" target="_blank" rel="noopener noreferrer">Synvya</a></div>
+  </footer>
 </div>
-${sectionsHtml}
-${directHtml}
 `;
   return baseHtml(`${model.displayName} / ${menu.name}`, schemaTag, body);
 }
@@ -383,26 +441,43 @@ ${directHtml}
 export function renderMenuItemHtml(model: ExportSiteModel, menuName: string, menuSlug: string, item: MenuItemLink, itemSchema: unknown): string {
   const schemaTag = jsonLdScriptTag(itemSchema);
   const badges = item.dietaryBadges.length
-    ? `<div class="badges">${item.dietaryBadges.map((b) => `<span class="badge">${b}</span>`).join("")}</div>`
+    ? `<div class="itemBadges">${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
     : "";
-  const contains = item.contains.length ? `<div class="small"><strong>Contains:</strong> ${item.contains.join(", ")}</div>` : "";
-  const availableOn = `<div class="card"><div><strong>Available On</strong></div><div class="small">${menuName}${
-    item.section ? ` - ${sectionNameFromTitle(item.section)} Section` : ""
+  const contains = item.contains.length ? `<div class="small" style="margin-top:12px"><strong>Contains:</strong> ${item.contains.map(c => escapeHtml(c)).join(", ")}</div>` : "";
+  const availableOn = `<div class="card"><div style="font-weight:600;margin-bottom:8px">Available On</div><div class="small">${escapeHtml(menuName)}${
+    item.section ? ` - ${escapeHtml(sectionNameFromTitle(item.section))} Section` : ""
   }</div></div>`;
 
-  const priceHtml = item.price ? `<div class="card"><div style="font-size:24px;font-weight:600;color:#1d4ed8">$${item.price.amount} ${item.price.currency}</div></div>` : "";
+  const priceHtml = item.price ? `<div class="itemPrice">$${escapeHtml(item.price.amount)} ${escapeHtml(item.price.currency)}</div>` : "";
 
   const body = `
-<a href="./${menuSlug}">← Back to ${menuName}</a>
-<div class="header">
-  <h1>${item.name}</h1>
-  ${item.image ? `<div class="card" style="padding:0;overflow:hidden"><img src="${item.image}" alt="${item.name}" style="width:100%;max-height:360px;object-fit:contain;background:#fff;display:block"/></div>` : ""}
-  ${priceHtml}
-  <div class="small">${markdownToHtml(item.description || "")}</div>
-  ${badges}
-  ${contains}
+<div class="container">
+  <a href="./${menuSlug}" class="backLink">← Back to ${escapeHtml(menuName)}</a>
+  <div class="header">
+    <h1>${escapeHtml(item.name)}</h1>
+    ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.name)}" class="itemImage" />` : ""}
+    ${priceHtml}
+    ${item.description ? `<div class="description">${markdownToHtml(item.description)}</div>` : ""}
+    ${badges}
+    ${contains}
+  </div>
+  ${availableOn}
+  
+  <div class="ctaSection">
+    <h2>Want to Try This Dish?</h2>
+    <p>Chat with our AI assistant to make a reservation or ask about our menu.</p>
+    <a href="https://chatgpt.com/g/g-691d8219c93c819192573c805a6edfaf-synvya" target="_blank" rel="noopener noreferrer" class="ctaLink">
+      Chat with Synvya Assistant →
+    </a>
+    <div class="ctaExample">
+      Try asking: "Reserve a table for tonight" or "Tell me about ${escapeHtml(item.name)}"
+    </div>
+  </div>
+  
+  <footer class="footer">
+    <div>© ${new Date().getFullYear()} ${escapeHtml(model.displayName)} • Powered by <a href="https://synvya.com" target="_blank" rel="noopener noreferrer">Synvya</a></div>
+  </footer>
 </div>
-${availableOn}
 `;
   return baseHtml(`${model.displayName} / ${menuName} / ${item.name}`, schemaTag, body);
 }
