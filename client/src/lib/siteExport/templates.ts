@@ -236,6 +236,13 @@ a:hover{text-decoration:underline}
 .menuGrid{display:grid;gap:12px}
 @media(min-width:768px){.menuGrid{grid-template-columns:1fr 1fr}}
 
+/* Book Restaurant Button */
+.book-restaurant-btn{position:fixed;top:16px;right:16px;z-index:1000;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;border-radius:6px;font-size:14px;font-weight:500;height:36px;padding:0 12px;background:linear-gradient(to right, #2db85c 0%, #1f8f47 100%);color:#ffffff;text-decoration:none;border:0;box-shadow:0 1px 2px 0 rgba(0, 0, 0, 0.05);transition:all 0.2s ease;cursor:pointer}
+.book-restaurant-btn:hover{background:linear-gradient(to right, #289c52 0%, #1a7d3d 100%);box-shadow:0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)}
+.book-restaurant-btn:focus{outline:2px solid #2db85c;outline-offset:2px}
+.book-restaurant-btn .btn-icon{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:640px){.book-restaurant-btn{top:12px;right:12px;font-size:13px;height:32px;padding:0 10px}}
+
 /* Hero */
 .hero{position:relative;border-radius:16px;overflow:hidden;border:1px solid #eee}
 .heroImg{width:100%;height:300px;object-fit:cover;display:block;filter:saturate(1.05)}
@@ -256,6 +263,12 @@ a:hover{text-decoration:underline}
 ${schemaTag}
 </head>
 <body>
+<a href="https://chatgpt.com/g/g-691d8219c93c819192573c805a6edfaf-synvya" target="_blank" rel="noopener noreferrer" class="book-restaurant-btn" aria-label="Book Restaurant with Synvya AI Assistant">
+  <svg class="btn-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+  Book Restaurant
+</a>
 ${body}
 </body>
 </html>`;
