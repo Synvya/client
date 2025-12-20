@@ -161,8 +161,16 @@ export function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessP
   for (const tag of event.tags) {
     if (!Array.isArray(tag) || !tag.length) continue;
 
-    if (tag[0] === "schema.org:FoodEstablishment" && typeof tag[1] === "string") {
-      // New format: ["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]
+    // New format: ["t", "foodEstablishment:Restaurant"]
+    if (tag[0] === "t" && typeof tag[1] === "string" && tag[1].startsWith("foodEstablishment:")) {
+      const businessTypeValue = tag[1].slice("foodEstablishment:".length);
+      // Convert PascalCase to camelCase (e.g., "IceCreamShop" -> "iceCreamShop")
+      const camelCase = businessTypeValue.charAt(0).toLowerCase() + businessTypeValue.slice(1);
+      if (allowedBusinessTypes.has(camelCase as BusinessType)) {
+        patch.businessType = camelCase as BusinessType;
+      }
+    } else if (tag[0] === "schema.org:FoodEstablishment" && typeof tag[1] === "string") {
+      // Old format: ["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]
       // Convert PascalCase to camelCase (e.g., "Restaurant" -> "restaurant")
       const businessTypeValue = tag[1].charAt(0).toLowerCase() + tag[1].slice(1);
       if (allowedBusinessTypes.has(businessTypeValue as BusinessType)) {
@@ -177,9 +185,34 @@ export function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessP
         // Fallback to old format for backward compatibility
         patch.businessType = tag[1] as BusinessType;
       }
-    } else if (tag[0] === "t" && typeof tag[1] === "string" && tag[1] !== "production") {
-      categories.push(tag[1]);
+    } else if (tag[0] === "t" && typeof tag[1] === "string") {
+      // Handle different "t" tag formats
+      const tagValue = tag[1];
+      
+      // Skip production tag
+      if (tagValue === "production") {
+        continue;
+      }
+      
+      // New format: ["t", "servesCuisine:Spanish"]
+      if (tagValue.startsWith("servesCuisine:")) {
+        patch.cuisine = tagValue.slice("servesCuisine:".length);
+      }
+      // Skip diet categories (they end with "Diet")
+      else if (/Diet$/i.test(tagValue)) {
+        // Diet categories are handled separately, don't add to regular categories
+        continue;
+      }
+      // Skip foodEstablishment tags (already handled above)
+      else if (tagValue.startsWith("foodEstablishment:")) {
+        continue;
+      }
+      // Regular categories
+      else {
+        categories.push(tagValue);
+      }
     } else if ((tag[0] === "schema.org:FoodEstablishment:servesCuisine" || tag[0] === "schema.org:servesCuisine") && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       patch.cuisine = tag[1];
     } else if ((tag[0] === "schema.org:FoodEstablishment:memberOf" || tag[0] === "schema.org:memberOf") && typeof tag[1] === "string") {
       // New format: ["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]
@@ -203,33 +236,98 @@ export function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessP
         // Backward compatibility: use value as-is if it's not a URL
         patch.memberOf = value;
       }
-    } else if (tag[0] === "schema.org:FoodEstablishment:telephone" && typeof tag[1] === "string") {
+    } else if (tag[0] === "telephone" && typeof tag[1] === "string") {
+      // New format: ["telephone", "tel:+155512345678"]
       // Extract phone number from "tel:+155512345678" format
       const phoneValue = tag[1].startsWith("tel:") ? tag[1].slice(4) : tag[1];
       if (phoneValue) patch.phone = phoneValue;
-    } else if (tag[0] === "schema.org:FoodEstablishment:email" && typeof tag[1] === "string") {
+    } else if (tag[0] === "schema.org:FoodEstablishment:telephone" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
+      const phoneValue = tag[1].startsWith("tel:") ? tag[1].slice(4) : tag[1];
+      if (phoneValue) patch.phone = phoneValue;
+    } else if (tag[0] === "email" && typeof tag[1] === "string") {
+      // New format: ["email", "mailto:email@example.com"]
       // Extract email from "mailto:email@example.com" format
       const emailValue = tag[1].startsWith("mailto:") ? tag[1].slice(7) : tag[1];
       if (emailValue) patch.email = emailValue;
+    } else if (tag[0] === "schema.org:FoodEstablishment:email" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
+      const emailValue = tag[1].startsWith("mailto:") ? tag[1].slice(7) : tag[1];
+      if (emailValue) patch.email = emailValue;
+    } else if (tag[0] === "location" && typeof tag[1] === "string") {
+      // New format: ["location", "7970 Railroad Ave, Snoqualmie, WA, 98065, USA"]
+      locationValue = tag[1];
     } else if (tag[0] === "schema.org:PostalAddress:streetAddress" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       patch.street = tag[1];
     } else if (tag[0] === "schema.org:PostalAddress:addressLocality" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       patch.city = tag[1];
     } else if (tag[0] === "schema.org:PostalAddress:addressRegion" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       patch.state = tag[1];
     } else if (tag[0] === "schema.org:PostalAddress:postalCode" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       patch.zip = tag[1];
     } else if (tag[0] === "schema.org:PostalAddress:addressCountry" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       patch.country = tag[1];
+    } else if (tag[0] === "acceptsReservations" && typeof tag[1] === "string") {
+      // New format: ["acceptsReservations", "False"] or ["acceptsReservations", "https://synvya.com"]
+      if (tag[1] === "False") {
+        patch.acceptsReservations = false;
+      } else if (tag[1] === "https://synvya.com") {
+        patch.acceptsReservations = true;
+      }
     } else if (tag[0] === "schema.org:acceptsReservations" && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       if (tag[1] === "False") {
         patch.acceptsReservations = false;
       } else if (tag[1] === "https://synvya.com") {
         patch.acceptsReservations = true;
       }
     } else if (tag[0] === "i" && typeof tag[1] === "string" && tag[1] === "rp") {
+      // Reservation protocol tag indicates acceptsReservations = true
       patch.acceptsReservations = true;
+    } else if (tag[0] === "openingHours" && typeof tag[1] === "string") {
+      // New format: ["openingHours", "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00"]
+      // Parse comma-separated opening hours string
+      const hoursString = tag[1];
+      const hoursParts = hoursString.split(",").map(part => part.trim()).filter(Boolean);
+      
+      for (const part of hoursParts) {
+        // Split by space to separate day range from time range
+        const spaceIndex = part.indexOf(" ");
+        if (spaceIndex === -1) continue;
+        
+        const dayRange = part.slice(0, spaceIndex).trim();
+        const timeRange = part.slice(spaceIndex + 1).trim();
+        const [startTime, endTime] = timeRange.split("-");
+        
+        if (startTime && endTime) {
+          // Parse day range: "Tu-Th" or "Mo"
+          const days: string[] = [];
+          if (dayRange.includes("-")) {
+            const [startDay, endDay] = dayRange.split("-");
+            const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+            const startIndex = dayOrder.indexOf(startDay);
+            const endIndex = dayOrder.indexOf(endDay);
+            if (startIndex >= 0 && endIndex >= 0 && startIndex <= endIndex) {
+              for (let i = startIndex; i <= endIndex; i++) {
+                days.push(dayOrder[i]);
+              }
+            }
+          } else {
+            days.push(dayRange);
+          }
+          
+          if (days.length > 0) {
+            openingHours.push({ days, startTime, endTime });
+          }
+        }
+      }
     } else if ((tag[0] === "schema.org:FoodEstablishment:openingHours" || tag[0] === "schema.org:openingHours") && typeof tag[1] === "string") {
+      // Old format for backward compatibility
       // Parse comma-separated opening hours string: "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00"
       const hoursString = tag[1];
       const hoursParts = hoursString.split(",").map(part => part.trim()).filter(Boolean);
@@ -316,27 +414,59 @@ export function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessP
     }
   }
 
-  // Reconstruct location from postal address components if available
-  if (patch.street || patch.city || patch.state || patch.zip) {
-    const locationParts = [patch.street, patch.city, patch.state, patch.zip].filter(
-      (value): value is string => Boolean(value)
-    );
-    if (locationParts.length >= 2) {
-      patch.location = `${locationParts.join(", ")}, USA`;
-    }
-  } else if (locationValue) {
-    // Fallback to old format
+  // Parse location string into address components
+  if (locationValue) {
+    // New format: "7970 Railroad Ave, Snoqualmie, WA, 98065, USA"
     patch.location = locationValue;
-    const withoutCountry = locationValue.replace(/,?\s*USA$/i, "").trim();
-    const parts = withoutCountry
+    const parts = locationValue
       .split(",")
       .map((part) => part.trim())
       .filter(Boolean);
 
-    if (parts[0]) patch.street = parts[0];
-    if (parts[1]) patch.city = parts[1];
-    if (parts[2]) patch.state = parts[2];
-    if (parts[3]) patch.zip = parts[3];
+    // Try to parse: street, city, state, zip, country
+    if (parts.length >= 2) {
+      if (parts[0]) patch.street = parts[0];
+      if (parts[1]) patch.city = parts[1];
+      if (parts[2]) patch.state = parts[2];
+      if (parts[3]) patch.zip = parts[3];
+      
+      // Last part is usually country, but might be "USA" or country code
+      if (parts.length >= 5) {
+        const countryPart = parts[parts.length - 1];
+        // Map common country names back to ISO codes
+        const countryMap: Record<string, string> = {
+          "USA": "US",
+          "United States": "US",
+          "United States of America": "US",
+          "Canada": "CA",
+          "Mexico": "MX",
+          "United Kingdom": "GB",
+          "France": "FR",
+          "Germany": "DE",
+          "Italy": "IT",
+          "Spain": "ES",
+          "Australia": "AU",
+          "Japan": "JP",
+          "China": "CN",
+          "India": "IN",
+          "Brazil": "BR",
+        };
+        patch.country = countryMap[countryPart] || countryPart;
+      } else if (parts.length === 4) {
+        // If only 4 parts, assume no country specified, default to US
+        patch.country = "US";
+      }
+    }
+  } else if (patch.street || patch.city || patch.state || patch.zip) {
+    // Reconstruct location from postal address components if available (old format)
+    const locationParts = [patch.street, patch.city, patch.state, patch.zip].filter(
+      (value): value is string => Boolean(value)
+    );
+    if (locationParts.length >= 2) {
+      const country = patch.country || "US";
+      const countryName = country === "US" ? "USA" : country;
+      patch.location = `${locationParts.join(", ")}, ${countryName}`;
+    }
   }
 
   if (categories.length) {

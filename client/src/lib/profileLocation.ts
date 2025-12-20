@@ -5,8 +5,16 @@ function extractLocationFromEvent(event: Event | null | undefined): string | nul
   if (!event) return null;
   if (Array.isArray(event.tags)) {
     for (const tag of event.tags) {
-      if (Array.isArray(tag) && tag.length >= 2 && tag[0] === "i" && typeof tag[1] === "string") {
-        if (tag[1].startsWith("location:")) {
+      if (Array.isArray(tag) && tag.length >= 2) {
+        // New format: ["location", "7970 Railroad Ave, Snoqualmie, WA, 98065, USA"]
+        if (tag[0] === "location" && typeof tag[1] === "string") {
+          const value = tag[1].trim();
+          if (value) {
+            return value;
+          }
+        }
+        // Old format: ["i", "location:..."]
+        else if (tag[0] === "i" && typeof tag[1] === "string" && tag[1].startsWith("location:")) {
           const value = tag[1].slice("location:".length).trim();
           if (value) {
             return value;

@@ -106,7 +106,7 @@ describe("buildProfileEvent", () => {
     expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:memberOf")).toBe(false);
   });
 
-  it("should place memberOf tag after address tags", () => {
+  it("should place memberOf tag after location tag", () => {
     const profileWithChamber: BusinessProfile = {
       ...baseProfile,
       street: "123 Main St",
@@ -118,22 +118,17 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithChamber);
 
-    // Find last address index (ES2020 compatible - findLastIndex requires ES2023)
-    let lastAddressIndex = -1;
-    for (let i = event.tags.length - 1; i >= 0; i--) {
-      const tag = event.tags[i];
-      if (Array.isArray(tag) && typeof tag[0] === "string" && tag[0].startsWith("schema.org:PostalAddress:")) {
-        lastAddressIndex = i;
-        break;
-      }
-    }
+    // Find location tag index
+    const locationIndex = event.tags.findIndex(
+      (tag: string[]) => tag[0] === "location"
+    );
     const memberOfTagIndex = event.tags.findIndex(
       (tag: string[]) => tag[0] === "schema.org:FoodEstablishment:memberOf"
     );
 
-    expect(lastAddressIndex).toBeGreaterThan(-1);
+    expect(locationIndex).toBeGreaterThan(-1);
     expect(memberOfTagIndex).toBeGreaterThan(-1);
-    expect(memberOfTagIndex).toBeGreaterThan(lastAddressIndex);
+    expect(memberOfTagIndex).toBeGreaterThan(locationIndex);
   });
 
   it("should verify memberOf tag structure", () => {
