@@ -238,6 +238,104 @@ function menuItemUrlForTitle(baseUrl: string, itemTitle: string): string {
 /**
  * Builds a FoodEstablishment schema from a business profile
  */
+/**
+ * Helper function to extract tag value by tag name
+ */
+function extractTagValue(tags: string[][] | undefined, tagName: string): string | undefined {
+  if (!tags) return undefined;
+  const tag = tags.find((t) => Array.isArray(t) && t[0] === tagName && typeof t[1] === "string");
+  return tag?.[1];
+}
+
+/**
+ * Helper function to parse location string into address components
+ */
+function parseLocationString(location: string): { street?: string; city?: string; state?: string; zip?: string; country?: string } {
+  const parts = location.split(",").map((p) => p.trim()).filter(Boolean);
+  const result: { street?: string; city?: string; state?: string; zip?: string; country?: string } = {};
+  
+  if (parts.length >= 1) result.street = parts[0];
+  if (parts.length >= 2) result.city = parts[1];
+  if (parts.length >= 3) result.state = parts[2];
+  if (parts.length >= 4) result.zip = parts[3];
+  if (parts.length >= 5) {
+    // Map country name back to ISO code
+    const countryName = parts[parts.length - 1];
+    const countryMap: Record<string, string> = {
+      "USA": "US",
+      "United States": "US",
+      "United States of America": "US",
+      "Canada": "CA",
+      "Mexico": "MX",
+      "United Kingdom": "GB",
+      "France": "FR",
+      "Germany": "DE",
+      "Italy": "IT",
+      "Spain": "ES",
+      "Australia": "AU",
+      "Japan": "JP",
+      "China": "CN",
+      "India": "IN",
+      "Brazil": "BR",
+    };
+    result.country = countryMap[countryName] || countryName;
+  }
+  
+  return result;
+}
+
+/**
+ * Helper function to parse geo coordinates from "lat, lon" format
+ */
+function parseGeoCoordinates(geoStr: string): { latitude: number; longitude: number } | null {
+  const parts = geoStr.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length !== 2) return null;
+  const lat = parseFloat(parts[0]);
+  const lon = parseFloat(parts[1]);
+  if (isNaN(lat) || isNaN(lon)) return null;
+  return { latitude: lat, longitude: lon };
+}
+
+/**
+ * Helper function to parse opening hours from string format
+ */
+function parseOpeningHours(hoursStr: string): Array<{ days: string[]; startTime: string; endTime: string }> {
+  const hoursParts = hoursStr.split(",").map((p) => p.trim()).filter(Boolean);
+  const result: Array<{ days: string[]; startTime: string; endTime: string }> = [];
+  
+  for (const part of hoursParts) {
+    const spaceIndex = part.indexOf(" ");
+    if (spaceIndex === -1) continue;
+    
+    const dayRange = part.slice(0, spaceIndex).trim();
+    const timeRange = part.slice(spaceIndex + 1).trim();
+    const [startTime, endTime] = timeRange.split("-");
+    
+    if (startTime && endTime) {
+      const days: string[] = [];
+      if (dayRange.includes("-")) {
+        const [startDay, endDay] = dayRange.split("-");
+        const dayOrder = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+        const startIndex = dayOrder.indexOf(startDay);
+        const endIndex = dayOrder.indexOf(endDay);
+        if (startIndex >= 0 && endIndex >= 0 && startIndex <= endIndex) {
+          for (let i = startIndex; i <= endIndex; i++) {
+            days.push(dayOrder[i]);
+          }
+        }
+      } else {
+        days.push(dayRange);
+      }
+      
+      if (days.length > 0) {
+        result.push({ days, startTime, endTime });
+      }
+    }
+  }
+  
+  return result;
+}
+
 export function buildFoodEstablishmentSchema(
   profile: BusinessProfile,
   geohashOrOptions?: string | null | { geohash?: string | null; pubkeyHex?: string; kind0Tags?: string[][] }
@@ -246,8 +344,26 @@ export function buildFoodEstablishmentSchema(
   const pubkeyHex = typeof geohashOrOptions === "object" && geohashOrOptions ? geohashOrOptions.pubkeyHex : undefined;
   const kind0Tags = typeof geohashOrOptions === "object" && geohashOrOptions ? geohashOrOptions.kind0Tags : undefined;
 
+  // Extract business type from tags if available
+  let businessType = profile.businessType;
+  if (kind0Tags) {
+    const foodEstablishmentTag = kind0Tags.find(
+      (t) => Array.isArray(t) && t[0] === "t" && typeof t[1] === "string" && t[1].startsWith("foodEstablishment:")
+    );
+    if (foodEstablishmentTag && typeof foodEstablishmentTag[1] === "string") {
+      const businessTypeValue = foodEstablishmentTag[1].slice("foodEstablishment:".length);
+      // Convert PascalCase to camelCase (e.g., "IceCreamShop" -> "iceCreamShop")
+      const camelCase = businessTypeValue.charAt(0).toLowerCase() + businessTypeValue.slice(1);
+      // Validate it's a valid business type
+      const validTypes: BusinessType[] = ["bakery", "barOrPub", "brewery", "cafeOrCoffeeShop", "distillery", "fastFoodRestaurant", "iceCreamShop", "restaurant", "winery"];
+      if (validTypes.includes(camelCase as BusinessType)) {
+        businessType = camelCase as BusinessType;
+      }
+    }
+  }
+
   const schema: SchemaOrgFoodEstablishment = {
-    "@type": mapBusinessTypeToSchemaOrg(profile.businessType),
+    "@type": mapBusinessTypeToSchemaOrg(businessType),
     "name": profile.displayName || profile.name
   };
 
@@ -279,66 +395,147 @@ export function buildFoodEstablishmentSchema(
     schema.logo = profile.picture;
   }
 
-  // Address
-  if (profile.street || profile.city || profile.state || profile.zip) {
+  // Address - extract from location tag or use profile
+  let addressData = { street: profile.street, city: profile.city, state: profile.state, zip: profile.zip, country: profile.country };
+  if (kind0Tags) {
+    const locationTag = extractTagValue(kind0Tags, "location");
+    if (locationTag) {
+      addressData = { ...addressData, ...parseLocationString(locationTag) };
+    }
+  }
+  
+  if (addressData.street || addressData.city || addressData.state || addressData.zip) {
     const address: SchemaOrgPostalAddress = {
       "@type": "PostalAddress"
     };
-    if (profile.street) address.streetAddress = profile.street;
-    if (profile.city) address.addressLocality = profile.city;
-    if (profile.state) address.addressRegion = profile.state;
-    if (profile.zip) address.postalCode = profile.zip;
-    if (profile.country) address.addressCountry = profile.country;
+    if (addressData.street) address.streetAddress = addressData.street;
+    if (addressData.city) address.addressLocality = addressData.city;
+    if (addressData.state) address.addressRegion = addressData.state;
+    if (addressData.zip) address.postalCode = addressData.zip;
+    if (addressData.country) address.addressCountry = addressData.country;
     schema.address = address;
   }
 
-  // Contact information
-  if (profile.phone) {
-    const raw = profile.phone.trim();
-    if (raw.toLowerCase().startsWith("tel:")) {
-      schema.telephone = raw;
-    } else {
-      const sanitized = raw.replace(/[^\d+]/g, "");
-      schema.telephone = `tel:${sanitized || raw}`;
+  // Contact information - extract from tags or use profile
+  let telephone: string | undefined;
+  if (kind0Tags) {
+    const telephoneTag = extractTagValue(kind0Tags, "telephone");
+    if (telephoneTag) {
+      telephone = telephoneTag.startsWith("tel:") ? telephoneTag : `tel:${telephoneTag}`;
     }
   }
-  if (profile.email) {
-    const raw = profile.email.trim();
-    schema.email = raw.toLowerCase().startsWith("mailto:") ? raw : `mailto:${raw}`;
+  if (!telephone && profile.phone) {
+    const raw = profile.phone.trim();
+    telephone = raw.toLowerCase().startsWith("tel:") ? raw : `tel:${raw.replace(/[^\d+]/g, "") || raw}`;
   }
+  if (telephone) {
+    schema.telephone = telephone;
+  }
+
+  let email: string | undefined;
+  if (kind0Tags) {
+    const emailTag = extractTagValue(kind0Tags, "email");
+    if (emailTag) {
+      email = emailTag.startsWith("mailto:") ? emailTag : `mailto:${emailTag}`;
+    }
+  }
+  if (!email && profile.email) {
+    const raw = profile.email.trim();
+    email = raw.toLowerCase().startsWith("mailto:") ? raw : `mailto:${raw}`;
+  }
+  if (email) {
+    schema.email = email;
+  }
+
   if (profile.website) {
     schema.url = profile.website;
   }
 
-  // Cuisine
-  if (profile.cuisine) {
-    schema.servesCuisine = profile.cuisine;
+  // Cuisine - extract from tags or use profile
+  let cuisine: string | undefined;
+  if (kind0Tags) {
+    const servesCuisineTag = kind0Tags.find(
+      (t) => Array.isArray(t) && t[0] === "t" && typeof t[1] === "string" && t[1].startsWith("servesCuisine:")
+    );
+    if (servesCuisineTag && typeof servesCuisineTag[1] === "string") {
+      cuisine = servesCuisineTag[1].slice("servesCuisine:".length);
+    }
+  }
+  if (!cuisine && profile.cuisine) {
+    cuisine = profile.cuisine;
+  }
+  if (cuisine) {
+    schema.servesCuisine = cuisine;
   }
 
-  // Keywords (CSV format): comma-separated from kind:0 `t` tags, fallback to profile categories
-  const keywordValues =
-    kind0Tags && kind0Tags.length
-      ? kind0Tags.filter((t) => Array.isArray(t) && t[0] === "t" && typeof t[1] === "string").map((t) => t[1])
-      : profile.categories ?? [];
+  // Keywords - extract from t tags, excluding diet categories and foodEstablishment/servesCuisine tags
+  let keywordValues: string[] = [];
+  if (kind0Tags && kind0Tags.length) {
+    keywordValues = kind0Tags
+      .filter((t) => Array.isArray(t) && t[0] === "t" && typeof t[1] === "string")
+      .map((t) => t[1])
+      .filter((v) => {
+        // Exclude diet categories (end with "Diet")
+        if (/Diet$/i.test(v)) return false;
+        // Exclude foodEstablishment and servesCuisine tags
+        if (v.startsWith("foodEstablishment:") || v.startsWith("servesCuisine:")) return false;
+        // Exclude production tag
+        if (v === "production") return false;
+        return true;
+      });
+  }
+  if (keywordValues.length === 0 && profile.categories) {
+    keywordValues = profile.categories;
+  }
   if (keywordValues.length) {
     schema.keywords = Array.from(new Set(keywordValues)).join(", ");
   }
 
-  // Geo coordinates from geohash
-  if (geohash) {
-    const coords = decodeGeohash(geohash);
-    if (coords) {
-      schema.geo = {
-        "@type": "GeoCoordinates",
-        latitude: coords.latitude,
-        longitude: coords.longitude
-      };
+  // Geo coordinates - extract from geoCoordinates tag, geohash tag, or use provided geohash
+  let geoCoords: { latitude: number; longitude: number } | null = null;
+  if (kind0Tags) {
+    const geoCoordinatesTag = extractTagValue(kind0Tags, "geoCoordinates");
+    if (geoCoordinatesTag) {
+      geoCoords = parseGeoCoordinates(geoCoordinatesTag);
     }
   }
+  
+  // Fallback to geohash if geo coordinates not found in tags
+  if (!geoCoords) {
+    let geohashToUse = geohash;
+    if (!geohashToUse && kind0Tags) {
+      const geohashTag = extractTagValue(kind0Tags, "g");
+      if (geohashTag) {
+        geohashToUse = geohashTag;
+      }
+    }
+    if (geohashToUse) {
+      geoCoords = decodeGeohash(geohashToUse);
+    }
+  }
+  
+  if (geoCoords) {
+    schema.geo = {
+      "@type": "GeoCoordinates",
+      latitude: geoCoords.latitude,
+      longitude: geoCoords.longitude
+    };
+  }
 
-  // Opening hours
-  if (profile.openingHours && profile.openingHours.length > 0) {
-    schema.openingHoursSpecification = profile.openingHours.map((spec) => ({
+  // Opening hours - extract from tags or use profile
+  let openingHours: Array<{ days: string[]; startTime: string; endTime: string }> = [];
+  if (kind0Tags) {
+    const openingHoursTag = extractTagValue(kind0Tags, "openingHours");
+    if (openingHoursTag) {
+      openingHours = parseOpeningHours(openingHoursTag);
+    }
+  }
+  if (openingHours.length === 0 && profile.openingHours) {
+    openingHours = profile.openingHours;
+  }
+  
+  if (openingHours.length > 0) {
+    schema.openingHoursSpecification = openingHours.map((spec) => ({
       "@type": "OpeningHoursSpecification",
       dayOfWeek: spec.days.map(mapDayToSchemaOrg),
       opens: spec.startTime,
@@ -346,8 +543,28 @@ export function buildFoodEstablishmentSchema(
     }));
   }
 
-  // Accepts reservations with potentialAction
-  if (profile.acceptsReservations) {
+  // Accepts reservations - extract from tags or use profile
+  let acceptsReservations: boolean | undefined;
+  if (kind0Tags) {
+    const acceptsReservationsTag = extractTagValue(kind0Tags, "acceptsReservations");
+    if (acceptsReservationsTag) {
+      if (acceptsReservationsTag === "False") {
+        acceptsReservations = false;
+      } else if (acceptsReservationsTag === "https://synvya.com") {
+        acceptsReservations = true;
+      }
+    }
+    // Also check for reservation protocol tag
+    const rpTag = kind0Tags.find((t) => Array.isArray(t) && t[0] === "i" && t[1] === "rp");
+    if (rpTag) {
+      acceptsReservations = true;
+    }
+  }
+  if (acceptsReservations === undefined) {
+    acceptsReservations = profile.acceptsReservations;
+  }
+  
+  if (acceptsReservations) {
     schema.acceptsReservations = true;
     schema.potentialAction = {
       "@type": "ReserveAction",
@@ -361,7 +578,7 @@ export function buildFoodEstablishmentSchema(
         name: "Restaurant Reservation"
       }
     };
-  } else if (profile.acceptsReservations === false) {
+  } else if (acceptsReservations === false) {
     schema.acceptsReservations = false;
   }
 
