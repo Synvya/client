@@ -80,6 +80,100 @@ function formatPhoneWithCountryCode(phone: string, country: string | undefined):
   return `${countryCode}${digitsOnly}`;
 }
 
+/**
+ * Maps category to diet tag format if it's a diet category
+ * Returns the mapped diet tag or null if not a diet category
+ */
+function mapDietCategory(category: string): string | null {
+  const trimmed = category.trim();
+  if (!trimmed) return null;
+  
+  // Normalize the category to check for diet patterns
+  const lower = trimmed.toLowerCase();
+  
+  // Map common diet terms to proper diet tag format
+  const dietMap: Record<string, string> = {
+    "vegetarian": "VegetarianDiet",
+    "vegan": "VeganDiet",
+    "gluten-free": "GlutenFreeDiet",
+    "glutenfree": "GlutenFreeDiet",
+    "dairy-free": "DairyFreeDiet",
+    "dairyfree": "DairyFreeDiet",
+    "nut-free": "NutFreeDiet",
+    "nutfree": "NutFreeDiet",
+    "halal": "HalalDiet",
+    "kosher": "KosherDiet",
+    "paleo": "PaleoDiet",
+    "keto": "KetoDiet",
+    "low-carb": "LowCarbDiet",
+    "lowcarb": "LowCarbDiet",
+  };
+  
+  // Check exact match first
+  if (dietMap[lower]) {
+    return dietMap[lower];
+  }
+  
+  // Check if it already ends with "Diet" (case-insensitive)
+  if (/diet$/i.test(trimmed)) {
+    // Capitalize properly: "vegetarianDiet" -> "VegetarianDiet"
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
+  
+  // Check for patterns like "vegetarian diet", "gluten free diet", etc.
+  const normalized = lower.replace(/\s+/g, "");
+  if (dietMap[normalized]) {
+    return dietMap[normalized];
+  }
+  
+  return null;
+}
+
+/**
+ * Converts camelCase to PascalCase
+ * e.g., "iceCreamShop" -> "IceCreamShop", "barOrPub" -> "BarOrPub"
+ */
+function camelCaseToPascalCase(str: string): string {
+  if (!str) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Formats address components into a single location string
+ */
+function formatLocation(street?: string, city?: string, state?: string, zip?: string, country?: string): string | null {
+  const parts: string[] = [];
+  
+  if (street) parts.push(street);
+  if (city) parts.push(city);
+  if (state) parts.push(state);
+  if (zip) parts.push(zip);
+  
+  // Add country, defaulting to "US" if not specified but we have other address parts
+  const countryCode = country || (parts.length > 0 ? "US" : undefined);
+  if (countryCode) {
+    // Convert ISO country code to full country name for common ones
+    const countryNames: Record<string, string> = {
+      "US": "USA",
+      "CA": "Canada",
+      "MX": "Mexico",
+      "GB": "United Kingdom",
+      "FR": "France",
+      "DE": "Germany",
+      "IT": "Italy",
+      "ES": "Spain",
+      "AU": "Australia",
+      "JP": "Japan",
+      "CN": "China",
+      "IN": "India",
+      "BR": "Brazil",
+    };
+    parts.push(countryNames[countryCode.toUpperCase()] || countryCode);
+  }
+  
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 export function buildProfileEvent(profile: BusinessProfile, options: BuildOptions = {}): EventTemplate {
   const content: Record<string, string> = {};
 
@@ -93,73 +187,63 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
 
   const tags: string[][] = [];
   
-  // Add business type tag
-  const businessTypePascalCase = profile.businessType.charAt(0).toUpperCase() + profile.businessType.slice(1);
-  tags.push(["schema.org:FoodEstablishment", businessTypePascalCase, "https://schema.org/FoodEstablishment"]);
+  // Add business type tag - convert camelCase to PascalCase
+  const businessTypePascalCase = camelCaseToPascalCase(profile.businessType);
+  tags.push(["t", `foodEstablishment:${businessTypePascalCase}`]);
 
+  // Process categories - map diet categories to proper format, others as-is
   for (const category of profile.categories) {
     const trimmed = category.trim();
     if (trimmed) {
-      tags.push(["t", trimmed]);
+      const dietTag = mapDietCategory(trimmed);
+      if (dietTag) {
+        tags.push(["t", dietTag]);
+      } else {
+        tags.push(["t", trimmed]);
+      }
     }
   }
 
+  // Add cuisine tag
   if (profile.cuisine) {
-    tags.push(["schema.org:FoodEstablishment:servesCuisine", profile.cuisine, "https://schema.org/servesCuisine"]);
+    tags.push(["t", `servesCuisine:${profile.cuisine}`]);
   }
 
+  // Add telephone tag
   if (profile.phone) {
     const formattedPhone = formatPhoneWithCountryCode(profile.phone, profile.country);
-    tags.push(["schema.org:FoodEstablishment:telephone", `tel:${formattedPhone}`, "https://datatracker.ietf.org/doc/html/rfc3966"]);
+    tags.push(["telephone", `tel:${formattedPhone}`]);
   }
 
+  // Add email tag
   if (profile.email) {
-    tags.push(["schema.org:FoodEstablishment:email", `mailto:${profile.email}`, "https://schema.org/email"]);
+    tags.push(["email", `mailto:${profile.email}`]);
   }
 
-  // Add postal address component tags
-  if (profile.street) {
-    tags.push(["schema.org:PostalAddress:streetAddress", profile.street, "https://schema.org/streetAddress"]);
-  }
-  if (profile.city) {
-    tags.push(["schema.org:PostalAddress:addressLocality", profile.city, "https://schema.org/addressLocality"]);
-  }
-  if (profile.state) {
-    tags.push(["schema.org:PostalAddress:addressRegion", profile.state, "https://schema.org/addressRegion"]);
-  }
-  if (profile.zip) {
-    tags.push(["schema.org:PostalAddress:postalCode", profile.zip, "https://schema.org/postalCode"]);
-  }
-  // Always add country if we have any address components
-  if (profile.street || profile.city || profile.state || profile.zip) {
-    const country = profile.country || "US"; // Default to US if not specified
-    tags.push(["schema.org:PostalAddress:addressCountry", country, "https://schema.org/addressCountry"]);
+  // Add location tag (combined address)
+  const location = formatLocation(profile.street, profile.city, profile.state, profile.zip, profile.country);
+  if (location) {
+    tags.push(["location", location]);
   }
 
-  // Add geo tags if geocoding succeeded
-  let hasGeoTag = false;
+  // Add geo coordinates tag (lat, lon format)
   if (options.latitude != null && options.longitude != null) {
-    // Add longitude first, then latitude (as specified)
-    tags.push(["schema.org:GeoCoordinates:longitude", options.longitude.toString(), "https://schema.org/longitude"]);
-    tags.push(["schema.org:GeoCoordinates:latitude", options.latitude.toString(), "https://schema.org/latitude"]);
-    hasGeoTag = true;
+    tags.push(["geoCoordinates", `${options.latitude}, ${options.longitude}`]);
   }
+
+  // Add geohash tag
   if (options.geohash) {
     const trimmedGeohash = options.geohash.trim();
     if (trimmedGeohash) {
-      tags.push(["i", `geo:${trimmedGeohash}`, "https://geohash.org"]);
-      hasGeoTag = true;
+      tags.push(["g", trimmedGeohash]);
     }
-  }
-  if (hasGeoTag) {
-    tags.push(["k", "geo"]);
   }
 
   // Add acceptsReservations tags
   if (profile.acceptsReservations === false) {
-    tags.push(["schema.org:FoodEstablishment:acceptsReservations", "False", "https://schema.org/acceptsReservations"]);
+    tags.push(["acceptsReservations", "False"]);
   } else if (profile.acceptsReservations === true) {
-    tags.push(["schema.org:FoodEstablishment:acceptsReservations", "https://synvya.com", "https://schema.org/acceptsReservations"]);
+    tags.push(["acceptsReservations", "https://synvya.com"]);
     tags.push(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
     tags.push(["k", "nip"]);
   }
@@ -180,7 +264,7 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
       }
     }
     if (hoursParts.length > 0) {
-      tags.push(["schema.org:FoodEstablishment:openingHours", hoursParts.join(", "), "https://schema.org/openingHours"]);
+      tags.push(["openingHours", hoursParts.join(", ")]);
     }
   }
 

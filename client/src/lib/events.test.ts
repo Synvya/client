@@ -19,7 +19,7 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(baseProfile);
 
     expect(event.kind).toBe(0);
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]);
+    expect(event.tags).toContainEqual(["t", "foodEstablishment:Restaurant"]);
     expect(event.tags).toContainEqual(["t", "test"]);
     expect(event.tags).toContainEqual(["t", "shop"]);
     
@@ -70,13 +70,9 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithChamber);
 
     // Should include all standard tags
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]);
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:telephone", "tel:+15551234567", "https://datatracker.ietf.org/doc/html/rfc3966"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:streetAddress", "123 Main St", "https://schema.org/streetAddress"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:addressLocality", "Seattle", "https://schema.org/addressLocality"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:addressRegion", "WA", "https://schema.org/addressRegion"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:postalCode", "98101", "https://schema.org/postalCode"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:addressCountry", "US", "https://schema.org/addressCountry"]);
+    expect(event.tags).toContainEqual(["t", "foodEstablishment:Restaurant"]);
+    expect(event.tags).toContainEqual(["telephone", "tel:+15551234567"]);
+    expect(event.tags).toContainEqual(["location", "123 Main St, Seattle, WA, 98101, USA"]);
     
     // Should also include memberOf tag
     expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]);
@@ -197,11 +193,9 @@ describe("buildProfileEvent", () => {
       longitude: -122.3321
     });
 
-    // Longitude comes first, then latitude (as specified)
-    expect(event.tags).toContainEqual(["schema.org:GeoCoordinates:longitude", "-122.3321", "https://schema.org/longitude"]);
-    expect(event.tags).toContainEqual(["schema.org:GeoCoordinates:latitude", "47.6062", "https://schema.org/latitude"]);
-    expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
-    expect(event.tags).toContainEqual(["k", "geo"]);
+    // Geo coordinates in lat, lon format
+    expect(event.tags).toContainEqual(["geoCoordinates", "47.6062, -122.3321"]);
+    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
   });
 
   it("should not include geo tags when geo data is not provided", () => {
@@ -215,8 +209,8 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithLocation);
 
-    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("geo:"))).toBe(false);
-    expect(event.tags.some(tag => tag[0] === "k" && tag[1] === "geo")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "geoCoordinates")).toBe(false);
   });
 
   it("should not include geo tags when geo data is null", () => {
@@ -234,8 +228,8 @@ describe("buildProfileEvent", () => {
       longitude: null
     });
 
-    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("geo:"))).toBe(false);
-    expect(event.tags.some(tag => tag[0] === "k" && tag[1] === "geo")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "g")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "geoCoordinates")).toBe(false);
   });
 
   it("should trim geohash before adding tag", () => {
@@ -253,14 +247,12 @@ describe("buildProfileEvent", () => {
       longitude: -122.3321
     });
 
-    // Longitude comes first, then latitude (as specified)
-    expect(event.tags).toContainEqual(["schema.org:GeoCoordinates:longitude", "-122.3321", "https://schema.org/longitude"]);
-    expect(event.tags).toContainEqual(["schema.org:GeoCoordinates:latitude", "47.6062", "https://schema.org/latitude"]);
-    expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
-    expect(event.tags).toContainEqual(["k", "geo"]);
+    // Geo coordinates in lat, lon format
+    expect(event.tags).toContainEqual(["geoCoordinates", "47.6062, -122.3321"]);
+    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
   });
 
-  it("should place geo tags after address tags", () => {
+  it("should place geo tags after location tag", () => {
     const profileWithLocation: BusinessProfile = {
       ...baseProfile,
       street: "123 Main St",
@@ -275,25 +267,20 @@ describe("buildProfileEvent", () => {
       longitude: -122.3321
     });
 
-    // Find last address index (ES2020 compatible - findLastIndex requires ES2023)
-    let lastAddressIndex = -1;
-    for (let i = event.tags.length - 1; i >= 0; i--) {
-      const tag = event.tags[i];
-      if (Array.isArray(tag) && typeof tag[0] === "string" && tag[0].startsWith("schema.org:PostalAddress:")) {
-        lastAddressIndex = i;
-        break;
-      }
-    }
+    // Find location tag index
+    const locationIndex = event.tags.findIndex(
+      (tag: string[]) => tag[0] === "location"
+    );
     const firstGeoIndex = event.tags.findIndex(
-      (tag: string[]) => tag[0]?.startsWith("schema.org:GeoCoordinates:") || tag[0] === "i" && tag[1]?.startsWith("geo:")
+      (tag: string[]) => tag[0] === "geoCoordinates" || tag[0] === "g"
     );
 
-    expect(lastAddressIndex).toBeGreaterThan(-1);
+    expect(locationIndex).toBeGreaterThan(-1);
     expect(firstGeoIndex).toBeGreaterThan(-1);
-    expect(firstGeoIndex).toBeGreaterThan(lastAddressIndex);
+    expect(firstGeoIndex).toBeGreaterThan(locationIndex);
   });
 
-  it("should include postal address component tags when address fields are provided", () => {
+  it("should include location tag when address fields are provided", () => {
     const profileWithAddress: BusinessProfile = {
       ...baseProfile,
       street: "123 Main St",
@@ -304,16 +291,12 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithAddress);
 
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:streetAddress", "123 Main St", "https://schema.org/streetAddress"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:addressLocality", "Seattle", "https://schema.org/addressLocality"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:addressRegion", "WA", "https://schema.org/addressRegion"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:postalCode", "98101", "https://schema.org/postalCode"]);
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:addressCountry", "US", "https://schema.org/addressCountry"]);
-    // Should NOT contain old location tag
-    expect(event.tags.some(tag => tag[0] === "i" && tag[1]?.startsWith("location:"))).toBe(false);
+    expect(event.tags).toContainEqual(["location", "123 Main St, Seattle, WA, 98101, USA"]);
+    // Should NOT contain old schema.org address tags
+    expect(event.tags.some(tag => tag[0]?.startsWith("schema.org:PostalAddress:"))).toBe(false);
   });
 
-  it("should include geo tags along with address and memberOf tags", () => {
+  it("should include geo tags along with location and memberOf tags", () => {
     const profileWithAll: BusinessProfile = {
       ...baseProfile,
       street: "123 Main St",
@@ -329,12 +312,10 @@ describe("buildProfileEvent", () => {
       longitude: -122.3321
     });
 
-    expect(event.tags).toContainEqual(["schema.org:PostalAddress:streetAddress", "123 Main St", "https://schema.org/streetAddress"]);
-    // Longitude comes first, then latitude (as specified)
-    expect(event.tags).toContainEqual(["schema.org:GeoCoordinates:longitude", "-122.3321", "https://schema.org/longitude"]);
-    expect(event.tags).toContainEqual(["schema.org:GeoCoordinates:latitude", "47.6062", "https://schema.org/latitude"]);
-    expect(event.tags).toContainEqual(["i", "geo:c23q6sydb", "https://geohash.org"]);
-    expect(event.tags).toContainEqual(["k", "geo"]);
+    expect(event.tags).toContainEqual(["location", "123 Main St, Seattle, WA, 98101, USA"]);
+    // Geo coordinates in lat, lon format
+    expect(event.tags).toContainEqual(["geoCoordinates", "47.6062, -122.3321"]);
+    expect(event.tags).toContainEqual(["g", "c23q6sydb"]);
     expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:memberOf", "https://snovalley.org", "https://schema.org/memberOf"]);
     // Should NOT contain namespace tags
     expect(event.tags).not.toContainEqual(["L", "com.synvya.chamber"]);
@@ -344,18 +325,18 @@ describe("buildProfileEvent", () => {
   it("should include servesCuisine tag when cuisine is provided", () => {
     const profileWithCuisine: BusinessProfile = {
       ...baseProfile,
-      cuisine: "Italian, Seafood"
+      cuisine: "Spanish"
     };
 
     const event = buildProfileEvent(profileWithCuisine);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:servesCuisine", "Italian, Seafood", "https://schema.org/servesCuisine"]);
+    expect(event.tags).toContainEqual(["t", "servesCuisine:Spanish"]);
   });
 
   it("should not include servesCuisine tag when cuisine is not provided", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:servesCuisine")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "t" && tag[1]?.startsWith("servesCuisine:"))).toBe(false);
   });
 
   it("should not include servesCuisine tag when cuisine is undefined", () => {
@@ -366,7 +347,7 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithoutCuisine);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:servesCuisine")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "t" && tag[1]?.startsWith("servesCuisine:"))).toBe(false);
   });
 
   it("should place servesCuisine tag after categories", () => {
@@ -382,13 +363,13 @@ describe("buildProfileEvent", () => {
     let lastCategoryIndex = -1;
     for (let i = event.tags.length - 1; i >= 0; i--) {
       const tag = event.tags[i];
-      if (Array.isArray(tag) && tag[0] === "t") {
+      if (Array.isArray(tag) && tag[0] === "t" && !tag[1]?.startsWith("servesCuisine:") && !tag[1]?.startsWith("foodEstablishment:")) {
         lastCategoryIndex = i;
         break;
       }
     }
     const cuisineIndex = event.tags.findIndex(
-      (tag: string[]) => tag[0] === "schema.org:FoodEstablishment:servesCuisine"
+      (tag: string[]) => tag[0] === "t" && tag[1]?.startsWith("servesCuisine:")
     );
 
     expect(lastCategoryIndex).toBeGreaterThan(-1);
@@ -404,13 +385,13 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithEmail);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:email", "mailto:contact@example.com", "https://schema.org/email"]);
+    expect(event.tags).toContainEqual(["email", "mailto:contact@example.com"]);
   });
 
   it("should not include email tag when email is not provided", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:email")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "email")).toBe(false);
   });
 
   it("should not include email tag when email is undefined", () => {
@@ -421,7 +402,7 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithoutEmail);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:email")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "email")).toBe(false);
   });
 
   it("should place email tag after phone tag", () => {
@@ -434,10 +415,10 @@ describe("buildProfileEvent", () => {
     const event = buildProfileEvent(profileWithContact);
 
     const phoneIndex = event.tags.findIndex(
-      tag => tag[0] === "schema.org:FoodEstablishment:telephone"
+      tag => tag[0] === "telephone"
     );
     const emailIndex = event.tags.findIndex(
-      tag => tag[0] === "schema.org:FoodEstablishment:email"
+      tag => tag[0] === "email"
     );
 
     expect(phoneIndex).toBeGreaterThan(-1);
@@ -445,15 +426,15 @@ describe("buildProfileEvent", () => {
     expect(emailIndex).toBeGreaterThan(phoneIndex);
   });
 
-  it("should use Schema.org URL format for business type", () => {
+  it("should use new format for business type", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", "Restaurant", "https://schema.org/FoodEstablishment"]);
+    expect(event.tags).toContainEqual(["t", "foodEstablishment:Restaurant"]);
     expect(event.tags.some(tag => tag[0] === "L" && tag[1] === "com.synvya.merchant")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "l" && tag[2] === "com.synvya.merchant")).toBe(false);
   });
 
-  it("should map all Food Establishment types to Schema.org format", () => {
+  it("should map all Food Establishment types to new format", () => {
     const types: Array<{ type: BusinessProfile["businessType"]; expected: string }> = [
       { type: "bakery", expected: "Bakery" },
       { type: "barOrPub", expected: "BarOrPub" },
@@ -472,7 +453,7 @@ describe("buildProfileEvent", () => {
         businessType: type
       };
       const event = buildProfileEvent(profile);
-      expect(event.tags).toContainEqual(["schema.org:FoodEstablishment", expected, "https://schema.org/FoodEstablishment"]);
+      expect(event.tags).toContainEqual(["t", `foodEstablishment:${expected}`]);
     }
   });
 
@@ -484,8 +465,8 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithReservations);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:acceptsReservations", "False", "https://schema.org/acceptsReservations"]);
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations" && tag[1] === "https://synvya.com")).toBe(false);
+    expect(event.tags).toContainEqual(["acceptsReservations", "False"]);
+    expect(event.tags.some(tag => tag[0] === "acceptsReservations" && tag[1] === "https://synvya.com")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "rp")).toBe(false);
     expect(event.tags.some(tag => tag[0] === "k" && tag[1] === "nip")).toBe(false);
   });
@@ -498,10 +479,10 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithReservations);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:acceptsReservations", "https://synvya.com", "https://schema.org/acceptsReservations"]);
+    expect(event.tags).toContainEqual(["acceptsReservations", "https://synvya.com"]);
     expect(event.tags).toContainEqual(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
     expect(event.tags).toContainEqual(["k", "nip"]);
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:acceptsReservations" && tag[1] === "False")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "acceptsReservations" && tag[1] === "False")).toBe(false);
   });
 
   it("should not include acceptsReservations tags when undefined", () => {
@@ -527,13 +508,13 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithHours);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:openingHours", "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00", "https://schema.org/openingHours"]);
+    expect(event.tags).toContainEqual(["openingHours", "Tu-Th 11:00-21:00, Fr-Sa 11:00-00:00, Su 12:00-21:00"]);
   });
 
   it("should not include openingHours tag when opening hours are not provided", () => {
     const event = buildProfileEvent(baseProfile);
 
-    expect(event.tags.some(tag => tag[0] === "schema.org:FoodEstablishment:openingHours")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "openingHours")).toBe(false);
   });
 
   it("should handle single day opening hours", () => {
@@ -548,7 +529,33 @@ describe("buildProfileEvent", () => {
 
     const event = buildProfileEvent(profileWithHours);
 
-    expect(event.tags).toContainEqual(["schema.org:FoodEstablishment:openingHours", "Mo 09:00-17:00", "https://schema.org/openingHours"]);
+    expect(event.tags).toContainEqual(["openingHours", "Mo 09:00-17:00"]);
+  });
+
+  it("should map diet categories to proper format", () => {
+    const profileWithDiets: BusinessProfile = {
+      ...baseProfile,
+      categories: ["vegetarian", "gluten-free", "vegan", "regular-category"]
+    };
+
+    const event = buildProfileEvent(profileWithDiets);
+
+    expect(event.tags).toContainEqual(["t", "VegetarianDiet"]);
+    expect(event.tags).toContainEqual(["t", "GlutenFreeDiet"]);
+    expect(event.tags).toContainEqual(["t", "VeganDiet"]);
+    expect(event.tags).toContainEqual(["t", "regular-category"]);
+  });
+
+  it("should handle diet categories that already end with Diet", () => {
+    const profileWithDiets: BusinessProfile = {
+      ...baseProfile,
+      categories: ["VegetarianDiet", "GlutenFreeDiet"]
+    };
+
+    const event = buildProfileEvent(profileWithDiets);
+
+    expect(event.tags).toContainEqual(["t", "VegetarianDiet"]);
+    expect(event.tags).toContainEqual(["t", "GlutenFreeDiet"]);
   });
 });
 
