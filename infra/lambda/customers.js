@@ -197,9 +197,10 @@ async function handleReservation(event, requestOrigin = null) {
       );
     } else {
       // Update existing record with atomic increment
-      // Check if reservations_by_month exists, if not create it first to avoid path overlap
+      // Need to ensure both parent structures exist before updating nested path
+      
+      // Step 1: Ensure reservations_by_month exists
       if (!existing.Item.reservations_by_month) {
-        // First update: create the parent structure
         await dynamo.send(
           new UpdateCommand({
             TableName: customersTable,
@@ -212,7 +213,27 @@ async function handleReservation(event, requestOrigin = null) {
         );
       }
       
-      // Second update: increment the nested counter (no path overlap since parent exists)
+      // Step 2: Ensure reservations_by_month.#month exists
+      // Check if the month object exists in the structure
+      const reservationsByMonth = existing.Item.reservations_by_month || {};
+      if (!reservationsByMonth[monthKey]) {
+        await dynamo.send(
+          new UpdateCommand({
+            TableName: customersTable,
+            Key: { npub },
+            UpdateExpression: "SET reservations_by_month.#month = :empty_month",
+            ExpressionAttributeNames: {
+              "#month": monthKey
+            },
+            ExpressionAttributeValues: {
+              ":empty_month": {}
+            }
+          })
+        );
+      }
+      
+      // Step 3: Now we can safely increment the nested counter
+      // All parent structures exist, so if_not_exists() on nested path will work
       await dynamo.send(
         new UpdateCommand({
           TableName: customersTable,
