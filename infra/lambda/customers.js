@@ -168,19 +168,6 @@ async function handleReservation(event, requestOrigin = null) {
   // Validate month format
   const monthKey = month;
 
-  // Use atomic increment to update the count
-  // Ensure parent map exists, then set only the nested value (DynamoDB creates intermediate objects)
-  const updateExpression = "SET reservations_by_month = if_not_exists(reservations_by_month, :empty_map), reservations_by_month.#month.confirmed = if_not_exists(reservations_by_month.#month.confirmed, :zero) + :one, last_updated = :now";
-  const expressionAttributeNames = {
-    "#month": monthKey
-  };
-  const expressionAttributeValues = {
-    ":empty_map": {},
-    ":zero": 0,
-    ":one": 1,
-    ":now": new Date().toISOString()
-  };
-
   try {
     // First, ensure the customer record exists (create if it doesn't)
     const existing = await dynamo.send(
@@ -210,13 +197,35 @@ async function handleReservation(event, requestOrigin = null) {
       );
     } else {
       // Update existing record with atomic increment
+      // Check if reservations_by_month exists, if not create it first to avoid path overlap
+      if (!existing.Item.reservations_by_month) {
+        // First update: create the parent structure
+        await dynamo.send(
+          new UpdateCommand({
+            TableName: customersTable,
+            Key: { npub },
+            UpdateExpression: "SET reservations_by_month = :empty_map",
+            ExpressionAttributeValues: {
+              ":empty_map": {}
+            }
+          })
+        );
+      }
+      
+      // Second update: increment the nested counter (no path overlap since parent exists)
       await dynamo.send(
         new UpdateCommand({
           TableName: customersTable,
           Key: { npub },
-          UpdateExpression: updateExpression,
-          ExpressionAttributeNames: expressionAttributeNames,
-          ExpressionAttributeValues: expressionAttributeValues
+          UpdateExpression: "SET reservations_by_month.#month.confirmed = if_not_exists(reservations_by_month.#month.confirmed, :zero) + :one, last_updated = :now",
+          ExpressionAttributeNames: {
+            "#month": monthKey
+          },
+          ExpressionAttributeValues: {
+            ":zero": 0,
+            ":one": 1,
+            ":now": new Date().toISOString()
+          }
         })
       );
     }
