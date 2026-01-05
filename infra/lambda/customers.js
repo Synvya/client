@@ -169,11 +169,14 @@ async function handleReservation(event, requestOrigin = null) {
   const monthKey = month;
 
   // Use atomic increment to update the count
-  const updateExpression = "SET reservations_by_month.#month.confirmed = if_not_exists(reservations_by_month.#month.confirmed, :zero) + :one, last_updated = :now";
+  // First ensure parent structures exist, then update nested value
+  const updateExpression = "SET reservations_by_month = if_not_exists(reservations_by_month, :empty_map), reservations_by_month.#month = if_not_exists(reservations_by_month.#month, :empty_month), reservations_by_month.#month.confirmed = if_not_exists(reservations_by_month.#month.confirmed, :zero) + :one, last_updated = :now";
   const expressionAttributeNames = {
     "#month": monthKey
   };
   const expressionAttributeValues = {
+    ":empty_map": {},
+    ":empty_month": {},
     ":zero": 0,
     ":one": 1,
     ":now": new Date().toISOString()
