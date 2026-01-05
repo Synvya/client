@@ -137,6 +137,24 @@ export function useReservationActions() {
                     pubkey!  // Addressed to self (merchant)
                 );
 
+                // Log gift wrap details before publishing
+                console.log('[Reservation Response] Publishing gift wraps:', {
+                    toAgent: {
+                        eventId: giftWrapToRecipient.id,
+                        recipientPubkey: request.senderPubkey,
+                        pTag: giftWrapToRecipient.tags.find(t => t[0] === 'p')?.[1],
+                        relays: relays,
+                        kind: giftWrapToRecipient.kind,
+                    },
+                    toSelf: {
+                        eventId: giftWrapToSelf.id,
+                        recipientPubkey: pubkey,
+                        pTag: giftWrapToSelf.tags.find(t => t[0] === 'p')?.[1],
+                        relays: relays,
+                        kind: giftWrapToSelf.kind,
+                    }
+                });
+
                 // Publish BOTH gift wraps to relays
                 // This ensures merchant can retrieve their own messages across devices
                 // Use allSettled to ensure both are attempted even if one fails
@@ -145,11 +163,26 @@ export function useReservationActions() {
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
 
-                // Log any failures but don't throw - we want to know if one succeeded
+                // Log detailed results for each gift wrap
                 results.forEach((result, index) => {
-                    if (result.status === 'rejected') {
-                        const which = index === 0 ? 'agent' : 'self';
-                        console.error(`Failed to publish gift wrap to ${which}:`, result.reason);
+                    const which = index === 0 ? 'agent' : 'self';
+                    if (result.status === 'fulfilled') {
+                        const publishResult = result.value;
+                        console.log(`[Reservation Response] Successfully published gift wrap to ${which}:`, {
+                            eventId: publishResult.eventId,
+                            relayResults: publishResult.results.map(r => ({
+                                relay: r.relay,
+                                success: r.success,
+                                error: r.error
+                            })),
+                            allFailed: publishResult.allFailed,
+                            someSucceeded: publishResult.someSucceeded,
+                        });
+                    } else {
+                        console.error(`[Reservation Response] Failed to publish gift wrap to ${which}:`, {
+                            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+                            stack: result.reason instanceof Error ? result.reason.stack : undefined,
+                        });
                     }
                 });
 
@@ -364,6 +397,24 @@ export function useReservationActions() {
                     pubkey!
                 );
 
+                // Log gift wrap details before publishing
+                console.log('[Modification Request] Publishing gift wraps:', {
+                    toAgent: {
+                        eventId: giftWrapToRecipient.id,
+                        recipientPubkey: response.senderPubkey,
+                        pTag: giftWrapToRecipient.tags.find(t => t[0] === 'p')?.[1],
+                        relays: relays,
+                        kind: giftWrapToRecipient.kind,
+                    },
+                    toSelf: {
+                        eventId: giftWrapToSelf.id,
+                        recipientPubkey: pubkey,
+                        pTag: giftWrapToSelf.tags.find(t => t[0] === 'p')?.[1],
+                        relays: relays,
+                        kind: giftWrapToSelf.kind,
+                    }
+                });
+
                 // Publish BOTH gift wraps to relays
                 // Use allSettled to ensure both are attempted even if one fails
                 const results = await Promise.allSettled([
@@ -371,11 +422,26 @@ export function useReservationActions() {
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
 
-                // Log any failures but don't throw - we want to know if one succeeded
+                // Log detailed results for each gift wrap
                 results.forEach((result, index) => {
-                    if (result.status === 'rejected') {
-                        const which = index === 0 ? 'agent' : 'self';
-                        console.error(`Failed to publish gift wrap to ${which}:`, result.reason);
+                    const which = index === 0 ? 'agent' : 'self';
+                    if (result.status === 'fulfilled') {
+                        const publishResult = result.value;
+                        console.log(`[Modification Request] Successfully published gift wrap to ${which}:`, {
+                            eventId: publishResult.eventId,
+                            relayResults: publishResult.results.map(r => ({
+                                relay: r.relay,
+                                success: r.success,
+                                error: r.error
+                            })),
+                            allFailed: publishResult.allFailed,
+                            someSucceeded: publishResult.someSucceeded,
+                        });
+                    } else {
+                        console.error(`[Modification Request] Failed to publish gift wrap to ${which}:`, {
+                            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+                            stack: result.reason instanceof Error ? result.reason.stack : undefined,
+                        });
                     }
                 });
 
@@ -471,6 +537,24 @@ export function useReservationActions() {
                     pubkey!
                 );
 
+                // Log gift wrap details before publishing
+                console.log('[Modification Response] Publishing gift wraps:', {
+                    toAgent: {
+                        eventId: giftWrapToRecipient.id,
+                        recipientPubkey: modificationRequest.senderPubkey,
+                        pTag: giftWrapToRecipient.tags.find(t => t[0] === 'p')?.[1],
+                        relays: relays,
+                        kind: giftWrapToRecipient.kind,
+                    },
+                    toSelf: {
+                        eventId: giftWrapToSelf.id,
+                        recipientPubkey: pubkey,
+                        pTag: giftWrapToSelf.tags.find(t => t[0] === 'p')?.[1],
+                        relays: relays,
+                        kind: giftWrapToSelf.kind,
+                    }
+                });
+
                 // Publish BOTH gift wraps to relays
                 // Use allSettled to ensure both are attempted even if one fails
                 const results = await Promise.allSettled([
@@ -478,11 +562,26 @@ export function useReservationActions() {
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
 
-                // Log any failures but don't throw - we want to know if one succeeded
+                // Log detailed results for each gift wrap
                 results.forEach((result, index) => {
-                    if (result.status === 'rejected') {
-                        const which = index === 0 ? 'agent' : 'self';
-                        console.error(`Failed to publish gift wrap to ${which}:`, result.reason);
+                    const which = index === 0 ? 'agent' : 'self';
+                    if (result.status === 'fulfilled') {
+                        const publishResult = result.value;
+                        console.log(`[Modification Response] Successfully published gift wrap to ${which}:`, {
+                            eventId: publishResult.eventId,
+                            relayResults: publishResult.results.map(r => ({
+                                relay: r.relay,
+                                success: r.success,
+                                error: r.error
+                            })),
+                            allFailed: publishResult.allFailed,
+                            someSucceeded: publishResult.someSucceeded,
+                        });
+                    } else {
+                        console.error(`[Modification Response] Failed to publish gift wrap to ${which}:`, {
+                            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+                            stack: result.reason instanceof Error ? result.reason.stack : undefined,
+                        });
                     }
                 });
 
