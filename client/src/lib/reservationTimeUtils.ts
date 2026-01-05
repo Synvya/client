@@ -87,13 +87,16 @@ export function unixAndTzidToIso8601(
     throw new Error("IANA timezone identifier (tzid) is required");
   }
 
+  // Validate timezone before using it (defensive check)
+  const validatedTzid = validateTimezone(tzid);
+
   // Create a Date object from the Unix timestamp
   const date = new Date(unixTimestamp * 1000);
 
   // Format the date in the specified timezone
   // Use Intl.DateTimeFormat to format with the timezone
   const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tzid,
+    timeZone: validatedTzid,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -113,13 +116,13 @@ export function unixAndTzidToIso8601(
   const second = parts.find(p => p.type === "second")?.value;
 
   if (!year || !month || !day || !hour || !minute || !second) {
-    throw new Error(`Failed to format date in timezone: ${tzid}`);
+    throw new Error(`Failed to format date in timezone: ${validatedTzid}`);
   }
 
   // Get the timezone offset directly using Intl.DateTimeFormat with timeZoneName
   // This is much simpler and more reliable than calculating it manually
   const offsetFormatter = new Intl.DateTimeFormat("en", {
-    timeZone: tzid,
+    timeZone: validatedTzid,
     timeZoneName: "longOffset",
   });
 
@@ -127,7 +130,7 @@ export function unixAndTzidToIso8601(
   const offsetPart = offsetParts.find(p => p.type === "timeZoneName");
   
   if (!offsetPart) {
-    throw new Error(`Failed to get timezone offset for: ${tzid}`);
+    throw new Error(`Failed to get timezone offset for: ${validatedTzid}`);
   }
 
   // Parse the offset string (e.g., "GMT-07:00" or "GMT+09:00")
@@ -143,11 +146,11 @@ export function unixAndTzidToIso8601(
       offsetPart.value.includes("UTC") ||
       offsetPart.value === "GMT+00:00" ||
       offsetPart.value === "GMT-00:00" ||
-      tzid === "UTC"
+      validatedTzid === "UTC"
     ) {
       return `${year}-${month}-${day}T${hour}:${minute}:${second}Z`;
     }
-    throw new Error(`Unexpected timezone offset format: ${offsetPart.value} (timezone: ${tzid})`);
+    throw new Error(`Unexpected timezone offset format: ${offsetPart.value} (timezone: ${validatedTzid})`);
   }
   
   // Check if offset is actually zero (GMT+00:00 or GMT-00:00)
@@ -166,7 +169,7 @@ export function unixAndTzidToIso8601(
   const result = `${year}-${month}-${day}T${hour}:${minute}:${second}${offsetString}`;
   const testParse = new Date(result);
   if (isNaN(testParse.getTime())) {
-    throw new Error(`Generated invalid ISO8601 string: ${result} (timezone: ${tzid}, timestamp: ${unixTimestamp})`);
+    throw new Error(`Generated invalid ISO8601 string: ${result} (timezone: ${validatedTzid}, timestamp: ${unixTimestamp})`);
   }
   
   // Verify the parsed result matches the original timestamp (within 1 minute for rounding)
@@ -175,7 +178,7 @@ export function unixAndTzidToIso8601(
     // For debugging: log what went wrong
     const expectedIso = date.toISOString();
     throw new Error(
-      `Generated ISO8601 string does not match original timestamp: ${result} (diff: ${timeDiff}ms, expected: ${expectedIso}, got: ${testParse.toISOString()}, timezone: ${tzid}, timestamp: ${unixTimestamp})`
+      `Generated ISO8601 string does not match original timestamp: ${result} (diff: ${timeDiff}ms, expected: ${expectedIso}, got: ${testParse.toISOString()}, timezone: ${validatedTzid}, timestamp: ${unixTimestamp})`
     );
   }
 
@@ -281,6 +284,36 @@ export function isValidTzid(tzid: string): boolean {
     return true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Validates and sanitizes IANA timezone identifier.
+ * Returns a valid timezone identifier or 'UTC' as fallback.
+ * 
+ * @param tzid - Timezone identifier from NIP-RP event (may be undefined or invalid)
+ * @returns Valid timezone identifier or 'UTC' as fallback
+ * 
+ * @example
+ * ```typescript
+ * validateTimezone("America/Los_Angeles"); // "America/Los_Angeles"
+ * validateTimezone("Etc/GMT-0800"); // "UTC" (with warning)
+ * validateTimezone(undefined); // "UTC" (with warning)
+ * ```
+ */
+export function validateTimezone(tzid: string | undefined): string {
+  if (!tzid) {
+    console.warn('Missing tzid in reservation request, using UTC');
+    return 'UTC';
+  }
+  
+  try {
+    // Test if timezone is valid by attempting to use it
+    new Intl.DateTimeFormat('en-US', { timeZone: tzid });
+    return tzid; // Valid timezone
+  } catch (error) {
+    console.warn(`Invalid timezone "${tzid}", falling back to UTC. Error: ${error}`);
+    return 'UTC'; // Fallback to UTC
   }
 }
 

@@ -19,6 +19,7 @@ import type {
   ValidationResult,
   ValidationError,
 } from "@/types/reservation";
+import { validateTimezone } from "@/lib/reservationTimeUtils";
 // Note: Encryption/decryption handled by NIP-59 seal/gift wrap layers
 // Rumor content is plain text JSON per NIP-59 spec
 
@@ -563,10 +564,13 @@ export function parseReservationRequest(
     throw new Error(`Invalid time: ${timeStr}`);
   }
   
-  const tzid = findTag("tzid");
-  if (!tzid) {
+  const tzidRaw = findTag("tzid");
+  if (!tzidRaw) {
     throw new Error("Missing required tag: tzid");
   }
+  
+  // Validate timezone and fallback to UTC if invalid
+  const tzid = validateTimezone(tzidRaw);
   
   // Optional fields
   const name = findTag("name");
@@ -672,7 +676,7 @@ export function parseReservationResponse(
   
   // Time and tzid (required when status is confirmed, optional otherwise)
   const timeStr = findTag("time");
-  const tzid = findTag("tzid");
+  const tzidRaw = findTag("tzid");
   
   let time: number | null = null;
   if (timeStr) {
@@ -688,10 +692,13 @@ export function parseReservationResponse(
     if (time === null) {
       throw new Error("time is required when status is confirmed");
     }
-    if (!tzid) {
+    if (!tzidRaw) {
       throw new Error("tzid is required when status is confirmed");
     }
   }
+  
+  // Validate timezone if present (fallback to UTC if invalid)
+  const tzid = tzidRaw ? validateTimezone(tzidRaw) : undefined;
   
   // Optional duration
   const durationStr = findTag("duration");
@@ -1236,10 +1243,13 @@ export function parseReservationModificationRequest(
     throw new Error(`Invalid time: ${timeStr}`);
   }
   
-  const tzid = findTag("tzid");
-  if (!tzid) {
+  const tzidRaw = findTag("tzid");
+  if (!tzidRaw) {
     throw new Error("Missing required tag: tzid");
   }
+  
+  // Validate timezone and fallback to UTC if invalid
+  const tzid = validateTimezone(tzidRaw);
   
   // Optional fields
   const name = findTag("name");
@@ -1356,10 +1366,12 @@ export function parseReservationModificationResponse(
     if (isNaN(time)) {
       throw new Error(`Invalid time: ${timeStr}`);
     }
-    tzid = findTag("tzid");
-    if (!tzid) {
+    const tzidRaw = findTag("tzid");
+    if (!tzidRaw) {
       throw new Error("Missing required tag: tzid (required when time is present)");
     }
+    // Validate timezone and fallback to UTC if invalid
+    tzid = validateTimezone(tzidRaw);
   }
   
   // Optional duration tag
