@@ -139,10 +139,29 @@ export function useReservationActions() {
 
                 // Publish BOTH gift wraps to relays
                 // This ensures merchant can retrieve their own messages across devices
-                await Promise.all([
+                // Use allSettled to ensure both are attempted even if one fails
+                const results = await Promise.allSettled([
                     publishToRelays(giftWrapToRecipient, relays),
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
+
+                // Log any failures but don't throw - we want to know if one succeeded
+                results.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        const which = index === 0 ? 'agent' : 'self';
+                        console.error(`Failed to publish gift wrap to ${which}:`, result.reason);
+                    }
+                });
+
+                // Only throw if BOTH failed
+                const allFailed = results.every(r => r.status === 'rejected');
+                if (allFailed) {
+                    const errors = results
+                        .map(r => r.status === 'rejected' ? r.reason : null)
+                        .filter(Boolean)
+                        .map(e => e instanceof Error ? e.message : String(e));
+                    throw new Error(`Failed to publish gift wraps: ${errors.join(', ')}`);
+                }
 
         // DON'T add message immediately - let it come back from relay subscription
         // This prevents duplicates from Self CC pattern
@@ -346,10 +365,29 @@ export function useReservationActions() {
                 );
 
                 // Publish BOTH gift wraps to relays
-                await Promise.all([
+                // Use allSettled to ensure both are attempted even if one fails
+                const results = await Promise.allSettled([
                     publishToRelays(giftWrapToRecipient, relays),
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
+
+                // Log any failures but don't throw - we want to know if one succeeded
+                results.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        const which = index === 0 ? 'agent' : 'self';
+                        console.error(`Failed to publish gift wrap to ${which}:`, result.reason);
+                    }
+                });
+
+                // Only throw if BOTH failed
+                const allFailed = results.every(r => r.status === 'rejected');
+                if (allFailed) {
+                    const errors = results
+                        .map(r => r.status === 'rejected' ? r.reason : null)
+                        .filter(Boolean)
+                        .map(e => e instanceof Error ? e.message : String(e));
+                    throw new Error(`Failed to publish gift wraps: ${errors.join(', ')}`);
+                }
 
                 // DON'T add message immediately - let it come back from relay subscription
                 // This prevents duplicates from Self CC pattern
@@ -434,10 +472,29 @@ export function useReservationActions() {
                 );
 
                 // Publish BOTH gift wraps to relays
-                await Promise.all([
+                // Use allSettled to ensure both are attempted even if one fails
+                const results = await Promise.allSettled([
                     publishToRelays(giftWrapToRecipient, relays),
                     publishToRelays(giftWrapToSelf, relays),
                 ]);
+
+                // Log any failures but don't throw - we want to know if one succeeded
+                results.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        const which = index === 0 ? 'agent' : 'self';
+                        console.error(`Failed to publish gift wrap to ${which}:`, result.reason);
+                    }
+                });
+
+                // Only throw if BOTH failed
+                const allFailed = results.every(r => r.status === 'rejected');
+                if (allFailed) {
+                    const errors = results
+                        .map(r => r.status === 'rejected' ? r.reason : null)
+                        .filter(Boolean)
+                        .map(e => e instanceof Error ? e.message : String(e));
+                    throw new Error(`Failed to publish gift wraps: ${errors.join(', ')}`);
+                }
 
                 // DON'T add message immediately - let it come back from relay subscription
                 // This prevents duplicates from Self CC pattern
