@@ -27,7 +27,6 @@ function createMockReservationMessage(
     created_at: Math.floor(Date.now() / 1000),
     tags: [],
     content: "",
-    sig: "sig",
   };
 
   const payload: ReservationRequest | ReservationResponse =
