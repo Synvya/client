@@ -106,8 +106,16 @@ export function hasConflictingReservation(
     existingReservations
   );
 
-  // Conflict exists if we already have maxSimultaneous or more overlapping reservations
-  // (allowing up to maxSimultaneous means rejecting when count >= maxSimultaneous)
+  // Conflict exists if adding this reservation would exceed maxSimultaneous
+  // If maxSimultaneous is 0, we can't accept any reservations (conflict if count > 0)
+  // If maxSimultaneous is 2, we can accept up to 2 (conflict if count >= 2)
+  // So: conflict if (overlapCount + 1) > maxSimultaneous, which simplifies to overlapCount >= maxSimultaneous
+  // But we need to handle the edge case: if maxSimultaneous is 0 and overlapCount is 0, no conflict
+  if (maxSimultaneous === 0) {
+    // Can't accept any reservations - conflict if there are any overlapping
+    return overlapCount > 0;
+  }
+  // For maxSimultaneous > 0: conflict if we already have maxSimultaneous or more
   return overlapCount >= maxSimultaneous;
 }
 

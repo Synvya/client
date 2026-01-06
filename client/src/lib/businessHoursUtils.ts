@@ -50,8 +50,18 @@ export function isWithinBusinessHours(
   // Create a Date object from the Unix timestamp
   const date = new Date(unixTimestamp * 1000);
 
-  // Get the day of week (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-  const dayOfWeek = date.getDay();
+  // Get the day of week in the specified timezone (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+  // We need to format the date in the target timezone to get the correct day of week
+  const dayFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: tzid,
+    weekday: "short",
+  });
+  const dayName = dayFormatter.format(date);
+  // Map day names to numbers (Sun=0, Mon=1, ..., Sat=6)
+  const dayNameToNum: Record<string, number> = {
+    "Sun": 0, "Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6,
+  };
+  const dayOfWeek = dayNameToNum[dayName] ?? date.getDay(); // Fallback to UTC if mapping fails
 
   // Format the time in the specified timezone
   const formatter = new Intl.DateTimeFormat("en-US", {
