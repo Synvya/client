@@ -94,17 +94,25 @@ describe("acceptReservationDirect", () => {
       pubkey: pubkey,
     };
 
-    const mockGiftWrapToRecipient = {
+    const mockGiftWrapToRecipient: Event = {
       id: "gift-wrap-recipient-id",
       kind: 1059,
       tags: [["p", "sender-pubkey"]],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
-    const mockGiftWrapToSelf = {
+    const mockGiftWrapToSelf: Event = {
       id: "gift-wrap-self-id",
       kind: 1059,
       tags: [["p", pubkey]],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
     const mockPublishResult = {
       eventId: "gift-wrap-recipient-id",
@@ -180,11 +188,15 @@ describe("acceptReservationDirect", () => {
       pubkey: pubkey,
     };
 
-    const mockGiftWrap = {
+    const mockGiftWrap: Event = {
       id: "gift-wrap-id",
       kind: 1059,
       tags: [],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
     const mockPublishResult = {
       eventId: "gift-wrap-id",
@@ -252,11 +264,15 @@ describe("acceptReservationDirect", () => {
       pubkey: pubkey,
     };
 
-    const mockGiftWrap = {
+    const mockGiftWrap: Event = {
       id: "gift-wrap-id",
       kind: 1059,
       tags: [],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
     const mockPublishResult = {
       eventId: "gift-wrap-id",
@@ -325,11 +341,15 @@ describe("acceptReservationDirect", () => {
       pubkey: pubkey,
     };
 
-    const mockGiftWrap = {
+    const mockGiftWrap: Event = {
       id: "gift-wrap-id",
       kind: 1059,
       tags: [],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
     const mockPublishResult = {
       eventId: "gift-wrap-id",
@@ -379,11 +399,15 @@ describe("acceptReservationDirect", () => {
       pubkey: pubkey,
     };
 
-    const mockGiftWrap = {
+    const mockGiftWrap: Event = {
       id: "gift-wrap-id",
       kind: 1059,
       tags: [],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
     vi.mocked(buildReservationResponse).mockReturnValue(mockResponseTemplate as any);
     vi.mocked(createRumor).mockReturnValue(mockRumor);
@@ -415,11 +439,15 @@ describe("acceptReservationDirect", () => {
       pubkey: pubkey,
     };
 
-    const mockGiftWrap = {
+    const mockGiftWrap: Event = {
       id: "gift-wrap-id",
       kind: 1059,
       tags: [],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
     const mockPublishResult = {
       eventId: "gift-wrap-id",
@@ -465,11 +493,15 @@ describe("acceptReservationDirect", () => {
       pubkey: pubkey,
     };
 
-    const mockGiftWrap = {
+    const mockGiftWrap: Event = {
       id: "gift-wrap-id",
       kind: 1059,
       tags: [],
-    } as Event;
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      pubkey: pubkey,
+      sig: "sig",
+    };
 
     const mockPublishResult = {
       eventId: "gift-wrap-id",
