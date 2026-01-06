@@ -51,15 +51,18 @@ export function isWithinBusinessHours(
   const date = new Date(unixTimestamp * 1000);
 
   // Get the day of week in the specified timezone (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-  // We need to format the date in the target timezone to get the correct day of week
+  // Use formatToParts to get the weekday part directly
   const dayFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: tzid,
-    weekday: "short",
+    weekday: "long",
   });
-  const dayName = dayFormatter.format(date);
-  // Map day names to numbers (Sun=0, Mon=1, ..., Sat=6)
+  const dayParts = dayFormatter.formatToParts(date);
+  const weekdayPart = dayParts.find(p => p.type === "weekday");
+  const dayName = weekdayPart?.value || "";
+  
+  // Map full day names to numbers (Sunday=0, Monday=1, ..., Saturday=6)
   const dayNameToNum: Record<string, number> = {
-    "Sun": 0, "Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6,
+    "Sunday": 0, "Monday": 1, "Tuesday": 2, "Wednesday": 3, "Thursday": 4, "Friday": 5, "Saturday": 6,
   };
   const dayOfWeek = dayNameToNum[dayName] ?? date.getDay(); // Fallback to UTC if mapping fails
 
