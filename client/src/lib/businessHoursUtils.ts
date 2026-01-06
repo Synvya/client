@@ -50,14 +50,15 @@ export function isWithinBusinessHours(
   // Create a Date object from the Unix timestamp
   const date = new Date(unixTimestamp * 1000);
 
-  // Get the day of week in the specified timezone using the simplest possible approach
-  // Format the date in the target timezone and extract weekday
+  // Get the day of week in the specified timezone using formatToParts for reliability
   const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: tzid,
-    weekday: "short", // Returns "Mon", "Tue", etc.
+    weekday: "short",
   });
   
-  const weekdayShort = weekdayFormatter.format(date);
+  const weekdayParts = weekdayFormatter.formatToParts(date);
+  const weekdayPart = weekdayParts.find(p => p.type === "weekday");
+  const weekdayShort = weekdayPart?.value || "";
   
   // Map short day names to numbers (Sun=0, Mon=1, ..., Sat=6)
   const weekdayMap: Record<string, number> = {

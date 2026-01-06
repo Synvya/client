@@ -10,7 +10,7 @@ describe("businessHoursUtils", () => {
   describe("isWithinBusinessHours", () => {
     // Test with a known date/time: Monday, October 20, 2025 at 2:00 PM Pacific Time
     // This is a Monday, so it should match Mo-Fr hours
-    const mondayAfternoon = 1729458000; // 2025-10-20T14:00:00-07:00 (Monday 2 PM PDT)
+    const mondayAfternoon = 1760994000; // 2025-10-20T14:00:00-07:00 (Monday 2 PM PDT)
     const tzid = "America/Los_Angeles";
 
     it("returns true when time is within business hours", () => {
