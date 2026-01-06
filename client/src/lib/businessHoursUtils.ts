@@ -51,20 +51,46 @@ export function isWithinBusinessHours(
   const date = new Date(unixTimestamp * 1000);
 
   // Get the day of week in the specified timezone (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-  // Use formatToParts to get the weekday part directly
-  const dayFormatter = new Intl.DateTimeFormat("en-US", {
+  // Get date components in the target timezone
+  const dateFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: tzid,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
     weekday: "long",
   });
-  const dayParts = dayFormatter.formatToParts(date);
-  const weekdayPart = dayParts.find(p => p.type === "weekday");
+  const dateParts = dateFormatter.formatToParts(date);
+  
+  // Extract components
+  const year = parseInt(dateParts.find(p => p.type === "year")?.value || "0", 10);
+  const month = parseInt(dateParts.find(p => p.type === "month")?.value || "0", 10);
+  const day = parseInt(dateParts.find(p => p.type === "day")?.value || "0", 10);
+  const weekdayPart = dateParts.find(p => p.type === "weekday");
   const dayName = weekdayPart?.value || "";
   
   // Map full day names to numbers (Sunday=0, Monday=1, ..., Saturday=6)
   const dayNameToNum: Record<string, number> = {
     "Sunday": 0, "Monday": 1, "Tuesday": 2, "Wednesday": 3, "Thursday": 4, "Friday": 5, "Saturday": 6,
   };
-  const dayOfWeek = dayNameToNum[dayName] ?? date.getDay(); // Fallback to UTC if mapping fails
+  
+  let dayOfWeek = dayNameToNum[dayName];
+  
+  // If weekday extraction failed, calculate from date components using Zeller's congruence
+  if (dayOfWeek === undefined && year > 0 && month > 0 && day > 0) {
+    // Zeller's congruence algorithm
+    const m = month < 3 ? month + 12 : month;
+    const y = month < 3 ? year - 1 : year;
+    const k = y % 100;
+    const j = Math.floor(y / 100);
+    const h = (day + Math.floor(13 * (m + 1) / 5) + k + Math.floor(k / 4) + Math.floor(j / 4) - 2 * j) % 7;
+    // Convert to Sunday=0 format (Zeller's gives Saturday=0)
+    dayOfWeek = ((h + 5) % 7);
+  }
+  
+  // Final fallback to UTC (shouldn't happen if timezone is valid)
+  if (dayOfWeek === undefined) {
+    dayOfWeek = date.getDay();
+  }
 
   // Format the time in the specified timezone
   const formatter = new Intl.DateTimeFormat("en-US", {
