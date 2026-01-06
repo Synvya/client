@@ -21,6 +21,8 @@ import type {
   ReservationModificationRequest,
   ReservationModificationResponse
 } from "@/types/reservation";
+import type { AutoAcceptConfig } from "@/lib/autoAcceptConfig";
+import type { BusinessProfile } from "@/types/profile";
 
 /**
  * Parsed reservation message with metadata
@@ -64,6 +66,16 @@ export interface ReservationSubscriptionConfig {
   onError?: ReservationErrorCallback;
   /** Optional callback when subscription is active */
   onReady?: () => void;
+  /** Optional auto-acceptance configuration */
+  autoAcceptConfig?: AutoAcceptConfig;
+  /** Optional callback when auto-accepting a reservation */
+  onAutoAccept?: (message: ReservationMessage) => void;
+  /** Optional function to accept reservations (required for auto-acceptance) */
+  acceptReservationFn?: (message: ReservationMessage) => Promise<void>;
+  /** Optional function to get existing confirmed reservations (required for conflict checking) */
+  getExistingReservations?: () => ReservationMessage[];
+  /** Optional function to load business profile (required for business hours checking) */
+  loadBusinessProfileFn?: (pubkey: string, relays: string[]) => Promise<BusinessProfile | null>;
 }
 
 /**
@@ -107,7 +119,14 @@ export class ReservationSubscription {
       },
       {
         onevent: (event: Event) => {
-          this.handleEvent(event, privateKey, onMessage, onError);
+          this.handleEvent(
+            event,
+            privateKey,
+            onMessage,
+            onError,
+            publicKey,
+            relays
+          );
         },
         oneose: () => {
           // End of stored events - subscription is now ready
@@ -155,7 +174,9 @@ export class ReservationSubscription {
     event: Event,
     privateKey: Uint8Array,
     onMessage: ReservationMessageCallback,
-    onError?: ReservationErrorCallback
+    onError?: ReservationErrorCallback,
+    publicKey?: string,
+    relays?: string[]
   ): void {
     try {
       // Unwrap the gift wrap
@@ -165,13 +186,101 @@ export class ReservationSubscription {
       if (rumor.kind === 9901) {
         // Reservation request
         const payload = parseReservationRequest(rumor, privateKey);
-        onMessage({
+        const message: ReservationMessage = {
           rumor,
           type: "request",
           payload,
           senderPubkey: rumor.pubkey,
           giftWrap: event,
-        });
+        };
+
+        // Always add message to state first (so it appears in UI immediately)
+        onMessage(message);
+
+        // Check for auto-acceptance (fire-and-forget, don't block)
+        const {
+          autoAcceptConfig,
+          acceptReservationFn,
+          onAutoAccept,
+          getExistingReservations,
+          loadBusinessProfileFn,
+        } = this.config;
+
+        if (
+          autoAcceptConfig?.enabled &&
+          acceptReservationFn &&
+          publicKey &&
+          relays
+        ) {
+          // Run auto-acceptance check asynchronously (fire-and-forget)
+          // This ensures message is added to state immediately
+          (async () => {
+            try {
+              // Load business profile if function is provided
+              let businessProfile: BusinessProfile | null = null;
+              if (loadBusinessProfileFn) {
+                try {
+                  businessProfile = await loadBusinessProfileFn(publicKey, relays);
+                } catch (error) {
+                  console.warn(
+                    "[Auto-Accept] Failed to load business profile:",
+                    error
+                  );
+                  // Continue without profile - will skip business hours check
+                }
+              }
+
+              // Get existing reservations if function is provided
+              const existingReservations =
+                getExistingReservations?.() || [];
+
+              // Evaluate auto-acceptance
+              const { shouldAutoAcceptReservation } = await import(
+                "@/lib/autoAcceptReservation"
+              );
+              const decision = await shouldAutoAcceptReservation(
+                message,
+                autoAcceptConfig,
+                existingReservations,
+                businessProfile
+              );
+
+              if (decision.shouldAutoAccept) {
+                console.log(
+                  "[Auto-Accept] Automatically accepting reservation:",
+                  message.rumor.id
+                );
+                try {
+                  await acceptReservationFn(message);
+                  onAutoAccept?.(message);
+                  console.log(
+                    "[Auto-Accept] Successfully auto-accepted reservation:",
+                    message.rumor.id
+                  );
+                } catch (error) {
+                  console.error(
+                    "[Auto-Accept] Failed to auto-accept reservation:",
+                    error
+                  );
+                  // Don't block message from being added to state
+                }
+              } else {
+                console.log(
+                  "[Auto-Accept] Not auto-accepting reservation:",
+                  message.rumor.id,
+                  "Reason:",
+                  decision.reason
+                );
+              }
+            } catch (error) {
+              console.error(
+                "[Auto-Accept] Error during auto-acceptance evaluation:",
+                error
+              );
+              // Don't block message from being added to state
+            }
+          })();
+        }
       } else if (rumor.kind === 9902) {
         // Reservation response
         const payload = parseReservationResponse(rumor, privateKey);

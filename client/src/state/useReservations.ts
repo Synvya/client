@@ -15,6 +15,9 @@ import {
   persistReservationMessages,
   mergeReservationMessages,
 } from "@/lib/reservationPersistence";
+import { DEFAULT_AUTO_ACCEPT_CONFIG } from "@/lib/autoAcceptConfig";
+import { acceptReservationDirect } from "@/lib/reservationActions";
+import { loadBusinessProfile } from "@/lib/loadBusinessProfile";
 
 /**
  * A conversation thread containing related messages
@@ -111,6 +114,22 @@ export const useReservations = create<ReservationState>((set, get) => ({
       existing.stop();
     }
 
+    // Create auto-acceptance function
+    const acceptReservationFn = async (message: ReservationMessage) => {
+      await acceptReservationDirect(message, privateKey, relays, publicKey);
+    };
+
+    // Create function to get existing confirmed reservations
+    const getExistingReservations = (): ReservationMessage[] => {
+      const messages = get().messages;
+      // Filter for confirmed reservations (responses with status "confirmed")
+      return messages.filter((msg) => {
+        if (msg.type !== "response") return false;
+        const response = msg.payload as any;
+        return response.status === "confirmed" && response.time !== null;
+      });
+    };
+
     // Create and start new subscription
     const subscription = createReservationSubscription({
       relays,
@@ -126,6 +145,13 @@ export const useReservations = create<ReservationState>((set, get) => ({
       },
       onReady: () => {
         set({ isConnected: true, error: null });
+      },
+      autoAcceptConfig: DEFAULT_AUTO_ACCEPT_CONFIG,
+      acceptReservationFn,
+      getExistingReservations,
+      loadBusinessProfileFn: loadBusinessProfile,
+      onAutoAccept: (message) => {
+        console.log("[Auto-Accept] Automatically accepted reservation:", message.rumor.id);
       },
     });
 
