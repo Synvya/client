@@ -52,12 +52,12 @@ export function isWithinBusinessHours(
 
   // Get the day of week in the specified timezone using the simplest possible approach
   // Format the date in the target timezone and extract weekday
-  const formatter = new Intl.DateTimeFormat("en-US", {
+  const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: tzid,
     weekday: "short", // Returns "Mon", "Tue", etc.
   });
   
-  const weekdayShort = formatter.format(date);
+  const weekdayShort = weekdayFormatter.format(date);
   
   // Map short day names to numbers (Sun=0, Mon=1, ..., Sat=6)
   const weekdayMap: Record<string, number> = {
@@ -67,14 +67,14 @@ export function isWithinBusinessHours(
   const dayOfWeek = weekdayMap[weekdayShort] ?? date.getDay();
 
   // Format the time in the specified timezone
-  const formatter = new Intl.DateTimeFormat("en-US", {
+  const timeFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: tzid,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
 
-  const timeParts = formatter.formatToParts(date);
+  const timeParts = timeFormatter.formatToParts(date);
   const hour = parseInt(timeParts.find(p => p.type === "hour")?.value || "0", 10);
   const minute = parseInt(timeParts.find(p => p.type === "minute")?.value || "0", 10);
   const currentTimeMinutes = hour * 60 + minute;
