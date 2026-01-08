@@ -31,6 +31,17 @@ export function Header(): JSX.Element {
               Menu
             </NavLink>
             <NavLink
+              to="/app/loyalty"
+              className={({ isActive }) =>
+                cn(
+                  "transition-colors hover:text-primary",
+                  isActive ? "text-primary" : "text-muted-foreground"
+                )
+              }
+            >
+              Loyalty
+            </NavLink>
+            <NavLink
               to="/app/reservations"
               className={({ isActive }) =>
                 cn(
