@@ -52,6 +52,18 @@ function isOfferExpired(offer: Offer): boolean {
   return now > offer.validUntil;
 }
 
+/**
+ * Format offer type for display
+ * Converts type codes to user-friendly labels
+ */
+function formatOfferType(type: string): string {
+  if (type === "bogo") return "BOGO";
+  return type
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function OffersList({
   pubkey,
   relays,
@@ -244,18 +256,27 @@ export function OffersList({
               <Card key={offer.code} className="flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-xl font-bold">{offer.code}</CardTitle>
-                    <Badge
-                      variant={
-                        offer.status === "active"
-                          ? expired
-                            ? "secondary"
-                            : "default"
-                          : "outline"
-                      }
-                    >
-                      {offer.status === "active" ? (expired ? "Expired" : "Active") : "Inactive"}
-                    </Badge>
+                    <div className="flex flex-col gap-2">
+                      <CardTitle className="text-xl font-bold">{offer.code}</CardTitle>
+                      <div className="flex gap-2">
+                        {offer.type && (
+                          <Badge variant="outline" className="capitalize">
+                            {formatOfferType(offer.type)}
+                          </Badge>
+                        )}
+                        <Badge
+                          variant={
+                            offer.status === "active"
+                              ? expired
+                                ? "secondary"
+                                : "default"
+                              : "outline"
+                          }
+                        >
+                          {offer.status === "active" ? (expired ? "Expired" : "Active") : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
                 </CardHeader>
 
