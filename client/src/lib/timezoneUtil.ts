@@ -80,6 +80,21 @@ const US_STATE_TO_TIMEZONE: Record<string, string> = {
 const DEFAULT_TIMEZONE = "America/New_York";
 
 /**
+ * Mapping of IANA timezones to user-friendly names
+ */
+const TIMEZONE_DISPLAY_NAMES: Record<string, string> = {
+  "America/Los_Angeles": "Pacific Time",
+  "America/Denver": "Mountain Time",
+  "America/Boise": "Mountain Time",
+  "America/Phoenix": "Mountain Time (no DST)",
+  "America/Chicago": "Central Time",
+  "America/New_York": "Eastern Time",
+  "America/Indiana/Indianapolis": "Eastern Time",
+  "America/Anchorage": "Alaska Time",
+  "Pacific/Honolulu": "Hawaii Time",
+};
+
+/**
  * Extract IANA timezone from business profile location string
  * 
  * @param location - Location string in format "City, State, ZIP, Country"
@@ -116,4 +131,27 @@ export function getTimezoneFromLocation(location: string): string {
 
   // If no match found, return default
   return DEFAULT_TIMEZONE;
+}
+
+/**
+ * Format IANA timezone string to user-friendly display name
+ * 
+ * @param timezone - IANA timezone string (e.g., "America/Los_Angeles")
+ * @returns User-friendly timezone name (e.g., "Pacific Time")
+ * 
+ * @example
+ * formatTimezoneDisplay("America/Los_Angeles") // "Pacific Time"
+ * formatTimezoneDisplay("America/New_York") // "Eastern Time"
+ * formatTimezoneDisplay("Unknown/Timezone") // "Unknown Timezone"
+ */
+export function formatTimezoneDisplay(timezone: string): string {
+  // Check if we have a friendly name for this timezone
+  if (TIMEZONE_DISPLAY_NAMES[timezone]) {
+    return TIMEZONE_DISPLAY_NAMES[timezone];
+  }
+
+  // Fallback: Format the IANA string to be more readable
+  // "America/Los_Angeles" -> "America/Los Angeles"
+  // "Pacific/Honolulu" -> "Pacific/Honolulu"
+  return timezone.replace(/_/g, " ");
 }
