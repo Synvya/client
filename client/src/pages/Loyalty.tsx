@@ -10,6 +10,7 @@ import type { Offer } from "@/types/loyalty";
 import { buildOfferEvent, buildDeactivateEvent } from "@/lib/offerEvents";
 import { publishToRelays, getPool } from "@/lib/relayPool";
 import { getTimezoneFromLocation, formatTimezoneDisplay } from "@/lib/timezoneUtil";
+import { generateOfferCode } from "@/lib/codeGenerator";
 
 export function LoyaltyPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
@@ -184,7 +185,22 @@ export function LoyaltyPage(): JSX.Element {
    * Handle create offer button
    */
   function handleCreateClick() {
-    setEditingOffer(null);
+    // Generate new 8-letter code for new offer
+    const newCode = generateOfferCode();
+    
+    // Create a partial offer with generated code and default values
+    const newOffer: Offer = {
+      code: newCode,
+      type: "coupon", // Default type
+      description: "",
+      validFrom: new Date(),
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+      status: "active",
+      eventId: "",
+      createdAt: 0,
+    };
+    
+    setEditingOffer(newOffer);
     setShowForm(true);
     setStatusMessage(null);
   }
