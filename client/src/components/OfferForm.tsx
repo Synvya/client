@@ -31,20 +31,36 @@ interface FormErrors {
 }
 
 /**
+ * Detect if the browser/system is using 12-hour or 24-hour time format
+ * This checks what the time input actually renders, not just locale strings
+ */
+function detect24HourFormat(): boolean {
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "numeric",
+  });
+  const options = formatter.resolvedOptions();
+  // If hour12 is explicitly false, it's 24-hour format
+  // If hour12 is undefined or true, it's 12-hour format
+  return options.hour12 === false;
+}
+
+/**
  * Format date and time for display
- * Uses browser's locale settings to match the native time input format
+ * Matches the native time input format for consistency
  */
 function formatDateTime(date: Date | undefined): string {
   if (!date) return "Pick a date and time";
   
-  // Let the browser decide 12h vs 24h format based on locale
-  // This matches the native <input type="time"> behavior for consistency
+  const is24Hour = detect24HourFormat();
+  
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    hour12: !is24Hour,
   });
 }
 
