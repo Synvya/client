@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
@@ -8,15 +8,17 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import type { Offer } from "@/types/loyalty";
 import { buildOfferEvent, buildDeactivateEvent } from "@/lib/offerEvents";
-import { publishToRelays } from "@/lib/relayPool";
-import { getTimezoneFromLocation } from "@/lib/timezoneUtil";
-import { finalizeEvent } from "nostr-tools";
+import { publishToRelays, getPool } from "@/lib/relayPool";
+import { getTimezoneFromLocation, formatTimezoneDisplay } from "@/lib/timezoneUtil";
 
 export function LoyaltyPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
   const signEvent = useAuth((state) => state.signEvent);
   const relays = useRelays((state) => state.relays);
-  const profileLocation = useBusinessProfile((state) => state.location);
+  const { location: profileLocation, setLocation } = useBusinessProfile((state) => ({
+    location: state.location,
+    setLocation: state.setLocation,
+  }));
 
   const [showForm, setShowForm] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
@@ -26,10 +28,48 @@ export function LoyaltyPage(): JSX.Element {
     text: string;
   } | null>(null);
 
+  // Fetch profile location on mount if not cached
+  useEffect(() => {
+    if (!pubkey || !relays.length || profileLocation) {
+      return;
+    }
+
+    const pool = getPool();
+    
+    // Query for the merchant's kind:0 profile event
+    pool
+      .querySync(relays, {
+        kinds: [0],
+        authors: [pubkey],
+        limit: 1,
+      })
+      .then((events) => {
+        if (events.length > 0) {
+          const event = events[0];
+          try {
+            const content = JSON.parse(event.content);
+            // Look for location in tags
+            const locationTag = event.tags.find((tag) => tag[0] === "location");
+            if (locationTag && locationTag[1]) {
+              setLocation(locationTag[1]);
+            }
+          } catch (error) {
+            console.error("Error parsing profile event:", error);
+          }
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching profile:", error);
+      });
+  }, [pubkey, relays, profileLocation, setLocation]);
+
   // Get timezone from profile location, or use default
   const timezone = profileLocation
     ? getTimezoneFromLocation(profileLocation)
     : "America/New_York";
+  
+  // Format timezone for display
+  const timezoneDisplay = formatTimezoneDisplay(timezone);
 
   /**
    * Handle creating or updating an offer
@@ -201,7 +241,7 @@ export function LoyaltyPage(): JSX.Element {
               offer={editingOffer ?? undefined}
               onSave={handleSaveOffer}
               onCancel={handleCancelForm}
-              timezone={timezone}
+              timezone={timezoneDisplay}
               isSubmitting={isSubmitting}
             />
           </div>
