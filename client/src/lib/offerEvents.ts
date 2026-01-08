@@ -6,7 +6,7 @@
  */
 
 import type { EventTemplate, NostrEvent } from "nostr-tools";
-import type { Offer } from "@/types/loyalty";
+import type { Offer, OfferType } from "@/types/loyalty";
 
 /**
  * Build an active offer event (kind:31556)
@@ -34,6 +34,7 @@ export function buildOfferEvent(
 
   const tags: string[][] = [
     ["d", offer.code],
+    ["type", offer.type || "coupon"], // Add type tag for AI searchability
     ["status", "active"],
     ["valid_from", validFromTimestamp.toString()],
     ["valid_until", validUntilTimestamp.toString()],
@@ -103,18 +104,26 @@ export function parseOfferEvent(event: NostrEvent): Offer | null {
 
     // Extract required tags
     const dTag = event.tags.find((tag) => tag[0] === "d");
+    const typeTag = event.tags.find((tag) => tag[0] === "type");
     const statusTag = event.tags.find((tag) => tag[0] === "status");
 
-    if (!dTag || !dTag[1] || !statusTag || !statusTag[1]) {
-      // Missing required tags
+    if (!dTag || !dTag[1] || !typeTag || !typeTag[1] || !statusTag || !statusTag[1]) {
+      // Missing required tags - ignore old format events without type
       return null;
     }
 
     const code = dTag[1];
+    const type = typeTag[1] as OfferType;
     const status = statusTag[1] as "active" | "inactive";
 
     // Validate status
     if (status !== "active" && status !== "inactive") {
+      return null;
+    }
+
+    // Validate type
+    const validTypes: OfferType[] = ["coupon", "discount", "bogo", "free-item", "happy-hour"];
+    if (!validTypes.includes(type)) {
       return null;
     }
 
@@ -150,6 +159,7 @@ export function parseOfferEvent(event: NostrEvent): Offer | null {
 
     const offer: Offer = {
       code,
+      type,
       description: event.content,
       validFrom,
       validUntil,
