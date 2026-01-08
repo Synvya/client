@@ -31,29 +31,20 @@ interface FormErrors {
 }
 
 /**
- * Detect if user's locale uses 12-hour or 24-hour time format
- */
-function uses12HourFormat(): boolean {
-  const date = new Date(2000, 0, 1, 13, 0);
-  const formatted = date.toLocaleTimeString(undefined, { hour: 'numeric' });
-  return formatted.includes('PM') || formatted.includes('AM') || formatted.includes('pm') || formatted.includes('am');
-}
-
-/**
  * Format date and time for display
+ * Uses browser's locale settings to match the native time input format
  */
 function formatDateTime(date: Date | undefined): string {
   if (!date) return "Pick a date and time";
   
-  const use12Hour = uses12HourFormat();
-  
+  // Let the browser decide 12h vs 24h format based on locale
+  // This matches the native <input type="time"> behavior for consistency
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-    hour12: use12Hour,
   });
 }
 
