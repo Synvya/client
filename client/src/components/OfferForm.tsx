@@ -31,14 +31,29 @@ interface FormErrors {
 }
 
 /**
- * Format date for display
+ * Detect if user's locale uses 12-hour or 24-hour time format
  */
-function formatDate(date: Date | undefined): string {
-  if (!date) return "Pick a date";
-  return date.toLocaleDateString("en-US", {
+function uses12HourFormat(): boolean {
+  const date = new Date(2000, 0, 1, 13, 0);
+  const formatted = date.toLocaleTimeString(undefined, { hour: 'numeric' });
+  return formatted.includes('PM') || formatted.includes('AM') || formatted.includes('pm') || formatted.includes('am');
+}
+
+/**
+ * Format date and time for display
+ */
+function formatDateTime(date: Date | undefined): string {
+  if (!date) return "Pick a date and time";
+  
+  const use12Hour = uses12HourFormat();
+  
+  return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: use12Hour,
   });
 }
 
@@ -235,7 +250,7 @@ export function OfferForm({
                 disabled={isSubmitting}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {formatDate(validFrom)}
+                {formatDateTime(validFrom)}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
@@ -305,7 +320,7 @@ export function OfferForm({
                 disabled={isSubmitting}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {formatDate(validUntil)}
+                {formatDateTime(validUntil)}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
