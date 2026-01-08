@@ -31,39 +31,58 @@ interface FormErrors {
 }
 
 /**
- * Detect if the browser/system is using 12-hour or 24-hour time format
- * by actually formatting a time and checking for AM/PM markers
+ * Detect the user's preferred hour format from browser/OS settings
+ * Uses multiple detection methods for maximum reliability
  */
-function detect24HourFormat(): boolean {
-  // Format 1:00 PM (13:00) and check if it contains AM/PM markers
-  const testDate = new Date(2000, 0, 1, 13, 0);
-  const formatted = testDate.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "numeric",
-  });
-  
-  // If the formatted time contains AM/PM markers, it's 12-hour format
-  // Otherwise, it's 24-hour format
-  const hasAmPm = /am|pm|AM|PM|a\.m\.|p\.m\./i.test(formatted);
-  return !hasAmPm;
+function getUserHourCycle(): '12h' | '24h' {
+  try {
+    const locale = navigator.language || 'en-US';
+    const formatter = new Intl.DateTimeFormat(locale, {
+      hour: 'numeric',
+    });
+    const options = formatter.resolvedOptions() as any;
+    
+    // Method 1: Check hourCycle property (most reliable)
+    // hourCycle can be: h11, h12 (12-hour) or h23, h24 (24-hour)
+    // Note: hourCycle is not in all TypeScript definitions but exists in modern browsers
+    if (options.hourCycle && typeof options.hourCycle === 'string') {
+      return options.hourCycle.startsWith('h1') ? '12h' : '24h';
+    }
+    
+    // Method 2: Check hour12 property
+    if (options.hour12 !== undefined) {
+      return options.hour12 ? '12h' : '24h';
+    }
+    
+    // Method 3: Format a test time and check for AM/PM markers
+    const testDate = new Date(2000, 0, 1, 13, 0);
+    const formatted = formatter.format(testDate);
+    const hasAmPm = /am|pm|AM|PM|a\.m\.|p\.m\./i.test(formatted);
+    return hasAmPm ? '12h' : '24h';
+  } catch (e) {
+    // Fallback: Default to 12h for US/CA locales, 24h otherwise
+    const locale = navigator.language || 'en-US';
+    return locale.startsWith('en-US') || locale.startsWith('en-CA') ? '12h' : '24h';
+  }
 }
 
 /**
- * Format date and time for display
- * Matches the native time input format for consistency
+ * Format date and time for display using user's preferred format
+ * Respects browser/OS settings for 12h vs 24h time
  */
 function formatDateTime(date: Date | undefined): string {
   if (!date) return "Pick a date and time";
   
-  const is24Hour = detect24HourFormat();
+  const hourCycle = getUserHourCycle();
+  const use24Hour = hourCycle === '24h';
   
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
-    hour: "numeric",
+    hour: use24Hour ? "2-digit" : "numeric",
     minute: "2-digit",
-    hour12: !is24Hour,
+    hour12: !use24Hour,
   });
 }
 
