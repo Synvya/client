@@ -134,6 +134,7 @@ export function OfferForm({
     try {
       await onSave({
         code: code.trim().toUpperCase(),
+        type: "coupon", // TODO: Will be replaced with dropdown in Issue #229
         description: description.trim(),
         validFrom,
         validUntil,

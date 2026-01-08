@@ -21,8 +21,8 @@ export interface Offer {
   /** 8-letter auto-generated code (d tag value) - e.g., "XKCD1234" */
   code: string;
   
-  /** Offer type for categorization and AI searchability (will be required in next PR) */
-  type?: OfferType;
+  /** Offer type for categorization and AI searchability */
+  type: OfferType;
   
   /** Merchant's description of the offer (event content) */
   description: string;
