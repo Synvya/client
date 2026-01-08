@@ -97,10 +97,11 @@ const TIMEZONE_DISPLAY_NAMES: Record<string, string> = {
 /**
  * Extract IANA timezone from business profile location string
  * 
- * @param location - Location string in format "City, State, ZIP, Country"
+ * @param location - Location string in various formats
  * @returns IANA timezone string (e.g., "America/Los_Angeles")
  * 
  * @example
+ * getTimezoneFromLocation("7970 Railroad Ave, Snoqualmie, WA, 98065, USA") // "America/Los_Angeles"
  * getTimezoneFromLocation("Snoqualmie, WA, 98065, US") // "America/Los_Angeles"
  * getTimezoneFromLocation("New York, NY, 10001, US") // "America/New_York"
  * getTimezoneFromLocation("") // "America/New_York" (default)
@@ -110,23 +111,28 @@ export function getTimezoneFromLocation(location: string): string {
     return DEFAULT_TIMEZONE;
   }
 
-  // Location format: "City, State, ZIP, Country"
   // Split by comma and trim whitespace
+  // Formats can be:
+  // - "Street, City, State, ZIP, Country" (5 parts)
+  // - "City, State, ZIP, Country" (4 parts)
   const parts = location.split(",").map((part) => part.trim());
   
   if (parts.length < 2) {
-    // Not enough parts to parse state
+    // Not enough parts to parse
     return DEFAULT_TIMEZONE;
   }
 
-  // State is typically the second part (index 1)
-  const state = parts[1].toUpperCase();
-
-  // Look up timezone for this state
-  const timezone = US_STATE_TO_TIMEZONE[state];
-  
-  if (timezone) {
-    return timezone;
+  // Search through parts to find a 2-letter uppercase state code
+  // State codes are always exactly 2 uppercase letters
+  for (const part of parts) {
+    const upperPart = part.toUpperCase();
+    // Check if this part is a 2-letter state code
+    if (upperPart.length === 2 && /^[A-Z]{2}$/.test(upperPart)) {
+      const timezone = US_STATE_TO_TIMEZONE[upperPart];
+      if (timezone) {
+        return timezone;
+      }
+    }
   }
 
   // If no match found, return default
