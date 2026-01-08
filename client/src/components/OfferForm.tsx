@@ -32,17 +32,20 @@ interface FormErrors {
 
 /**
  * Detect if the browser/system is using 12-hour or 24-hour time format
- * This checks what the time input actually renders, not just locale strings
+ * by actually formatting a time and checking for AM/PM markers
  */
 function detect24HourFormat(): boolean {
-  const formatter = new Intl.DateTimeFormat(undefined, {
+  // Format 1:00 PM (13:00) and check if it contains AM/PM markers
+  const testDate = new Date(2000, 0, 1, 13, 0);
+  const formatted = testDate.toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "numeric",
   });
-  const options = formatter.resolvedOptions();
-  // If hour12 is explicitly false, it's 24-hour format
-  // If hour12 is undefined or true, it's 12-hour format
-  return options.hour12 === false;
+  
+  // If the formatted time contains AM/PM markers, it's 12-hour format
+  // Otherwise, it's 24-hour format
+  const hasAmPm = /am|pm|AM|PM|a\.m\.|p\.m\./i.test(formatted);
+  return !hasAmPm;
 }
 
 /**
