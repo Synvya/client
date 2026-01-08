@@ -265,24 +265,62 @@ export function OfferForm({
                 disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                 initialFocus
               />
-              <div className="p-3 border-t">
+              <div className="p-3 border-t space-y-2">
                 <Label htmlFor="validFromTime" className="text-xs">Time</Label>
-                <Input
-                  id="validFromTime"
-                  type="time"
-                  value={
-                    validFrom
-                      ? `${String(validFrom.getHours()).padStart(2, "0")}:${String(validFrom.getMinutes()).padStart(2, "0")}`
-                      : "09:00"
-                  }
-                  onChange={(e) => {
-                    const [hours, minutes] = e.target.value.split(":").map(Number);
-                    const newDate = validFrom ? new Date(validFrom) : new Date();
-                    newDate.setHours(hours, minutes, 0, 0);
-                    setValidFrom(newDate);
-                  }}
-                  className="mt-1"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="validFromTime"
+                    type="time"
+                    value={
+                      validFrom
+                        ? `${String(validFrom.getHours() % 12 || 12).padStart(2, "0")}:${String(validFrom.getMinutes()).padStart(2, "0")}`
+                        : "09:00"
+                    }
+                    onChange={(e) => {
+                      const [hours, minutes] = e.target.value.split(":").map(Number);
+                      const newDate = validFrom ? new Date(validFrom) : new Date();
+                      const isPM = validFrom ? validFrom.getHours() >= 12 : false;
+                      const hour24 = hours === 12 ? (isPM ? 12 : 0) : (isPM ? hours + 12 : hours);
+                      newDate.setHours(hour24, minutes, 0, 0);
+                      setValidFrom(newDate);
+                    }}
+                    className="flex-1"
+                  />
+                  <div className="flex rounded-md border">
+                    <Button
+                      type="button"
+                      variant={validFrom && validFrom.getHours() < 12 ? "default" : "ghost"}
+                      size="sm"
+                      className="rounded-r-none"
+                      onClick={() => {
+                        const newDate = validFrom ? new Date(validFrom) : new Date();
+                        const currentHour = newDate.getHours();
+                        if (currentHour >= 12) {
+                          newDate.setHours(currentHour - 12);
+                          setValidFrom(newDate);
+                        }
+                      }}
+                    >
+                      AM
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={validFrom && validFrom.getHours() >= 12 ? "default" : "ghost"}
+                      size="sm"
+                      className="rounded-l-none"
+                      onClick={() => {
+                        const newDate = validFrom ? new Date(validFrom) : new Date();
+                        const currentHour = newDate.getHours();
+                        if (currentHour < 12) {
+                          newDate.setHours(currentHour + 12);
+                          setValidFrom(newDate);
+                        }
+                      }}
+                    >
+                      PM
+                    </Button>
+                  </div>
+                </div>
               </div>
             </PopoverContent>
           </Popover>
@@ -337,24 +375,62 @@ export function OfferForm({
                 disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                 initialFocus
               />
-              <div className="p-3 border-t">
+              <div className="p-3 border-t space-y-2">
                 <Label htmlFor="validUntilTime" className="text-xs">Time</Label>
-                <Input
-                  id="validUntilTime"
-                  type="time"
-                  value={
-                    validUntil
-                      ? `${String(validUntil.getHours()).padStart(2, "0")}:${String(validUntil.getMinutes()).padStart(2, "0")}`
-                      : "23:59"
-                  }
-                  onChange={(e) => {
-                    const [hours, minutes] = e.target.value.split(":").map(Number);
-                    const newDate = validUntil ? new Date(validUntil) : new Date();
-                    newDate.setHours(hours, minutes, 0, 0);
-                    setValidUntil(newDate);
-                  }}
-                  className="mt-1"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="validUntilTime"
+                    type="time"
+                    value={
+                      validUntil
+                        ? `${String(validUntil.getHours() % 12 || 12).padStart(2, "0")}:${String(validUntil.getMinutes()).padStart(2, "0")}`
+                        : "11:59"
+                    }
+                    onChange={(e) => {
+                      const [hours, minutes] = e.target.value.split(":").map(Number);
+                      const newDate = validUntil ? new Date(validUntil) : new Date();
+                      const isPM = validUntil ? validUntil.getHours() >= 12 : true;
+                      const hour24 = hours === 12 ? (isPM ? 12 : 0) : (isPM ? hours + 12 : hours);
+                      newDate.setHours(hour24, minutes, 0, 0);
+                      setValidUntil(newDate);
+                    }}
+                    className="flex-1"
+                  />
+                  <div className="flex rounded-md border">
+                    <Button
+                      type="button"
+                      variant={validUntil && validUntil.getHours() < 12 ? "default" : "ghost"}
+                      size="sm"
+                      className="rounded-r-none"
+                      onClick={() => {
+                        const newDate = validUntil ? new Date(validUntil) : new Date();
+                        const currentHour = newDate.getHours();
+                        if (currentHour >= 12) {
+                          newDate.setHours(currentHour - 12);
+                          setValidUntil(newDate);
+                        }
+                      }}
+                    >
+                      AM
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={validUntil && validUntil.getHours() >= 12 ? "default" : "ghost"}
+                      size="sm"
+                      className="rounded-l-none"
+                      onClick={() => {
+                        const newDate = validUntil ? new Date(validUntil) : new Date();
+                        const currentHour = newDate.getHours();
+                        if (currentHour < 12) {
+                          newDate.setHours(currentHour + 12);
+                          setValidUntil(newDate);
+                        }
+                      }}
+                    >
+                      PM
+                    </Button>
+                  </div>
+                </div>
               </div>
             </PopoverContent>
           </Popover>
