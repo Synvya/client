@@ -31,58 +31,20 @@ interface FormErrors {
 }
 
 /**
- * Detect the user's preferred hour format from browser/OS settings
- * Uses multiple detection methods for maximum reliability
- */
-function getUserHourCycle(): '12h' | '24h' {
-  try {
-    const locale = navigator.language || 'en-US';
-    const formatter = new Intl.DateTimeFormat(locale, {
-      hour: 'numeric',
-    });
-    const options = formatter.resolvedOptions() as any;
-    
-    // Method 1: Check hourCycle property (most reliable)
-    // hourCycle can be: h11, h12 (12-hour) or h23, h24 (24-hour)
-    // Note: hourCycle is not in all TypeScript definitions but exists in modern browsers
-    if (options.hourCycle && typeof options.hourCycle === 'string') {
-      return options.hourCycle.startsWith('h1') ? '12h' : '24h';
-    }
-    
-    // Method 2: Check hour12 property
-    if (options.hour12 !== undefined) {
-      return options.hour12 ? '12h' : '24h';
-    }
-    
-    // Method 3: Format a test time and check for AM/PM markers
-    const testDate = new Date(2000, 0, 1, 13, 0);
-    const formatted = formatter.format(testDate);
-    const hasAmPm = /am|pm|AM|PM|a\.m\.|p\.m\./i.test(formatted);
-    return hasAmPm ? '12h' : '24h';
-  } catch (e) {
-    // Fallback: Default to 12h for US/CA locales, 24h otherwise
-    const locale = navigator.language || 'en-US';
-    return locale.startsWith('en-US') || locale.startsWith('en-CA') ? '12h' : '24h';
-  }
-}
-
-/**
- * Format date and time for display using user's preferred format
- * Respects browser/OS settings for 12h vs 24h time
+ * Format date and time for display
+ * Always uses 12-hour format with AM/PM for consistency
  */
 function formatDateTime(date: Date | undefined): string {
   if (!date) return "Pick a date and time";
   
-  const hourCycle = getUserHourCycle();
-  const use24Hour = hourCycle === '24h';
-  
+  // Always use 12-hour format with AM/PM
   return date.toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
-    hour: use24Hour ? "2-digit" : "numeric",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: !use24Hour,
+    hour12: true,
   });
 }
 
