@@ -1,11 +1,12 @@
 import { FormEvent, useState } from "react";
-import type { Offer } from "@/types/loyalty";
+import type { Offer, OfferType } from "@/types/loyalty";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +24,7 @@ interface OfferFormProps {
 }
 
 interface FormErrors {
-  code?: string;
+  type?: string;
   description?: string;
   validFrom?: string;
   validUntil?: string;
@@ -67,7 +68,8 @@ export function OfferForm({
   timezone,
   isSubmitting = false,
 }: OfferFormProps): JSX.Element {
-  const [code, setCode] = useState(offer?.code ?? "");
+  const [type, setType] = useState<OfferType>(offer?.type ?? "coupon");
+  const [code] = useState(offer?.code ?? ""); // Read-only, no setter needed
   const [description, setDescription] = useState(offer?.description ?? "");
   const [validFrom, setValidFrom] = useState<Date | undefined>(
     offer?.validFrom ?? undefined
@@ -83,16 +85,9 @@ export function OfferForm({
   function validateForm(): boolean {
     const newErrors: FormErrors = {};
 
-    // Validate code
-    const trimmedCode = code.trim();
-    if (!trimmedCode) {
-      newErrors.code = "Offer code is required";
-    } else if (trimmedCode.length < 3 || trimmedCode.length > 20) {
-      newErrors.code = "Offer code must be 3-20 characters";
-    } else if (/\s/.test(trimmedCode)) {
-      newErrors.code = "Offer code cannot contain spaces";
-    } else if (!/^[A-Z0-9]+$/.test(trimmedCode)) {
-      newErrors.code = "Offer code must be uppercase letters and numbers only";
+    // Validate type
+    if (!type) {
+      newErrors.type = "Offer type is required";
     }
 
     // Validate description
@@ -134,7 +129,7 @@ export function OfferForm({
     try {
       await onSave({
         code: code.trim().toUpperCase(),
-        type: "coupon", // TODO: Will be replaced with dropdown in Issue #229
+        type,
         description: description.trim(),
         validFrom,
         validUntil,
@@ -144,39 +139,55 @@ export function OfferForm({
     }
   }
 
-  /**
-   * Handle code input - convert to uppercase automatically
-   */
-  function handleCodeChange(value: string) {
-    setCode(value.toUpperCase());
-    if (errors.code) {
-      setErrors({ ...errors, code: undefined });
-    }
-  }
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
-        {/* Offer Code */}
+        {/* Offer Type */}
         <div className="space-y-2">
-          <Label htmlFor="code">
-            Offer Code <span className="text-destructive">*</span>
+          <Label htmlFor="type">
+            Offer Type <span className="text-destructive">*</span>
           </Label>
+          <Select
+            value={type}
+            onValueChange={(value) => {
+              setType(value as OfferType);
+              if (errors.type) {
+                setErrors({ ...errors, type: undefined });
+              }
+            }}
+            disabled={isSubmitting}
+          >
+            <SelectTrigger id="type" className={errors.type ? "border-destructive" : ""}>
+              <SelectValue placeholder="Select offer type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="coupon">Coupon ($ off)</SelectItem>
+              <SelectItem value="discount">Discount (% off)</SelectItem>
+              <SelectItem value="bogo">Buy One Get One</SelectItem>
+              <SelectItem value="free-item">Free Item</SelectItem>
+              <SelectItem value="happy-hour">Happy Hour</SelectItem>
+            </SelectContent>
+          </Select>
+          {errors.type && (
+            <p className="text-sm text-destructive">{errors.type}</p>
+          )}
+          <p className="text-sm text-muted-foreground">
+            Choose the type of promotional offer
+          </p>
+        </div>
+
+        {/* Offer Code (Read-only) */}
+        <div className="space-y-2">
+          <Label htmlFor="code">Offer Code</Label>
           <Input
             id="code"
             type="text"
             value={code}
-            onChange={(e) => handleCodeChange(e.target.value)}
-            placeholder="SAVE20"
-            maxLength={20}
-            disabled={isSubmitting}
-            className={errors.code ? "border-destructive" : ""}
+            disabled
+            className="bg-muted"
           />
-          {errors.code && (
-            <p className="text-sm text-destructive">{errors.code}</p>
-          )}
           <p className="text-sm text-muted-foreground">
-            Short promotional code (e.g., SAVE20, FREEFRIES). 3-20 characters, uppercase letters and numbers only, no spaces.
+            Auto-generated unique identifier (8 characters)
           </p>
         </div>
 
