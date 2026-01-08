@@ -10,11 +10,19 @@
 export type OfferStatus = "active" | "inactive";
 
 /**
+ * Offer type - categorizes offers for AI agent searchability
+ */
+export type OfferType = "coupon" | "discount" | "bogo" | "free-item" | "happy-hour";
+
+/**
  * Loyalty offer interface matching kind:31556 event structure
  */
 export interface Offer {
-  /** Short promotional code (d tag value) - e.g., "SAVE20", "FREEFRIES" */
+  /** 8-letter auto-generated code (d tag value) - e.g., "XKCD1234" */
   code: string;
+  
+  /** Offer type for categorization and AI searchability (will be required in next PR) */
+  type?: OfferType;
   
   /** Merchant's description of the offer (event content) */
   description: string;
