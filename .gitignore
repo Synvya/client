@@ -21,3 +21,4 @@ infra/.aws-sam/
 infra/*.zip
 *.tsbuildinfo
 .npm-cache/
+.cursor/debug.log
