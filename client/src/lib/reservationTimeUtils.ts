@@ -79,6 +79,10 @@ export function unixAndTzidToIso8601(
   unixTimestamp: number,
   tzid: string
 ): string {
+  // Handle null/undefined explicitly (declined/cancelled reservations may have null time)
+  if (unixTimestamp === null || unixTimestamp === undefined) {
+    throw new Error("Unix timestamp cannot be null or undefined");
+  }
   if (typeof unixTimestamp !== "number" || isNaN(unixTimestamp)) {
     throw new Error("Unix timestamp must be a valid number");
   }

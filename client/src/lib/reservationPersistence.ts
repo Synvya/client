@@ -139,6 +139,10 @@ export function loadPersistedReservationMessages(): ReservationMessage[] {
 
     const data: PersistedData = JSON.parse(stored);
     
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/2c1e708b-083c-4f63-9b5c-4e77ca206b59',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reservationPersistence.ts:140',message:'Loaded persisted data from localStorage',data:{version:data.version,messageCount:data.messages?.length,firstMessage:data.messages?.[0]},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A,B,D'})}).catch(()=>{});
+    // #endregion
+    
     // Check version compatibility
     if (data.version !== STORAGE_VERSION) {
       console.warn(`[Persistence] Storage version mismatch (expected ${STORAGE_VERSION}, got ${data.version}), clearing persisted data`);
@@ -148,6 +152,10 @@ export function loadPersistedReservationMessages(): ReservationMessage[] {
 
     // Deserialize messages back to ReservationMessage format
     const messages = (data.messages || []).map(deserializeMessage);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/2c1e708b-083c-4f63-9b5c-4e77ca206b59',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'reservationPersistence.ts:150',message:'Deserialized messages',data:{messageCount:messages.length,firstMessageType:messages[0]?.type,firstMessageRumorKind:messages[0]?.rumor?.kind,samplePayload:messages[0]?.payload},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A,B,C,D'})}).catch(()=>{});
+    // #endregion
     
     console.debug(`[Persistence] Loaded ${messages.length} persisted messages from localStorage`);
     return messages;

@@ -101,20 +101,24 @@ export function ReservationsPage(): JSX.Element {
       const msg = thread.messages[i];
       if (msg.type === "response") {
         const response = msg.payload as ReservationResponse;
-        if (response.status === "confirmed" && response.time !== null && response.tzid) {
+        if (response.status === "confirmed" && response.time !== null && response.time !== undefined && response.tzid) {
           return unixAndTzidToIso8601(response.time, response.tzid);
         }
       } else if (msg.type === "modification-response") {
         const response = msg.payload as ReservationModificationResponse;
-        if (response.status === "confirmed" && response.time !== null && response.tzid) {
+        if (response.status === "confirmed" && response.time !== null && response.time !== undefined && response.tzid) {
           return unixAndTzidToIso8601(response.time, response.tzid);
         }
       } else if (msg.type === "modification-request") {
         const modRequest = msg.payload as ReservationModificationRequest;
-        if (modRequest.time && modRequest.tzid) {
+        if (modRequest.time && modRequest.time !== null && modRequest.time !== undefined && modRequest.tzid) {
           return unixAndTzidToIso8601(modRequest.time, modRequest.tzid);
         }
       }
+    }
+    // Handle null/undefined time (e.g., declined/cancelled reservations)
+    if (request.time === null || request.time === undefined) {
+      return "No time set";
     }
     return unixAndTzidToIso8601(request.time, request.tzid);
   };
