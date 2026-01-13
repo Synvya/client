@@ -9,7 +9,6 @@ import { LandingPage } from "@/pages/Landing";
 import { SquareCallbackPage } from "@/pages/SquareCallback";
 import { WebsiteDataPage } from "@/pages/WebsiteData";
 import { MenuPage } from "@/pages/Menu";
-import { LoyaltyPage } from "@/pages/Loyalty";
 
 function ProtectedApp(): JSX.Element {
   return (
@@ -33,7 +32,6 @@ export function App(): JSX.Element {
         <Route index element={<Navigate to="profile" replace />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="menu" element={<MenuPage />} />
-        <Route path="loyalty" element={<LoyaltyPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="website" element={<WebsiteDataPage />} />
         <Route path="website-data" element={<Navigate to="/app/website" replace />} />
