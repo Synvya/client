@@ -11,6 +11,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    hmr: {
+      overlay: true
+    },
     proxy: {
       "/nostr-build": {
         target: "https://nostr.build",

@@ -2,7 +2,7 @@ import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { decrypt as decryptNip49 } from "nostr-tools/nip49";
 import { nip19 } from "nostr-tools";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Sparkles, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,7 +56,7 @@ export function LandingPage(): JSX.Element {
       await createNewIdentity();
       navigate("/app/profile", { replace: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to create identity";
+      const message = err instanceof Error ? err.message : "Unable to create your account. Please try again.";
       setGeneralError(message);
     } finally {
       setCreating(false);
@@ -79,7 +79,7 @@ export function LandingPage(): JSX.Element {
       setShowConfirmPassword(false);
       setAgreedToTerms(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unable to read file";
+      const message = err instanceof Error ? err.message : "Unable to read the backup file. Please try again.";
       setImportError(message);
     } finally {
       event.target.value = "";
@@ -88,12 +88,12 @@ export function LandingPage(): JSX.Element {
 
   const handleImport = async () => {
     if (!encryptedKey) {
-      setImportError("Select an encrypted key file first");
+      setImportError("Please select your backup file first");
       return;
     }
 
     if (!password.trim()) {
-      setImportError("Enter the password for this key");
+      setImportError("Please enter your password");
       return;
     }
 
@@ -110,7 +110,7 @@ export function LandingPage(): JSX.Element {
       await importSecret(nsec);
       navigate("/app/profile", { replace: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to decrypt file";
+      const message = err instanceof Error ? err.message : "Unable to restore your account. Please check your backup file and password.";
       setImportError(message);
     } finally {
       setImporting(false);
@@ -120,14 +120,28 @@ export function LandingPage(): JSX.Element {
   const showSpinner = status === "loading" || status === "idle";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
-      <div className="w-full max-w-2xl space-y-6 rounded-3xl border bg-card px-8 py-10 shadow-sm">
-        <div className="space-y-2 text-center">
+    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-8">
+      <div className="w-full max-w-4xl space-y-8 rounded-3xl border bg-card px-8 py-12 shadow-sm">
+        <div className="space-y-4 text-center">
           <div className="flex justify-center">
-            <img src={synvyaLogo} alt="Synvya logo" className="h-12 w-auto" />
+            <img src={synvyaLogo} alt="Synvya logo" className="h-16 w-auto" />
           </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Be the answer when diners ask AI
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Make your restaurant discoverable by AI assistants. When diners ask ChatGPT, Claude, or other AI tools about restaurants, make sure yours is the answer.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-muted/30 p-6 text-center">
           <p className="text-sm text-muted-foreground">
-            Start fresh or import your existing merchant key to continue.
+            <strong className="text-foreground">Get discovered:</strong> Publish your restaurant info and full menu in an AI friendly way.
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            <strong className="text-foreground">Stay in control:</strong> Your data, your way—no middlemen, no lock-in.
           </p>
         </div>
 
@@ -152,9 +166,15 @@ export function LandingPage(): JSX.Element {
             ) : null}
 
             <div className="grid gap-6 sm:grid-cols-2">
-              <div className="flex flex-col rounded-2xl border bg-muted/20 p-6">
-                <h2 className="text-lg font-semibold">Sign Up</h2>
-                <label className="mt-4 flex items-start gap-2 text-sm text-muted-foreground">
+              <div className="flex flex-col rounded-2xl border bg-muted/20 p-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <Sparkles className="h-6 w-6 text-primary" />
+                  <h2 className="text-xl font-semibold">Get Started</h2>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Make your restaurant discoverable by AI assistants. Set up your profile in minutes.
+                </p>
+                <label className="flex items-start gap-2 text-sm text-muted-foreground mb-6">
                   <input
                     type="checkbox"
                     checked={agreedToTerms}
@@ -183,27 +203,32 @@ export function LandingPage(): JSX.Element {
                 </label>
                 <div className="flex-1" />
                 <Button
-                  className="mt-6"
+                  className="mt-auto"
                   onClick={() => void handleNewUser()}
                   disabled={creating || importing || !agreedToTerms}
+                  size="lg"
                 >
-                  {creating ? "Creating…" : "Sign Up"}
+                  {creating ? "Creating…" : "Create Account"}
                 </Button>
               </div>
 
-              <div className="flex flex-col rounded-2xl border bg-muted/20 p-6">
-                <h2 className="text-lg font-semibold">Log In</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Use the `business-encrypted-key.txt` file to restore your merchant identity.
+              <div className="flex flex-col rounded-2xl border bg-muted/20 p-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <FileText className="h-6 w-6 text-primary" />
+                  <h2 className="text-xl font-semibold">Restore Account</h2>
+                </div>
+                <p className="text-sm text-muted-foreground mb-6">
+                  Restore your restaurant profile using your backup file.
                 </p>
-                <div className="mt-4 space-y-2">
+                <div className="space-y-2 mb-6">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={importing || creating}
+                    className="w-full"
                   >
-                    {selectedFileName ? "Choose a different file" : "Select encrypted key file"}
+                    {selectedFileName ? "Choose a different file" : "Select backup file"}
                   </Button>
                   <input
                     ref={fileInputRef}
@@ -217,7 +242,7 @@ export function LandingPage(): JSX.Element {
                   ) : null}
                 </div>
 
-                <div className="mt-4 grid gap-3">
+                <div className="grid gap-4">
                   <div className="grid gap-1.5">
                     <Label htmlFor="import-password">Password</Label>
                     <div className="relative">
@@ -268,7 +293,7 @@ export function LandingPage(): JSX.Element {
                     <p className="text-xs text-destructive">{importError}</p>
                   ) : (
                     <p className="text-xs text-muted-foreground">
-                      Enter the password you used when exporting the encrypted key file.
+                      Enter the password you used when creating your backup file.
                     </p>
                   )}
                   <Button
@@ -276,8 +301,9 @@ export function LandingPage(): JSX.Element {
                     className="mt-2"
                     onClick={() => void handleImport()}
                     disabled={importing || creating || !encryptedKey}
+                    size="lg"
                   >
-                    {importing ? "Decrypting…" : "Import encrypted key"}
+                    {importing ? "Restoring…" : "Restore Account"}
                   </Button>
                 </div>
               </div>

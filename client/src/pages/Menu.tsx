@@ -710,7 +710,7 @@ export function MenuPage(): JSX.Element {
         <header>
           <h2 className="text-lg font-semibold">Menu Actions</h2>
           <p className="text-sm text-muted-foreground">
-            Preview a menu first (Square or Spreadsheet), then publish. Unpublish removes all published menu events (30402/30405).
+            Preview a menu first (Square or Spreadsheet), then publish.
           </p>
           {activeSource ? (
             <p className="mt-2 text-sm text-muted-foreground">

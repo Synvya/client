@@ -32,7 +32,7 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error("Failed to copy secret key", error);
+      console.error("Failed to copy private key", error);
     }
   };
 
@@ -53,12 +53,12 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
 
   const handleDownloadEncrypted = async () => {
     if (!nsec) {
-      setEncryptError("Secret key unavailable");
+      setEncryptError("Private key unavailable");
       return;
     }
 
     if (!password.trim()) {
-      setEncryptError("Enter a password to encrypt the key");
+      setEncryptError("Please enter a password to protect your backup");
       return;
     }
 
@@ -80,7 +80,7 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "business-encrypted-key.txt";
+      anchor.download = "restaurant-encrypted-key.txt";
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -115,16 +115,16 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
               <Shield className="h-5 w-5" />
             </span>
             <div>
-              <Dialog.Title className="text-lg font-semibold">Secure your secret key</Dialog.Title>
+              <Dialog.Title className="text-lg font-semibold">Back up your restaurant key</Dialog.Title>
               <Dialog.Description className="text-sm text-muted-foreground">
-                Copy your `nsec` and store it in a safe place. This key gives full control over your profile.
+                Copy your private key and store it in a safe place. This key gives you full control over your restaurant profile and should be kept secure.
               </Dialog.Description>
             </div>
           </div>
 
           <div className="mt-5 rounded-md border bg-muted/20 p-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">nsec</span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Private Key</span>
               <button
                 type="button"
                 onClick={handleCopy}
@@ -141,15 +141,15 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
                 "break-all"
               )}
             >
-              {nsec ?? "Secret key unavailable"}
+              {nsec ?? "Private key unavailable"}
             </div>
           </div>
 
           <div className="mt-6 space-y-3 rounded-md border bg-muted/20 p-4">
             <div>
-              <h4 className="text-sm font-medium">Encrypted backup</h4>
+              <h4 className="text-sm font-medium">Password-protected backup</h4>
               <p className="text-xs text-muted-foreground">
-                Protect the key with a password and download it as `business-encrypted-key.txt` for safekeeping (NIP-49 format).
+                Create a password-protected backup file that you can safely store. This encrypted file can be used to restore your restaurant profile if needed.
               </p>
             </div>
 
@@ -208,7 +208,7 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
               disabled={encrypting || !nsec}
             >
               <Download className="h-4 w-4" />
-              {encrypting ? "Encrypting…" : "Download encrypted key"}
+              {encrypting ? "Creating backup…" : "Download password-protected backup"}
             </Button>
           </div>
 
