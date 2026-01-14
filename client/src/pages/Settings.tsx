@@ -57,13 +57,13 @@ export function SettingsPage(): JSX.Element {
           <KeyRound className="h-5 w-5 text-muted-foreground" />
           <div>
             <h2 className="text-lg font-semibold">Identity</h2>
-            <p className="text-sm text-muted-foreground">Back up your merchant keys to maintain access across devices and prevent loss if browser data is cleared.</p>
+            <p className="text-sm text-muted-foreground">Back up your restaurant keys to maintain access across devices and prevent loss if browser data is cleared.</p>
           </div>
         </header>
 
         <div className="grid gap-3 text-sm">
           <div>
-            <span className="text-xs uppercase text-muted-foreground">npub</span>
+            <span className="text-xs uppercase text-muted-foreground">Public Key</span>
             <p className="font-mono break-all">{npub ?? "Loading…"}</p>
             <Button variant="link" className="px-0" onClick={() => handleCopy(npub)}>
               <Copy className="mr-2 h-3.5 w-3.5" />
@@ -74,7 +74,7 @@ export function SettingsPage(): JSX.Element {
 
         <div className="flex flex-wrap gap-3">
           <Button onClick={handleReveal} disabled={busy}>
-            <KeyRound className="mr-2 h-4 w-4" /> Backup Merchant Key
+            <KeyRound className="mr-2 h-4 w-4" /> Backup Restaurant Key
           </Button>
         </div>
       </section>

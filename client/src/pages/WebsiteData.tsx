@@ -8,7 +8,7 @@ import { getPool } from "@/lib/relayPool";
 import { parseKind0ProfileEvent } from "@/components/BusinessProfileForm";
 import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
-import { Copy, Download, Code, RefreshCw, AlertCircle } from "lucide-react";
+import { Copy, Download, Code, RefreshCw, AlertCircle, Sparkles, FileText, Package, Info, ExternalLink, HelpCircle } from "lucide-react";
 import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
 import { slugify } from "@/lib/siteExport/slug";
 import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
@@ -272,10 +272,13 @@ export function WebsiteDataPage(): JSX.Element {
       <div className="mx-auto max-w-4xl space-y-8">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
+          <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Website</h1>
-            <p className="mt-2 text-muted-foreground">
-              Refresh pulls your latest profile + menu published data to update the schema snippet and Synvya website files zip.
+            <p className="text-lg text-muted-foreground">
+              Make your restaurant discoverable by AI assistants. Generate code and website files that help ChatGPT, Claude, and other AI tools find and recommend your restaurant.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Click "Refresh" to pull your latest published profile and menu data.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -293,18 +296,18 @@ export function WebsiteDataPage(): JSX.Element {
         {/* Explanation Card */}
         <div className="rounded-lg border bg-card p-6 shadow-sm">
           <div className="flex items-start gap-3">
-            <Code className="mt-1 h-5 w-5 flex-shrink-0 text-primary" />
-            <div className="space-y-2">
+            <Info className="mt-1 h-5 w-5 flex-shrink-0 text-primary" />
+            <div className="space-y-3">
               <h2 className="text-lg font-semibold">What is this?</h2>
               <p className="text-sm text-muted-foreground">
-                This page generates two outputs from your latest published profile and menu data:
+                This page generates two things from your latest published profile and menu data to help AI assistants find your restaurant:
               </p>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
                 <li>
-                  <strong>Schema Data</strong>: JSON-LD you can paste into your own website’s <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code>.
+                  <strong className="text-foreground">AI Search Code for your existing website:</strong> Code that helps AI assistants like ChatGPT and Claude understand and recommend your restaurant. You can add this to your existing website.
                 </li>
                 <li>
-                  <strong>Synvya Website Files</strong>: a zip of static pages we can deploy under synvya.com.
+                  <strong className="text-foreground">Complete Website Package:</strong> Ready-to-use website files with your restaurant information, menu, and all the code needed for AI Search published on synvya.com for additional exposure.
                 </li>
               </ul>
             </div>
@@ -323,11 +326,11 @@ export function WebsiteDataPage(): JSX.Element {
               </div>
             </div>
 
-            {/* Schema Data */}
+            {/* AI Search Code */}
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-semibold">Schema Data</h2>
+                  <h2 className="text-xl font-semibold">AI Search Code for your existing website</h2>
                   <p className="text-sm text-muted-foreground">
                     Copy/paste this into your own website’s <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code>.
                   </p>
@@ -354,84 +357,71 @@ export function WebsiteDataPage(): JSX.Element {
                 />
               </div>
               <div className="rounded-lg border bg-card p-6 shadow-sm">
-                <h3 className="mb-3 font-semibold">How to use this code</h3>
-                <ol className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-foreground">1.</span>
+                <h3 className="mb-4 font-semibold flex items-center gap-2">
+                  <HelpCircle className="h-5 w-5 text-primary" />
+                  How to use this code
+                </h3>
+                <ol className="space-y-3 text-sm text-muted-foreground">
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">1.</span>
                     <span>Copy the code above by clicking the "Copy" button</span>
                   </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-foreground">2.</span>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">2.</span>
                     <span>
-                      Open your website's HTML file (usually{" "}
-                      <code className="rounded bg-muted px-1 py-0.5">index.html</code>)
+                      Find your website's main page file (usually called{" "}
+                      <code className="rounded bg-muted px-1 py-0.5">index.html</code>). If you're not sure how to do this, ask your web developer or hosting provider.
                     </span>
                   </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-foreground">3.</span>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">3.</span>
                     <span>
                       Paste the code inside the{" "}
                       <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section, before the closing{" "}
                       <code className="rounded bg-muted px-1 py-0.5">&lt;/head&gt;</code> tag
                     </span>
                   </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-foreground">4.</span>
-                    <span>Save and deploy your website</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="font-semibold text-foreground">5.</span>
-                    <span>
-                      Verify it's working using{" "}
-                      <a
-                        href="https://search.google.com/test/rich-results"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline-offset-4 hover:underline"
-                      >
-                        Google's Rich Results Test
-                      </a>
-                    </span>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">4.</span>
+                    <span>Save and publish your website</span>
                   </li>
                 </ol>
               </div>
             </div>
 
-            {/* Synvya Website Files */}
+            {/* Complete Website Package */}
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold">Synvya Website Files</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Download a zip of static HTML pages (index/menu/item) with embedded schema.
-                  </p>
+                <div className="flex items-start gap-3">
+                  <Package className="mt-1 h-6 w-6 flex-shrink-0 text-primary" />
+                  <div>
+                    <h2 className="text-xl font-semibold">Complete Website Package</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Download a complete website package with your restaurant information, menu, and all the code needed for AI Search published on synvya.com for additional exposure.
+                    </p>
+                  </div>
                 </div>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={handleDownloadWebsiteZip}
                   disabled={exporting || !lastProfile}
+                  className="shrink-0"
                 >
                   {exporting ? "Building zip…" : "Download Website Zip"}
                 </Button>
               </div>
-              {lastProfile ? (
-                <div className="rounded-lg border bg-card p-4 text-sm text-muted-foreground">
-                  Deployment path will be based on your business type + name slug (e.g.{" "}
-                  <code className="rounded bg-muted px-1 py-0.5">restaurant/elcandado/</code>).
-                </div>
-              ) : null}
             </div>
           </div>
         ) : (
           /* Empty State */
           <div className="rounded-lg border bg-card p-12 text-center shadow-sm">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-muted">
-              <Code className="h-10 w-10 text-muted-foreground" />
+              <Sparkles className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h3 className="mt-6 text-lg font-semibold">No data available yet</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Publish your business profile and menu, then click "Refresh" to generate structured data for your website.
+            <h3 className="mt-6 text-lg font-semibold">Get started with AI Search</h3>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+              Publish your restaurant profile and menu to generate code and website files that help AI assistants find and recommend your restaurant.
             </p>
             <div className="mt-6 flex gap-3 justify-center">
               <Button
@@ -439,7 +429,7 @@ export function WebsiteDataPage(): JSX.Element {
                 disabled={refreshing || !pubkey || !relays.length}
               >
                 <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? "Refreshing..." : "Refresh from Nostr"}
+                {refreshing ? "Refreshing..." : "Refresh"}
               </Button>
               <Button
                 variant="outline"
@@ -453,42 +443,6 @@ export function WebsiteDataPage(): JSX.Element {
           </div>
         )}
 
-        {/* Additional Resources */}
-        <div className="rounded-lg border bg-card p-6 shadow-sm">
-          <h3 className="mb-3 font-semibold">Additional Resources</h3>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li>
-              <a
-                href="https://schema.org/Restaurant"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                Schema.org Restaurant Documentation
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                Google Structured Data Guide
-              </a>
-            </li>
-            <li>
-              <a
-                href="https://search.google.com/test/rich-results"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                Test Your Structured Data
-              </a>
-            </li>
-          </ul>
-        </div>
       </div>
     </div>
   );
