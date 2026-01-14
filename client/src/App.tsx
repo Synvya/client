@@ -1,6 +1,7 @@
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import { ProfilePage } from "@/pages/Profile";
 import { SettingsPage } from "@/pages/Settings";
 import { ReservationsPage } from "@/pages/Reservations";
@@ -18,6 +19,7 @@ function ProtectedApp(): JSX.Element {
         <main className="flex-1 bg-muted/30">
           <Outlet />
         </main>
+        <Footer />
       </div>
     </OnboardingGate>
   );
