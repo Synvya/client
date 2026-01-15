@@ -31,7 +31,7 @@ export function Footer(): JSX.Element {
             </a>
           </div>
           <div className="text-sm text-muted-foreground">
-            © 2025 Synvya, Inc. All rights reserved.
+            © 2026 Synvya, Inc. All rights reserved.
           </div>
         </div>
       </footer>
