@@ -39,7 +39,7 @@ export function Header(): JSX.Element {
                 )
               }
             >
-              Reservations
+              Reservations (Beta)
             </NavLink>
             <NavLink
               to="/app/website"
