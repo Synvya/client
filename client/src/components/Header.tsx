@@ -50,7 +50,7 @@ export function Header(): JSX.Element {
                 )
               }
             >
-              Website
+              Discovery
             </NavLink>
             {import.meta.env.DEV && (
               <NavLink

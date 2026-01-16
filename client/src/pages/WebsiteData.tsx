@@ -273,9 +273,9 @@ export function WebsiteDataPage(): JSX.Element {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Website</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Discovery</h1>
             <p className="text-lg text-muted-foreground">
-              Make your restaurant discoverable by AI assistants. Generate code and website files that help ChatGPT, Claude, and other AI tools find and recommend your restaurant.
+              Get discovered by AI assistants like ChatGPT and Claude. Download your discovery page to be published on Synvya, and optionally add discovery code to your own website.
             </p>
             <p className="text-sm text-muted-foreground">
               Click "Refresh" to pull your latest published profile and menu data.
@@ -298,16 +298,16 @@ export function WebsiteDataPage(): JSX.Element {
           <div className="flex items-start gap-3">
             <Info className="mt-1 h-5 w-5 flex-shrink-0 text-primary" />
             <div className="space-y-3">
-              <h2 className="text-lg font-semibold">What is this?</h2>
+              <h2 className="text-lg font-semibold">What You Get</h2>
               <p className="text-sm text-muted-foreground">
                 This page generates two things from your latest published profile and menu data to help AI assistants find your restaurant:
               </p>
               <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
                 <li>
-                  <strong className="text-foreground">AI Search Code for your existing website:</strong> Code that helps AI assistants like ChatGPT and Claude understand and recommend your restaurant. You can add this to your existing website.
+                  <strong className="text-foreground">Your Synvya Discovery Page:</strong> Download a complete discovery page package and email it to synvya@synvya.com to get your page published on synvya.com for maximum visibility.
                 </li>
                 <li>
-                  <strong className="text-foreground">Complete Website Package:</strong> Ready-to-use website files with your restaurant information, menu, and all the code needed for AI Search published on synvya.com for additional exposure.
+                  <strong className="text-foreground">Add Discovery Code to Your Website (Optional):</strong> If you have your own website, add this code to make it discoverable by AI assistants. Works alongside your Synvya page for maximum visibility.
                 </li>
               </ul>
             </div>
@@ -326,13 +326,13 @@ export function WebsiteDataPage(): JSX.Element {
               </div>
             </div>
 
-            {/* AI Search Code */}
+            {/* Discovery Code */}
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-semibold">AI Search Code for your existing website</h2>
+                  <h2 className="text-xl font-semibold">Add Discovery Code to Your Website</h2>
                   <p className="text-sm text-muted-foreground">
-                    Copy/paste this into your own website’s <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code>.
+                    Have your own website? Copy/paste this code into your website's <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section to make it discoverable by AI assistants.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -389,15 +389,15 @@ export function WebsiteDataPage(): JSX.Element {
               </div>
             </div>
 
-            {/* Complete Website Package */}
+            {/* Synvya Discovery Page */}
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <Package className="mt-1 h-6 w-6 flex-shrink-0 text-primary" />
                   <div>
-                    <h2 className="text-xl font-semibold">Complete Website Package</h2>
+                    <h2 className="text-xl font-semibold">Your Synvya Discovery Page</h2>
                     <p className="text-sm text-muted-foreground">
-                      Download a complete website package with your restaurant information, menu, and all the code needed for AI Search published on synvya.com for additional exposure.
+                      Download a complete discovery page package with your restaurant information, menu, and all the code needed for AI discovery. After downloading, email the zip file to synvya@synvya.com and we'll publish it on synvya.com for you.
                     </p>
                   </div>
                 </div>
@@ -408,8 +408,15 @@ export function WebsiteDataPage(): JSX.Element {
                   disabled={exporting || !lastProfile}
                   className="shrink-0"
                 >
-                  {exporting ? "Building zip…" : "Download Website Zip"}
+                  {exporting ? "Building zip…" : "Download Discovery Page"}
                 </Button>
+              </div>
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">Next step:</strong> After downloading, email the zip file to{" "}
+                  <a href="mailto:synvya@synvya.com" className="text-primary hover:underline">synvya@synvya.com</a>{" "}
+                  and we'll publish your discovery page on synvya.com.
+                </p>
               </div>
             </div>
           </div>
@@ -419,9 +426,9 @@ export function WebsiteDataPage(): JSX.Element {
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-muted">
               <Sparkles className="h-10 w-10 text-muted-foreground" />
             </div>
-            <h3 className="mt-6 text-lg font-semibold">Get started with AI Search</h3>
+            <h3 className="mt-6 text-lg font-semibold">Get Started with Discovery</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Publish your restaurant profile and menu to generate code and website files that help AI assistants find and recommend your restaurant.
+              Publish your restaurant profile and menu to generate your discovery page and code that help AI assistants find and recommend your restaurant.
             </p>
             <div className="mt-6 flex gap-3 justify-center">
               <Button
