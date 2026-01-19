@@ -35,7 +35,7 @@ describe("siteExport buildSite", () => {
       },
     ];
 
-    const { html, filename } = buildStaticSiteFiles({
+    const { html, handle } = buildStaticSiteFiles({
       profile,
       geohash: null,
       menuEvents,
@@ -45,8 +45,8 @@ describe("siteExport buildSite", () => {
       nameSlug: "elcandado",
     });
 
-    // Check filename
-    expect(filename).toBe("elcandado.html");
+    // Check handle
+    expect(handle).toBe("elcandado");
 
     // Check HTML contains restaurant info
     expect(html).toContain("Restaurante El Candado");
@@ -89,7 +89,7 @@ describe("siteExport buildSite", () => {
       cuisine: "Italian",
     };
 
-    const { html, filename } = buildStaticSiteFiles({
+    const { html, handle } = buildStaticSiteFiles({
       profile,
       geohash: null,
       menuEvents: null,
@@ -99,7 +99,7 @@ describe("siteExport buildSite", () => {
       nameSlug: "testrestaurant",
     });
 
-    expect(filename).toBe("testrestaurant.html");
+    expect(handle).toBe("testrestaurant");
     expect(html).toContain("Test Restaurant");
     expect(html).toContain("A test restaurant");
     expect(html).toContain("application/ld+json");
@@ -123,7 +123,7 @@ describe("siteExport buildSite", () => {
       country: "US",
     };
 
-    const { filename } = buildStaticSiteFiles({
+    const { handle } = buildStaticSiteFiles({
       profile,
       geohash: null,
       menuEvents: null,
@@ -133,7 +133,7 @@ describe("siteExport buildSite", () => {
       nameSlug: "my-restaurant",
     });
 
-    expect(filename).toBe("my-restaurant.html");
+    expect(handle).toBe("my-restaurant");
   });
 
   it("uses fallback filename when neither name nor displayName available", () => {
@@ -154,7 +154,7 @@ describe("siteExport buildSite", () => {
       country: "US",
     };
 
-    const { filename } = buildStaticSiteFiles({
+    const { handle } = buildStaticSiteFiles({
       profile,
       geohash: null,
       menuEvents: null,
@@ -164,7 +164,7 @@ describe("siteExport buildSite", () => {
       nameSlug: "restaurant",
     });
 
-    expect(filename).toBe("restaurant.html");
+    expect(handle).toBe("restaurant");
   });
 
   it("generates consolidated schema with full nested menu structure", () => {
