@@ -4,11 +4,11 @@ import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
 
 describe("siteExport buildSite", () => {
-  it("generates index/menu/item html files under <type>/<name>/", () => {
+  it("generates single HTML file with consolidated schema", () => {
     const profile: BusinessProfile = {
       name: "elcandado",
       displayName: "Restaurante El Candado",
-      about: "",
+      about: "A Spanish restaurant",
       website: "",
       nip05: "",
       picture: "",
@@ -35,7 +35,7 @@ describe("siteExport buildSite", () => {
       },
     ];
 
-    const { files } = buildStaticSiteFiles({
+    const { html, filename } = buildStaticSiteFiles({
       profile,
       geohash: null,
       menuEvents,
@@ -45,13 +45,126 @@ describe("siteExport buildSite", () => {
       nameSlug: "elcandado",
     });
 
-    expect(Object.keys(files)).toContain("restaurant/elcandado/index.html");
-    expect(Object.keys(files).some((p) => p === "restaurant/elcandado/dinner.html")).toBe(true);
-    expect(Object.keys(files).some((p) => p === "restaurant/elcandado/bacalao-al-pil-pil.html")).toBe(true);
+    // Check filename
+    expect(filename).toBe("elcandado.html");
 
-    expect(files["restaurant/elcandado/index.html"]).toContain("Restaurante El Candado");
-    expect(files["restaurant/elcandado/index.html"]).toContain("application/ld+json");
-    expect(files["restaurant/elcandado/index.html"]).not.toContain("Deploy under");
+    // Check HTML contains restaurant info
+    expect(html).toContain("Restaurante El Candado");
+    expect(html).toContain("A Spanish restaurant");
+    expect(html).toContain("Spanish");
+    expect(html).toContain("Tapas");
+
+    // Check HTML contains menu
+    expect(html).toContain("Dinner Menu");
+
+    // Check HTML contains menu item
+    expect(html).toContain("Bacalao al Pil Pil");
+    expect(html).toContain("desc");
+
+    // Check schema is included
+    expect(html).toContain("application/ld+json");
+
+    // Check anchor navigation
+    expect(html).toContain('id="menu-dinner-menu"');
+    expect(html).toContain('id="item-bacalao-al-pil-pil"');
+    expect(html).toContain('href="#menu-dinner-menu"');
+  });
+
+  it("generates single HTML file without menus when no menu events", () => {
+    const profile: BusinessProfile = {
+      name: "testrestaurant",
+      displayName: "Test Restaurant",
+      about: "A test restaurant",
+      website: "",
+      nip05: "",
+      picture: "",
+      banner: "",
+      businessType: "restaurant",
+      categories: [],
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
+      country: "US",
+      cuisine: "Italian",
+    };
+
+    const { html, filename } = buildStaticSiteFiles({
+      profile,
+      geohash: null,
+      menuEvents: null,
+      merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+      profileTags: null,
+      typeSlug: "restaurant",
+      nameSlug: "testrestaurant",
+    });
+
+    expect(filename).toBe("testrestaurant.html");
+    expect(html).toContain("Test Restaurant");
+    expect(html).toContain("A test restaurant");
+    expect(html).toContain("application/ld+json");
+  });
+
+  it("uses displayName for filename when name is not available", () => {
+    const profile: BusinessProfile = {
+      name: "",
+      displayName: "My Restaurant",
+      about: "",
+      website: "",
+      nip05: "",
+      picture: "",
+      banner: "",
+      businessType: "restaurant",
+      categories: [],
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
+      country: "US",
+    };
+
+    const { filename } = buildStaticSiteFiles({
+      profile,
+      geohash: null,
+      menuEvents: null,
+      merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+      profileTags: null,
+      typeSlug: "restaurant",
+      nameSlug: "my-restaurant",
+    });
+
+    expect(filename).toBe("my-restaurant.html");
+  });
+
+  it("uses fallback filename when neither name nor displayName available", () => {
+    const profile: BusinessProfile = {
+      name: "",
+      displayName: "",
+      about: "",
+      website: "",
+      nip05: "",
+      picture: "",
+      banner: "",
+      businessType: "restaurant",
+      categories: [],
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
+      country: "US",
+    };
+
+    const { filename } = buildStaticSiteFiles({
+      profile,
+      geohash: null,
+      menuEvents: null,
+      merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+      profileTags: null,
+      typeSlug: "restaurant",
+      nameSlug: "restaurant",
+    });
+
+    expect(filename).toBe("restaurant.html");
   });
 });
 

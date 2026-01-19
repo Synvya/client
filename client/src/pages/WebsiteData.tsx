@@ -217,7 +217,7 @@ export function WebsiteDataPage(): JSX.Element {
       const typeSlug = mapBusinessTypeToEstablishmentSlug(lastProfile.businessType);
       const nameSlug = slugify(lastProfile.name || lastProfile.displayName || "business");
 
-      const { files } = buildStaticSiteFiles({
+      const { html, filename } = buildStaticSiteFiles({
         profile: lastProfile,
         geohash: lastGeohash,
         menuEvents: lastMenuEvents,
@@ -227,8 +227,9 @@ export function WebsiteDataPage(): JSX.Element {
         nameSlug,
       });
 
-      const zipBlob = await buildZipBlob(files);
-      triggerBrowserDownload(zipBlob, `${typeSlug}-${nameSlug}-synvya-site.zip`);
+      // TODO: Update to download single HTML file instead of zip (issue #250)
+      const blob = new Blob([html], { type: "text/html" });
+      triggerBrowserDownload(blob, filename);
     } catch (error) {
       console.error("Failed to export website zip:", error);
     } finally {
