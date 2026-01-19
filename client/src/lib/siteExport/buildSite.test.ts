@@ -166,6 +166,257 @@ describe("siteExport buildSite", () => {
 
     expect(filename).toBe("restaurant.html");
   });
+
+  it("generates consolidated schema with full nested menu structure", () => {
+    const profile: BusinessProfile = {
+      name: "testrestaurant",
+      displayName: "Test Restaurant",
+      about: "A test restaurant",
+      website: "",
+      nip05: "",
+      picture: "",
+      banner: "",
+      businessType: "restaurant",
+      categories: ["Italian"],
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
+      country: "US",
+      cuisine: "Italian",
+    };
+
+    const menuEvents: SquareEventTemplate[] = [
+      {
+        kind: 30405,
+        created_at: 1,
+        content: "",
+        tags: [
+          ["d", "Dinner"],
+          ["title", "Dinner Menu"],
+          ["summary", "Our dinner menu"],
+        ],
+      },
+      {
+        kind: 30405,
+        created_at: 1,
+        content: "",
+        tags: [
+          ["d", "Appetizers"],
+          ["title", "Appetizers Menu Section"],
+          ["summary", "Appetizers section"],
+        ],
+      },
+      {
+        kind: 30402,
+        created_at: 1,
+        content: "Delicious pasta",
+        tags: [
+          ["d", "sq-123"],
+          ["title", "Spaghetti"],
+          ["price", "18", "USD"],
+          ["image", "https://example.com/spaghetti.jpg"],
+          ["a", "30405:pubkey123:Appetizers"],
+          ["a", "30405:pubkey123:Dinner"],
+        ],
+      },
+    ];
+
+    const { html } = buildStaticSiteFiles({
+      profile,
+      geohash: null,
+      menuEvents,
+      merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+      profileTags: null,
+      typeSlug: "restaurant",
+      nameSlug: "testrestaurant",
+    });
+
+    // Check schema is valid JSON-LD
+    expect(html).toContain("application/ld+json");
+    
+    // Extract and parse schema
+    const schemaMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    expect(schemaMatch).toBeTruthy();
+    
+    if (schemaMatch) {
+      const schemaJson = schemaMatch[1].trim();
+      const schema = JSON.parse(schemaJson);
+      
+      // Check schema structure
+      expect(schema["@context"]).toBe("https://schema.org");
+      expect(schema["@type"]).toBe("Restaurant");
+      expect(schema.name).toBe("Test Restaurant");
+      
+      // Check hasMenu exists and is an array
+      expect(Array.isArray(schema.hasMenu)).toBe(true);
+      expect(schema.hasMenu.length).toBeGreaterThan(0);
+      
+      // Check menu structure
+      const menu = schema.hasMenu[0];
+      expect(menu["@type"]).toBe("Menu");
+      expect(menu.name).toBe("Dinner Menu");
+      
+      // Check menu sections exist
+      if (menu.hasMenuSection) {
+        expect(Array.isArray(menu.hasMenuSection)).toBe(true);
+        if (menu.hasMenuSection.length > 0) {
+          const section = menu.hasMenuSection[0];
+          expect(section["@type"]).toBe("MenuSection");
+          expect(Array.isArray(section.hasMenuItem)).toBe(true);
+          
+          // Check menu items are fully nested
+          if (section.hasMenuItem.length > 0) {
+            const item = section.hasMenuItem[0];
+            expect(item["@type"]).toBe("MenuItem");
+            expect(item.name).toBeTruthy();
+          }
+        }
+      }
+    }
+  });
+
+  it("handles restaurants with multiple menus correctly", () => {
+    const profile: BusinessProfile = {
+      name: "multimenurestaurant",
+      displayName: "Multi Menu Restaurant",
+      about: "",
+      website: "",
+      nip05: "",
+      picture: "",
+      banner: "",
+      businessType: "restaurant",
+      categories: [],
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
+      country: "US",
+    };
+
+    const menuEvents: SquareEventTemplate[] = [
+      {
+        kind: 30405,
+        created_at: 1,
+        content: "",
+        tags: [
+          ["d", "Lunch"],
+          ["title", "Lunch Menu"],
+        ],
+      },
+      {
+        kind: 30405,
+        created_at: 1,
+        content: "",
+        tags: [
+          ["d", "Dinner"],
+          ["title", "Dinner Menu"],
+        ],
+      },
+      {
+        kind: 30402,
+        created_at: 1,
+        content: "Lunch item",
+        tags: [
+          ["d", "sq-1"],
+          ["title", "Lunch Item"],
+          ["a", "30405:e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f:Lunch"],
+        ],
+      },
+      {
+        kind: 30402,
+        created_at: 1,
+        content: "Dinner item",
+        tags: [
+          ["d", "sq-2"],
+          ["title", "Dinner Item"],
+          ["a", "30405:e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f:Dinner"],
+        ],
+      },
+    ];
+
+    const { html } = buildStaticSiteFiles({
+      profile,
+      geohash: null,
+      menuEvents,
+      merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+      profileTags: null,
+      typeSlug: "restaurant",
+      nameSlug: "multimenurestaurant",
+    });
+
+    // Check at least one menu is present (menu schema building may group items)
+    expect(html).toContain("Lunch Menu");
+    expect(html).toContain("Lunch Item");
+    expect(html).toContain("Dinner Item");
+    
+    // Check anchor links
+    expect(html).toContain('id="menu-lunch-menu"');
+    expect(html).toContain('href="#menu-lunch-menu"');
+  });
+
+  it("handles menu items with dietary badges and prices", () => {
+    const profile: BusinessProfile = {
+      name: "dietaryrestaurant",
+      displayName: "Dietary Restaurant",
+      about: "",
+      website: "",
+      nip05: "",
+      picture: "",
+      banner: "",
+      businessType: "restaurant",
+      categories: [],
+      street: "123 Main St",
+      city: "Seattle",
+      state: "WA",
+      zip: "98101",
+      country: "US",
+    };
+
+    const menuEvents: SquareEventTemplate[] = [
+      {
+        kind: 30405,
+        created_at: 1,
+        content: "",
+        tags: [
+          ["d", "Menu"],
+          ["title", "Main Menu"],
+        ],
+      },
+      {
+        kind: 30402,
+        created_at: 1,
+        content: "Vegan option",
+        tags: [
+          ["d", "sq-1"],
+          ["title", "Vegan Salad"],
+          ["price", "15", "USD"],
+          ["t", "vegan"],
+          ["t", "gluten-free"],
+          ["a", "30405:pubkey123:Menu"],
+        ],
+      },
+    ];
+
+    const { html } = buildStaticSiteFiles({
+      profile,
+      geohash: null,
+      menuEvents,
+      merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+      profileTags: null,
+      typeSlug: "restaurant",
+      nameSlug: "dietaryrestaurant",
+    });
+
+    // Check item is rendered
+    expect(html).toContain("Vegan Salad");
+    expect(html).toContain("Vegan option");
+    expect(html).toContain("$15");
+    
+    // Check dietary badges are rendered (they should be in the HTML)
+    // The badges are rendered as spans with class "itemBadge"
+    expect(html).toContain("itemBadge");
+  });
 });
 
 

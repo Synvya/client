@@ -153,5 +153,127 @@ describe("templates", () => {
       expect(html).toContain("A test restaurant");
       expect(html).not.toContain("Our Menus");
     });
+
+    it("renders menu items with sections correctly", () => {
+      const profile: BusinessProfile = {
+        name: "sectionrestaurant",
+        displayName: "Section Restaurant",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: [],
+        street: "123 Main St",
+        city: "Seattle",
+        state: "WA",
+        zip: "98101",
+        country: "US",
+      };
+
+      const menuEvents: SquareEventTemplate[] = [
+        {
+          kind: 30405,
+          created_at: 1,
+          content: "",
+          tags: [
+            ["d", "Dinner"],
+            ["title", "Dinner Menu"],
+          ],
+        },
+        {
+          kind: 30405,
+          created_at: 1,
+          content: "",
+          tags: [
+            ["d", "Appetizers"],
+            ["title", "Appetizers Menu Section"],
+          ],
+        },
+        {
+          kind: 30402,
+          created_at: 1,
+          content: "Appetizer item",
+          tags: [
+            ["d", "sq-1"],
+            ["title", "Bruschetta"],
+            ["price", "10", "USD"],
+            ["a", "30405:e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f:Appetizers"],
+            ["a", "30405:e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f:Dinner"],
+          ],
+        },
+      ];
+
+      const model = buildExportSiteModel({
+        profile,
+        geohash: null,
+        menuEvents,
+        merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+        typeSlug: "restaurant",
+        nameSlug: "sectionrestaurant",
+      });
+
+      const consolidatedSchema = {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        name: "Section Restaurant",
+        hasMenu: [],
+      };
+
+      const html = renderSinglePageHtml(model, consolidatedSchema);
+
+      // Check menu is rendered
+      expect(html).toContain("Dinner Menu");
+      
+      // Check item is rendered (sections may be rendered as part of menu structure)
+      expect(html).toContain("Bruschetta");
+      expect(html).toContain("Appetizer item");
+      expect(html).toContain("$10");
+    });
+
+    it("handles restaurants with minimal information", () => {
+      const profile: BusinessProfile = {
+        name: "minimal",
+        displayName: "Minimal Restaurant",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: [],
+        street: "",
+        city: "",
+        state: "",
+        zip: "",
+        country: "",
+      };
+
+      const model = buildExportSiteModel({
+        profile,
+        geohash: null,
+        menuEvents: null,
+        merchantPubkey: "e01e4b0b3677204161b8d13d0a7b88e5d2e7dac2f7d2cc5530a3bc1dca3fbd2f",
+        typeSlug: "restaurant",
+        nameSlug: "minimal",
+      });
+
+      const consolidatedSchema = {
+        "@context": "https://schema.org",
+        "@type": "Restaurant",
+        name: "Minimal Restaurant",
+      };
+
+      const html = renderSinglePageHtml(model, consolidatedSchema);
+
+      // Should still render basic structure
+      expect(html).toContain("Minimal Restaurant");
+      expect(html).toContain("application/ld+json");
+      
+      // Should not crash or have broken HTML
+      expect(html).toContain("<!doctype html>");
+      expect(html).toContain("</html>");
+    });
   });
 });
