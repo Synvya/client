@@ -12,7 +12,7 @@ import { Copy, Download, Code, RefreshCw, AlertCircle, Sparkles, FileText, Packa
 import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
 import { slugify } from "@/lib/siteExport/slug";
 import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
-import { buildZipBlob, triggerBrowserDownload } from "@/lib/siteExport/zip";
+import { triggerBrowserDownload } from "@/lib/siteExport/zip";
 
 export function WebsiteDataPage(): JSX.Element {
   const schema = useWebsiteData((state) => state.schema);
@@ -227,11 +227,10 @@ export function WebsiteDataPage(): JSX.Element {
         nameSlug,
       });
 
-      // TODO: Update to download single HTML file instead of zip (issue #250)
       const blob = new Blob([html], { type: "text/html" });
       triggerBrowserDownload(blob, filename);
     } catch (error) {
-      console.error("Failed to export website zip:", error);
+      console.error("Failed to export discovery page:", error);
     } finally {
       setExporting(false);
     }
@@ -398,7 +397,7 @@ export function WebsiteDataPage(): JSX.Element {
                   <div>
                     <h2 className="text-xl font-semibold">Your Synvya Discovery Page</h2>
                     <p className="text-sm text-muted-foreground">
-                      Download a complete discovery page package with your restaurant information, menu, and all the code needed for AI discovery. After downloading, email the zip file to synvya@synvya.com and we'll publish it on synvya.com for you.
+                      Download a complete discovery page with your restaurant information, menu, and all the code needed for AI discovery. After downloading, email the HTML file to synvya@synvya.com and we'll publish it on synvya.com for you.
                     </p>
                   </div>
                 </div>
@@ -409,12 +408,12 @@ export function WebsiteDataPage(): JSX.Element {
                   disabled={exporting || !lastProfile}
                   className="shrink-0"
                 >
-                  {exporting ? "Building zip…" : "Download Discovery Page"}
+                  {exporting ? "Building HTML…" : "Download Discovery Page"}
                 </Button>
               </div>
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-sm text-muted-foreground">
-                  <strong className="text-foreground">Next step:</strong> After downloading, email the zip file to{" "}
+                  <strong className="text-foreground">Next step:</strong> After downloading, email the HTML file to{" "}
                   <a href="mailto:synvya@synvya.com" className="text-primary hover:underline">synvya@synvya.com</a>{" "}
                   and we'll publish your discovery page on synvya.com.
                 </p>
