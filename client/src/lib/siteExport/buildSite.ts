@@ -12,7 +12,7 @@ export function buildStaticSiteFiles(params: {
   profileTags?: string[][] | null;
   typeSlug: string;
   nameSlug: string;
-}): { html: string; filename: string } {
+}): { html: string; handle: string } {
   const { profile, geohash, menuEvents, merchantPubkey, profileTags } = params;
   const model = buildExportSiteModel({
     profile,
@@ -43,13 +43,13 @@ export function buildStaticSiteFiles(params: {
     ...(menusSchema.length > 0 ? { hasMenu: menusSchema } : {}),
   };
 
-  // Generate filename from restaurant name
-  const filename = `${slugify(profile.name || profile.displayName || "restaurant")}.html`;
+  // Generate handle from restaurant name (without extension)
+  const handle = slugify(profile.name || profile.displayName || "restaurant");
 
   // Render single-page HTML
   const html = renderSinglePageHtml(model, consolidatedSchema);
 
-  return { html, filename };
+  return { html, handle };
 }
 
 
