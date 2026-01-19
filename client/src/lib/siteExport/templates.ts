@@ -482,4 +482,149 @@ export function renderMenuItemHtml(model: ExportSiteModel, menuName: string, men
   return baseHtml(`${model.displayName} / ${menuName} / ${item.name}`, schemaTag, body);
 }
 
+/**
+ * Renders a single-page HTML with all restaurant information, menus, and menu items.
+ * All content is rendered inline (not as links) with anchor navigation.
+ */
+export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema: unknown): string {
+  const schemaTag = jsonLdScriptTag(consolidatedSchema);
+
+  // Generate anchor slugs (without .html extension)
+  const menuAnchorSlug = (menuName: string) => `menu-${slugify(menuName)}`;
+  const itemAnchorSlug = (itemName: string) => `item-${slugify(itemName)}`;
+
+  // Render all menus with all items inline
+  const menusHtml = model.menus
+    .map((menu) => {
+      const menuAnchor = menuAnchorSlug(menu.name);
+      
+      // Render sections with items
+      const sectionsHtml = menu.sections
+        .map((sec) => {
+          const itemsHtml = sec.items
+            .map((item) => {
+              const itemAnchor = itemAnchorSlug(item.name);
+              const badges = item.dietaryBadges.length
+                ? `<div class="itemBadges">${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
+                : "";
+              const contains = item.contains.length
+                ? `<div class="small" style="margin-top:12px"><strong>Contains:</strong> ${item.contains.map((c) => escapeHtml(c)).join(", ")}</div>`
+                : "";
+              const priceHtml = item.price
+                ? `<div class="itemCardPrice">$${escapeHtml(item.price.amount)}</div>`
+                : "";
+
+              return `<div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
+                ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.name)}" class="itemCardImage" />` : ""}
+                <div class="itemCardContent">
+                  <div class="itemCardRow">
+                    <div style="flex:1">
+                      <h3 class="itemCardTitle" style="margin:0 0 6px 0">${escapeHtml(item.name)}</h3>
+                      ${item.description ? `<div class="small" style="margin-top:4px">${markdownToHtml(item.description)}</div>` : ""}
+                      ${badges}
+                      ${contains}
+                    </div>
+                    ${priceHtml}
+                  </div>
+                </div>
+              </div>`;
+            })
+            .join("\n");
+
+          return `<h3 style="margin-top:32px;margin-bottom:16px;font-size:20px;color:#374151">${escapeHtml(sec.name)}</h3>\n${itemsHtml}`;
+        })
+        .join("\n");
+
+      // Render direct items (not in sections)
+      const directItemsHtml = menu.directItems.length
+        ? `<h3 style="margin-top:32px;margin-bottom:16px;font-size:20px;color:#374151">Items</h3>\n${menu.directItems
+            .map((item) => {
+              const itemAnchor = itemAnchorSlug(item.name);
+              const badges = item.dietaryBadges.length
+                ? `<div class="itemBadges">${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
+                : "";
+              const contains = item.contains.length
+                ? `<div class="small" style="margin-top:12px"><strong>Contains:</strong> ${item.contains.map((c) => escapeHtml(c)).join(", ")}</div>`
+                : "";
+              const priceHtml = item.price
+                ? `<div class="itemCardPrice">$${escapeHtml(item.price.amount)}</div>`
+                : "";
+
+              return `<div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
+                ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.name)}" class="itemCardImage" />` : ""}
+                <div class="itemCardContent">
+                  <div class="itemCardRow">
+                    <div style="flex:1">
+                      <h3 class="itemCardTitle" style="margin:0 0 6px 0">${escapeHtml(item.name)}</h3>
+                      ${item.description ? `<div class="small" style="margin-top:4px">${markdownToHtml(item.description)}</div>` : ""}
+                      ${badges}
+                      ${contains}
+                    </div>
+                    ${priceHtml}
+                  </div>
+                </div>
+              </div>`;
+            })
+            .join("\n")}`
+        : "";
+
+      return `<div id="${menuAnchor}" style="scroll-margin-top:80px;margin-top:48px">
+        <h2 style="font-size:28px;color:#1f2937;margin-bottom:12px;border-bottom:2px solid #e5e7eb;padding-bottom:12px">${escapeHtml(menu.name)}</h2>
+        ${menu.description ? `<div class="description" style="margin-bottom:24px">${markdownToHtml(menu.description)}</div>` : ""}
+        ${sectionsHtml}
+        ${directItemsHtml}
+      </div>`;
+    })
+    .join("\n");
+
+  const body = `
+<div class="hero">
+  ${model.bannerUrl ? `<img class="heroImg" src="${model.bannerUrl}" alt="${model.displayName} banner" />` : `<div class="heroImg" style="background:#111"></div>`}
+  <div class="heroShade"></div>
+  <div class="heroInner">
+    ${model.logoUrl ? `<img class="avatar" src="${model.logoUrl}" alt="${model.displayName} logo" />` : ""}
+    <div class="heroText">
+      <h1 class="heroTitle">${escapeHtml(model.displayName)}</h1>
+      <div class="heroSub">${escapeHtml([model.cuisine, model.addressLines[1]].filter(Boolean).join(" • "))}</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  ${model.about ? `<div class="description">${markdownToHtml(model.about)}</div>` : ""}
+  
+  ${model.categoryBadges.length ? `<div class="badges">${model.categoryBadges.map((c) => `<span class="badge">${escapeHtml(c)}</span>`).join("")}</div>` : ""}
+  
+  ${model.menus.length > 0 ? `<div style="margin-top:48px">
+    <h2 style="font-size:32px;color:#111827;margin-bottom:24px">Our Menus</h2>
+    <div style="margin-bottom:32px">
+      ${model.menus
+        .map(
+          (menu) =>
+            `<a href="#${menuAnchorSlug(menu.name)}" style="display:inline-block;margin-right:16px;margin-bottom:8px;padding:8px 16px;background:#f3f4f6;border-radius:6px;color:#374151;text-decoration:none;font-weight:500;transition:all 0.2s" onmouseover="this.style.background='#e5e7eb'" onmouseout="this.style.background='#f3f4f6'">${escapeHtml(menu.name)}</a>`
+        )
+        .join("")}
+    </div>
+    ${menusHtml}
+  </div>` : ""}
+  
+  <div class="ctaSection">
+    <h2>Ready to Experience ${escapeHtml(model.displayName)}?</h2>
+    <p>Chat with our AI assistant to explore our menu, make a reservation, or learn more about ${escapeHtml(model.displayName)}.</p>
+    <a href="https://chatgpt.com/g/g-691d8219c93c819192573c805a6edfaf-synvya" target="_blank" rel="noopener noreferrer" class="ctaLink">
+      Chat with Synvya Assistant →
+    </a>
+    <div class="ctaExample">
+      Try asking: "Make a reservation at ${escapeHtml(model.displayName)}" or "What are your vegan options?"
+    </div>
+  </div>
+  
+  <footer class="footer">
+    <div>© ${new Date().getFullYear()} ${escapeHtml(model.displayName)} • Powered by <a href="https://synvya.com" target="_blank" rel="noopener noreferrer">Synvya</a></div>
+  </footer>
+</div>
+`;
+  return baseHtml(model.displayName, schemaTag, body);
+}
+
 
