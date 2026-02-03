@@ -29,32 +29,59 @@ const DAYS = [
   { label: "Sunday", value: "Su", index: 6 },
 ];
 
-interface DayHours {
-  enabled: boolean;
+interface DaySegment {
   startTime: string;
   endTime: string;
-  secondStartTime?: string;
-  secondEndTime?: string;
+}
+
+interface DayHours {
+  enabled: boolean;
+  segments: DaySegment[];
+}
+
+const DEFAULT_SEGMENT: DaySegment = { startTime: "09:00", endTime: "17:00" };
+
+function segmentKey(segments: DaySegment[]): string {
+  const sorted = [...segments].sort(
+    (a, b) => a.startTime.localeCompare(b.startTime)
+  );
+  return sorted.map((s) => `${s.startTime}-${s.endTime}`).join(",");
 }
 
 function openingHoursToDayHours(specs: OpeningHoursSpec[]): DayHours[] {
   const hours: DayHours[] = DAYS.map(() => ({
     enabled: false,
-    startTime: "09:00",
-    endTime: "17:00",
+    segments: [],
   }));
+
   for (const spec of specs) {
+    const segment: DaySegment = {
+      startTime: spec.startTime,
+      endTime: spec.endTime,
+    };
     for (const day of spec.days) {
       const dayIndex = DAYS.findIndex((d) => d.value === day);
       if (dayIndex >= 0) {
-        hours[dayIndex] = {
-          enabled: true,
-          startTime: spec.startTime,
-          endTime: spec.endTime,
-        };
+        if (!hours[dayIndex].segments.some(
+          (s) => s.startTime === segment.startTime && s.endTime === segment.endTime
+        )) {
+          hours[dayIndex].segments.push({ ...segment });
+        }
+        hours[dayIndex].enabled = true;
       }
     }
   }
+
+  // Sort segments by startTime per day and ensure enabled days have at least one segment
+  for (let i = 0; i < hours.length; i++) {
+    const day = hours[i];
+    if (day.segments.length > 0) {
+      day.segments.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    } else if (day.enabled) {
+      hours[i] = { enabled: true, segments: [{ ...DEFAULT_SEGMENT }] };
+    }
+  }
+
   return hours;
 }
 
@@ -79,99 +106,127 @@ export function OpeningHoursDialog({
 
   const handleDayToggle = (index: number) => {
     setDayHours((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], enabled: !next[index].enabled };
+      const next = prev.map((h) => ({ ...h, segments: [...h.segments] }));
+      const current = next[index];
+      if (!current.enabled) {
+        next[index] = {
+          enabled: true,
+          segments: current.segments.length > 0 ? current.segments : [{ ...DEFAULT_SEGMENT }],
+        };
+      } else {
+        next[index] = { enabled: false, segments: [] };
+      }
       return next;
     });
   };
 
-  const handleTimeChange = (
-    index: number,
-    field: "startTime" | "endTime" | "secondStartTime" | "secondEndTime",
+  const handleSegmentChange = (
+    dayIndex: number,
+    segmentIndex: number,
+    field: "startTime" | "endTime",
     value: string
   ) => {
     setDayHours((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
+      const next = prev.map((h) => ({ ...h, segments: h.segments.map((s) => ({ ...s })) }));
+      next[dayIndex].segments[segmentIndex][field] = value;
+      return next;
+    });
+  };
+
+  const handleAddSegment = (dayIndex: number) => {
+    setDayHours((prev) => {
+      const next = prev.map((h) => ({ ...h, segments: h.segments.map((s) => ({ ...s })) }));
+      const last = next[dayIndex].segments[next[dayIndex].segments.length - 1];
+      const newSegment: DaySegment = last
+        ? { startTime: last.endTime, endTime: last.endTime === "23:59" ? "23:59" : "18:00" }
+        : { ...DEFAULT_SEGMENT };
+      next[dayIndex].segments.push(newSegment);
+      return next;
+    });
+  };
+
+  const handleRemoveSegment = (dayIndex: number, segmentIndex: number) => {
+    setDayHours((prev) => {
+      const next = prev.map((h) => ({ ...h, segments: h.segments.map((s) => ({ ...s })) }));
+      next[dayIndex].segments.splice(segmentIndex, 1);
       return next;
     });
   };
 
   const handleCopyToAll = () => {
-    const firstEnabled = dayHours.find((h) => h.enabled);
+    const firstEnabled = dayHours.find((h) => h.enabled && h.segments.length > 0);
     if (firstEnabled) {
+      const template = firstEnabled.segments.map((s) => ({ ...s }));
       setDayHours((prev) =>
         prev.map((h) => ({
           ...h,
           enabled: true,
-          startTime: firstEnabled.startTime,
-          endTime: firstEnabled.endTime,
+          segments: template.map((s) => ({ ...s })),
         }))
       );
     }
   };
 
   const handleClearAll = () => {
-    setDayHours((prev) =>
-      prev.map((h) => ({
-        ...h,
+    setDayHours(
+      DAYS.map(() => ({
         enabled: false,
-        startTime: "09:00",
-        endTime: "17:00",
+        segments: [],
       }))
     );
   };
 
   const handleSave = () => {
-    // Group consecutive days with same hours
     const specs: OpeningHoursSpec[] = [];
-    let currentGroup: { days: string[]; startTime: string; endTime: string } | null = null;
+    let currentGroup: { dayIndices: number[]; segments: DaySegment[] } | null = null;
 
     for (let i = 0; i < dayHours.length; i++) {
       const day = dayHours[i];
-      if (day.enabled) {
+      if (day.enabled && day.segments.length > 0) {
+        const key = segmentKey(day.segments);
+        const segments = [...day.segments].sort((a, b) =>
+          a.startTime.localeCompare(b.startTime)
+        );
+
         if (
           currentGroup &&
-          currentGroup.startTime === day.startTime &&
-          currentGroup.endTime === day.endTime
+          segmentKey(currentGroup.segments) === key
         ) {
-          // Extend current group
-          currentGroup.days.push(DAYS[i].value);
+          currentGroup.dayIndices.push(i);
         } else {
-          // Start new group
           if (currentGroup) {
-            specs.push({
-              days: currentGroup.days,
-              startTime: currentGroup.startTime,
-              endTime: currentGroup.endTime,
-            });
+            for (const seg of currentGroup.segments) {
+              specs.push({
+                days: currentGroup.dayIndices.map((idx) => DAYS[idx].value),
+                startTime: seg.startTime,
+                endTime: seg.endTime,
+              });
+            }
           }
-          currentGroup = {
-            days: [DAYS[i].value],
-            startTime: day.startTime,
-            endTime: day.endTime,
-          };
+          currentGroup = { dayIndices: [i], segments };
         }
       } else {
-        // Day is disabled, close current group if any
         if (currentGroup) {
-          specs.push({
-            days: currentGroup.days,
-            startTime: currentGroup.startTime,
-            endTime: currentGroup.endTime,
-          });
+          for (const seg of currentGroup.segments) {
+            specs.push({
+              days: currentGroup.dayIndices.map((idx) => DAYS[idx].value),
+              startTime: seg.startTime,
+              endTime: seg.endTime,
+            });
+          }
           currentGroup = null;
         }
       }
     }
 
-    // Add final group if any
     if (currentGroup) {
-      specs.push({
-        days: currentGroup.days,
-        startTime: currentGroup.startTime,
-        endTime: currentGroup.endTime,
-      });
+      for (const seg of currentGroup.segments) {
+        specs.push({
+          days: currentGroup.dayIndices.map((idx) => DAYS[idx].value),
+          startTime: seg.startTime,
+          endTime: seg.endTime,
+        });
+      }
     }
 
     onSave(specs);
@@ -184,7 +239,8 @@ export function OpeningHoursDialog({
         <DialogHeader>
           <DialogTitle>Opening Hours</DialogTitle>
           <DialogDescription>
-            Set your business opening hours for each day of the week.
+            Set your business opening hours for each day. You can add multiple
+            segments per day (e.g. 9am–11am and 1pm–5pm).
           </DialogDescription>
         </DialogHeader>
 
@@ -198,10 +254,10 @@ export function OpeningHoursDialog({
             </Button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {DAYS.map((day, index) => (
-              <div key={day.value} className="flex items-center gap-4">
-                <div className="flex items-center gap-2 w-24">
+              <div key={day.value} className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                <div className="flex items-center gap-2 w-24 shrink-0">
                   <input
                     type="checkbox"
                     id={`day-${day.value}`}
@@ -213,24 +269,55 @@ export function OpeningHoursDialog({
                     {day.label}
                   </Label>
                 </div>
-                {dayHours[index].enabled && (
-                  <div className="flex items-center gap-2 flex-1">
-                    <Input
-                      type="time"
-                      value={dayHours[index].startTime}
-                      onChange={(e) => handleTimeChange(index, "startTime", e.target.value)}
-                      className="w-32"
-                    />
-                    <span className="text-sm text-muted-foreground">to</span>
-                    <Input
-                      type="time"
-                      value={dayHours[index].endTime}
-                      onChange={(e) => handleTimeChange(index, "endTime", e.target.value)}
-                      className="w-32"
-                    />
+                {dayHours[index].enabled ? (
+                  <div className="flex flex-col gap-2 flex-1 min-w-0">
+                    {dayHours[index].segments.map((segment, segIdx) => (
+                      <div
+                        key={segIdx}
+                        className="flex items-center gap-2 flex-wrap"
+                      >
+                        <Input
+                          type="time"
+                          value={segment.startTime}
+                          onChange={(e) =>
+                            handleSegmentChange(index, segIdx, "startTime", e.target.value)
+                          }
+                          className="w-32"
+                          aria-label={`${day.label} segment ${segIdx + 1} start`}
+                        />
+                        <span className="text-sm text-muted-foreground">to</span>
+                        <Input
+                          type="time"
+                          value={segment.endTime}
+                          onChange={(e) =>
+                            handleSegmentChange(index, segIdx, "endTime", e.target.value)
+                          }
+                          className="w-32"
+                          aria-label={`${day.label} segment ${segIdx + 1} end`}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemoveSegment(index, segIdx)}
+                          aria-label={`Remove segment ${segIdx + 1} for ${day.label}`}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-fit"
+                      onClick={() => handleAddSegment(index)}
+                    >
+                      Add segment
+                    </Button>
                   </div>
-                )}
-                {!dayHours[index].enabled && (
+                ) : (
                   <span className="text-sm text-muted-foreground">Closed</span>
                 )}
               </div>
@@ -250,4 +337,3 @@ export function OpeningHoursDialog({
     </Dialog>
   );
 }
-

@@ -282,6 +282,45 @@ describe("loadBusinessProfile", () => {
     expect(result?.openingHours?.length).toBe(1);
     expect(result?.openingHours?.[0].days).toEqual(["Mo"]);
   });
+
+  it("parses opening hours with multiple segments for the same day (split format)", async () => {
+    const mockEvent: Event = {
+      id: "event-id",
+      kind: 0,
+      pubkey: mockPubkey,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ["openingHours", "Mo 09:00-11:00, Mo 13:00-17:00"],
+      ],
+      content: JSON.stringify({
+        name: "test-restaurant",
+        display_name: "Test Restaurant",
+        about: "A test restaurant",
+        website: "https://test.com",
+        nip05: "test@example.com",
+        picture: "https://example.com/pic.jpg",
+        banner: "https://example.com/banner.jpg",
+      }),
+      sig: "sig",
+    };
+
+    const mockPool = {
+      get: vi.fn().mockResolvedValue(mockEvent),
+    };
+    vi.mocked(getPool).mockReturnValue(mockPool as any);
+
+    const result = await loadBusinessProfile(mockPubkey, mockRelays);
+
+    expect(result).not.toBeNull();
+    expect(result?.openingHours).toBeDefined();
+    expect(result?.openingHours?.length).toBe(2);
+    expect(result?.openingHours?.[0].days).toEqual(["Mo"]);
+    expect(result?.openingHours?.[0].startTime).toBe("09:00");
+    expect(result?.openingHours?.[0].endTime).toBe("11:00");
+    expect(result?.openingHours?.[1].days).toEqual(["Mo"]);
+    expect(result?.openingHours?.[1].startTime).toBe("13:00");
+    expect(result?.openingHours?.[1].endTime).toBe("17:00");
+  });
 });
 
 describe("clearProfileCache", () => {
