@@ -1,6 +1,6 @@
-# synvya-client-2
+# Synvya
 
-Synvya's merchant-facing web client for onboarding, profile management, and Square catalog publishing. The repo contains the Vite/React frontend, supporting Lambda functions, and deployment plumbing for Synvya's second-generation client site (`https://account.synvya.com`).
+Synvya's business-facing web client for onboarding, profile management, and Square catalog publishing. The repo contains the Vite/React frontend, supporting Lambda functions, and deployment plumbing for Synvya's second-generation client site (`https://account.synvya.com`).
 
 ## Repository Layout
 - `client/` – Vite + React application (TypeScript, Tailwind) and local dev tooling.
