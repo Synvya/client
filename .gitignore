@@ -12,6 +12,7 @@ internal/*
 client/node_modules/
 client/dist/
 client/.vite/
+client/vite.config.js
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
