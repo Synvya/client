@@ -38,6 +38,9 @@ const businessTypes: { label: string; value: BusinessType }[] = [
 
 const allowedBusinessTypes = new Set<BusinessType>(businessTypes.map((item) => item.value));
 
+/** NIP-11 max_content_length example; About field is stored in kind 0 .content */
+const ABOUT_MAX_LENGTH = 8196;
+
 /**
  * Maps Schema.org URL to BusinessType (camelCase)
  * e.g., "https://schema.org:BarOrPub" → "barOrPub"
@@ -780,10 +783,16 @@ export function BusinessProfileForm(): JSX.Element {
               id="about"
               placeholder="Tell customers about your business"
               value={profile.about}
-              onChange={(event) => updateField("about", event.target.value)}
+              onChange={(event) => {
+                const truncated = [...event.target.value].slice(0, ABOUT_MAX_LENGTH).join("");
+                updateField("about", truncated);
+              }}
               rows={10}
               className="whitespace-pre-wrap font-mono text-sm"
             />
+            <p className="text-sm text-muted-foreground">
+              {[...profile.about].length}/8,196 characters
+            </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
