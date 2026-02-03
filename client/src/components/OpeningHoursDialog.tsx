@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -37,36 +37,45 @@ interface DayHours {
   secondEndTime?: string;
 }
 
+function openingHoursToDayHours(specs: OpeningHoursSpec[]): DayHours[] {
+  const hours: DayHours[] = DAYS.map(() => ({
+    enabled: false,
+    startTime: "09:00",
+    endTime: "17:00",
+  }));
+  for (const spec of specs) {
+    for (const day of spec.days) {
+      const dayIndex = DAYS.findIndex((d) => d.value === day);
+      if (dayIndex >= 0) {
+        hours[dayIndex] = {
+          enabled: true,
+          startTime: spec.startTime,
+          endTime: spec.endTime,
+        };
+      }
+    }
+  }
+  return hours;
+}
+
 export function OpeningHoursDialog({
   open,
   onOpenChange,
   openingHours,
   onSave,
 }: OpeningHoursDialogProps) {
-  // Initialize day hours from openingHours or default to all disabled
-  const [dayHours, setDayHours] = useState<DayHours[]>(() => {
-    const hours: DayHours[] = DAYS.map(() => ({
-      enabled: false,
-      startTime: "09:00",
-      endTime: "17:00",
-    }));
+  const [dayHours, setDayHours] = useState<DayHours[]>(() =>
+    openingHoursToDayHours(openingHours)
+  );
+  const prevOpen = useRef(false);
 
-    // Parse existing openingHours into day hours
-    for (const spec of openingHours) {
-      for (const day of spec.days) {
-        const dayIndex = DAYS.findIndex((d) => d.value === day);
-        if (dayIndex >= 0) {
-          hours[dayIndex] = {
-            enabled: true,
-            startTime: spec.startTime,
-            endTime: spec.endTime,
-          };
-        }
-      }
+  // Sync from prop when dialog opens so existing hours load on reopen
+  useEffect(() => {
+    if (open && !prevOpen.current) {
+      setDayHours(openingHoursToDayHours(openingHours));
     }
-
-    return hours;
-  });
+    prevOpen.current = open;
+  }, [open, openingHours]);
 
   const handleDayToggle = (index: number) => {
     setDayHours((prev) => {
