@@ -756,7 +756,7 @@ export function BusinessProfileForm(): JSX.Element {
 
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="handle">Handle</Label>
+            <Label htmlFor="handle">Name</Label>
             <Input
               id="handle"
               required
@@ -764,7 +764,7 @@ export function BusinessProfileForm(): JSX.Element {
               value={profile.name}
               onChange={(event) => handleNameChange(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">Lowercase handle without spaces.</p>
+            <p className="text-xs text-muted-foreground">Lowercase name without spaces.</p>
           </div>
 
           <div className="grid gap-2">
