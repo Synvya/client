@@ -659,7 +659,7 @@ export function MenuPage(): JSX.Element {
           </div>
           <a
             href={sampleSpreadsheetUrl}
-            download
+            download="Sample Menu Importer.xlsx"
             className="text-sm font-medium text-primary underline-offset-4 hover:underline"
           >
             Download template
