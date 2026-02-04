@@ -17,6 +17,7 @@ type MenuItemRow = {
   Pictures?: string;
   Ingredients?: string;
   "Suitable For Diets"?: string;
+  Tags?: string;
   "Part of Menu"?: string;
   "Part of Menu Section"?: string;
 };
@@ -143,6 +144,11 @@ export function buildSpreadsheetPreviewEvents(params: {
     const diets = splitList(asString((row as any)["Suitable For Diets"]));
     for (const diet of diets) {
       tags.push(["t", diet]);
+    }
+
+    const customTags = splitList(asString((row as any).Tags));
+    for (const tag of customTags) {
+      tags.push(["t", tag]);
     }
 
     // Collection membership: section + parent menu + explicit menu
