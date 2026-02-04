@@ -217,7 +217,7 @@ export function WebsiteDataPage(): JSX.Element {
       const typeSlug = mapBusinessTypeToEstablishmentSlug(lastProfile.businessType);
       const nameSlug = slugify(lastProfile.name || lastProfile.displayName || "business");
 
-      const { html, handle } = buildStaticSiteFiles({
+      const { html } = buildStaticSiteFiles({
         profile: lastProfile,
         geohash: lastGeohash,
         menuEvents: lastMenuEvents,
@@ -227,13 +227,13 @@ export function WebsiteDataPage(): JSX.Element {
         nameSlug,
       });
 
-      // Create zip file with folder structure: <handle>/index.html
+      // Create zip file with folder structure: <type>/<name>/index.html (e.g. restaurant/indiabelly/index.html)
       const files: Record<string, string> = {
-        [`${handle}/index.html`]: html,
+        [`${typeSlug}/${nameSlug}/index.html`]: html,
       };
 
       const zipBlob = await buildZipBlob(files);
-      triggerBrowserDownload(zipBlob, `${handle}.zip`);
+      triggerBrowserDownload(zipBlob, `${typeSlug}-${nameSlug}.zip`);
     } catch (error) {
       console.error("Failed to export discovery page:", error);
     } finally {
