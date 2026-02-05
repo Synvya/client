@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PublicationPreview } from "@/components/PublicationPreview";
-import { Store } from "lucide-react";
+import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw } from "lucide-react";
 import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
 import {
   fetchSquareStatus,
   publishSquareCatalog,
   previewSquareCatalog,
-  clearSquareCache,
   type SquareConnectionStatus,
   type SquareEventTemplate,
 } from "@/services/square";
@@ -18,12 +17,70 @@ import { resolveProfileLocation } from "@/lib/profileLocation";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
+import { useOnboardingProgress } from "@/state/useOnboardingProgress";
 import { buildDeletionEventByAddress } from "@/lib/handlerEvents";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import sampleSpreadsheetUrl from "@/assets/Sample Menu Importer.xlsx?url";
 import { buildSpreadsheetPreviewEvents, parseMenuSpreadsheetXlsx } from "@/lib/spreadsheet/menuSpreadsheet";
+import { cn } from "@/lib/utils";
+
+type MenuSource = "square" | "spreadsheet";
+type WorkflowStep = 1 | 2 | 3;
+
+interface WorkflowStepIndicatorProps {
+  currentStep: WorkflowStep;
+  source: MenuSource;
+}
+
+function WorkflowStepIndicator({ currentStep, source }: WorkflowStepIndicatorProps): JSX.Element {
+  const steps = [
+    { step: 1, label: source === "square" ? "Connect" : "Upload" },
+    { step: 2, label: "Review Menu" },
+    { step: 3, label: "Publish" },
+  ];
+
+  return (
+    <div className="flex items-center gap-2">
+      {steps.map(({ step, label }, index) => (
+        <div key={step} className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium",
+                step < currentStep
+                  ? "bg-emerald-500 text-white"
+                  : step === currentStep
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {step < currentStep ? <Check className="h-3.5 w-3.5" /> : step}
+            </div>
+            <span
+              className={cn(
+                "text-sm",
+                step === currentStep ? "font-medium text-foreground" : "text-muted-foreground"
+              )}
+            >
+              {label}
+            </span>
+          </div>
+          {index < steps.length - 1 && (
+            <div
+              className={cn(
+                "h-px w-8",
+                step < currentStep ? "bg-emerald-500" : "bg-muted"
+              )}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function MenuPage(): JSX.Element {
+  const navigate = useNavigate();
   const pubkey = useAuth((state) => state.pubkey);
   const signEvent = useAuth((state) => state.signEvent);
   const relays = useRelays((state) => state.relays);
@@ -31,6 +88,7 @@ export function MenuPage(): JSX.Element {
     location: state.location,
     setLocation: state.setLocation,
   }));
+  const setMenuPublished = useOnboardingProgress((state) => state.setMenuPublished);
 
   const location = useLocation();
   const [squareStatus, setSquareStatus] = useState<SquareConnectionStatus | null>(null);
@@ -49,8 +107,10 @@ export function MenuPage(): JSX.Element {
   const [previewTotalEvents, setPreviewTotalEvents] = useState(0);
   const [previewDeletionCount, setPreviewDeletionCount] = useState(0);
   const [unpublishBusy, setUnpublishBusy] = useState(false);
+  const [publishSuccess, setPublishSuccess] = useState(false);
 
-  const [activeSource, setActiveSource] = useState<"square" | "spreadsheet" | null>(null);
+  const [selectedSource, setSelectedSource] = useState<MenuSource | null>(null);
+  const [activeSource, setActiveSource] = useState<MenuSource | null>(null);
 
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [sheetNotice, setSheetNotice] = useState<string | null>(null);
@@ -61,12 +121,28 @@ export function MenuPage(): JSX.Element {
   const [sheetPreviewLoading, setSheetPreviewLoading] = useState(false);
   const [sheetPublishBusy, setSheetPublishBusy] = useState(false);
 
+  // Compute current workflow step
+  const currentStep: WorkflowStep = useMemo(() => {
+    if (selectedSource === "square") {
+      if (!squareStatus?.connected) return 1;
+      if (!previewViewed) return 2;
+      return 3;
+    }
+    if (selectedSource === "spreadsheet") {
+      if (!sheetParsed) return 1;
+      if (!sheetPreviewViewed) return 2;
+      return 3;
+    }
+    return 1;
+  }, [selectedSource, squareStatus?.connected, previewViewed, sheetParsed, sheetPreviewViewed]);
+
   useEffect(() => {
     if (!pubkey) {
       setSquareStatus(null);
       setPreviewViewed(false);
       setPreviewEvents(null);
       setActiveSource(null);
+      setSelectedSource(null);
       return;
     }
     setSquareLoading(true);
@@ -126,6 +202,7 @@ export function MenuPage(): JSX.Element {
     if (params.get("square") === "connected") {
       setSquareNotice("Square connection completed.");
       setStatusVersion((value) => value + 1);
+      setSelectedSource("square");
       const next = location.pathname;
       window.history.replaceState(null, "", next);
     }
@@ -181,6 +258,7 @@ export function MenuPage(): JSX.Element {
     setSquareError(null);
     setSquareNotice(null);
     setPreviewLoading(true);
+    setPublishSuccess(false);
     try {
       const profileLocation = await resolveProfileLocation(pubkey, relays, cachedProfileLocation);
       if (profileLocation && profileLocation !== cachedProfileLocation) {
@@ -217,6 +295,7 @@ export function MenuPage(): JSX.Element {
     setSheetPreviewViewed(false);
     setSheetPreviewEvents(null);
     setSheetFileName(file.name);
+    setPublishSuccess(false);
     try {
       const parsed = await parseMenuSpreadsheetXlsx(file);
       setSheetParsed(parsed);
@@ -237,6 +316,7 @@ export function MenuPage(): JSX.Element {
     setSheetError(null);
     setSheetNotice(null);
     setSheetPreviewLoading(true);
+    setPublishSuccess(false);
     try {
       const events = buildSpreadsheetPreviewEvents({
         merchantPubkey: pubkey,
@@ -287,6 +367,8 @@ export function MenuPage(): JSX.Element {
       setPreviewViewed(false);
       setSheetPreviewEvents(null);
       setPreviewEvents(null);
+      setPublishSuccess(true);
+      setMenuPublished(true);
       if (activeSource === "spreadsheet") {
         setActiveSource(null);
       }
@@ -338,6 +420,7 @@ export function MenuPage(): JSX.Element {
       setPreviewViewed(false);
       setPreviewEvents(null);
       setActiveSource(null);
+      setPublishSuccess(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to unpublish menu.";
       setSquareError(message);
@@ -370,6 +453,8 @@ export function MenuPage(): JSX.Element {
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
+        setPublishSuccess(true);
+        setMenuPublished(true);
         return;
       }
 
@@ -423,6 +508,8 @@ export function MenuPage(): JSX.Element {
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
+        setPublishSuccess(true);
+        setMenuPublished(true);
       }
 
       const errorMessages: string[] = [];
@@ -450,6 +537,8 @@ export function MenuPage(): JSX.Element {
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
+        setPublishSuccess(true);
+        setMenuPublished(true);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish catalog to Nostr.";
@@ -459,280 +548,499 @@ export function MenuPage(): JSX.Element {
     }
   };
 
+  const handleChangeSource = () => {
+    setSelectedSource(null);
+    setActiveSource(null);
+    setPreviewViewed(false);
+    setSheetPreviewViewed(false);
+    setPreviewEvents(null);
+    setSheetPreviewEvents(null);
+    setPublishSuccess(false);
+  };
+
   return (
-    <div className="container space-y-8 py-10">
-      <section className="space-y-4 rounded-lg border bg-card p-6">
-        <header className="flex items-center gap-3">
-          <Store className="h-5 w-5 text-muted-foreground" />
+    <div className="container space-y-6 py-10">
+      {/* Progress Indicator */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+          2
+        </span>
+        <span className="font-medium text-foreground">Step 2 of 3:</span>
+        <span>Add Your Menu</span>
+      </div>
+
+      {/* Success State */}
+      {publishSuccess && (
+        <section className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white">
+              <Check className="h-4 w-4" />
+            </div>
+            <div className="flex-1">
+              <p className="font-medium text-emerald-700">Your menu is now live!</p>
+              <p className="mt-1 text-sm text-emerald-600">
+                Next, let's make your restaurant discoverable by AI assistants.
+              </p>
+              <Button
+                onClick={() => navigate("/app/website")}
+                className="mt-4"
+                variant="default"
+              >
+                Go to Get Discovered
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Source Selection - Show when no source is selected */}
+      {!selectedSource && !publishSuccess && (
+        <section className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Square Integration</h2>
+            <h2 className="text-lg font-semibold">Choose Your Menu Source</h2>
             <p className="text-sm text-muted-foreground">
-              Connect your Square account to retrieve your menu.
+              Select how you'd like to import your menu items.
             </p>
           </div>
-        </header>
 
-        {squareError ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-            {squareError}
-          </div>
-        ) : null}
-
-        {squareNotice ? (
-          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
-            {squareNotice}
-          </div>
-        ) : null}
-
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="grid gap-4 text-sm">
-            {squareLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <div className="h-4 w-4 animate-spin rounded-full border border-primary border-t-transparent" />
-                <span>Checking Square connection…</span>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Square Option */}
+            <button
+              type="button"
+              onClick={() => setSelectedSource("square")}
+              className={cn(
+                "flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors hover:border-primary hover:bg-muted/50",
+                squareStatus?.connected && "border-emerald-500 bg-emerald-500/5"
+              )}
+            >
+              <Store className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <h3 className="font-medium">Square POS</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Connect your existing Square catalog
+                </p>
               </div>
-            ) : squareStatus?.connected ? (
-              <dl className="grid gap-3">
-                <div>
-                  <dt className="text-xs uppercase text-muted-foreground">Status</dt>
-                  <dd className="font-medium text-emerald-600">Connected</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase text-muted-foreground">Merchant</dt>
-                  <dd className="font-medium">{squareStatus.merchantName || squareStatus.merchantId || "Square merchant"}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase text-muted-foreground">Locations</dt>
-                  <dd className="font-mono text-xs text-muted-foreground">{squareLocationsLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase text-muted-foreground">Scopes</dt>
-                  <dd className="font-mono text-xs text-muted-foreground">{scopesLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase text-muted-foreground">Connected</dt>
-                  <dd>{connectedAtLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase text-muted-foreground">Last sync</dt>
-                  <dd>{lastSyncLabel}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase text-muted-foreground">Listings prepared</dt>
-                  <dd>{lastPublishCount}</dd>
-                </div>
-              </dl>
-            ) : (
+              {squareStatus?.connected && (
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600">
+                  Connected
+                </span>
+              )}
+              <span className="text-sm font-medium text-primary">Select</span>
+            </button>
+
+            {/* Spreadsheet Option */}
+            <button
+              type="button"
+              onClick={() => setSelectedSource("spreadsheet")}
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors hover:border-primary hover:bg-muted/50"
+            >
+              <FileSpreadsheet className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <h3 className="font-medium">Spreadsheet</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Upload an XLSX file manually
+                </p>
+              </div>
+              <span className="text-sm font-medium text-primary">Select</span>
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* Square Workflow - Show when Square is selected */}
+      {selectedSource === "square" && !publishSuccess && (
+        <section className="space-y-4 rounded-lg border bg-card p-6">
+          <header className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Store className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <h2 className="text-lg font-semibold">Square Integration</h2>
+                <p className="text-sm text-muted-foreground">
+                  Connect your Square account to retrieve your menu.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleChangeSource}
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Change source
+            </button>
+          </header>
+
+          {/* Workflow Step Indicator */}
+          <WorkflowStepIndicator currentStep={currentStep} source="square" />
+
+          {squareError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {squareError}
+            </div>
+          ) : null}
+
+          {squareNotice ? (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
+              {squareNotice}
+            </div>
+          ) : null}
+
+          {/* Step 1: Connect */}
+          {currentStep === 1 && (
+            <div className="space-y-4">
               <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
                 <p className="font-medium text-foreground">Square is not connected.</p>
                 <p className="mt-1">
                   Connect your Square seller account to read your catalog and publish listings to your Nostr relays.
                 </p>
               </div>
-            )}
-          </div>
-
-          <div className="rounded-md border bg-muted/30 p-4 text-sm">
-            <h3 className="mb-3 font-medium text-foreground">Public Information</h3>
-            <p className="mb-3 text-muted-foreground">
-              The following information is extracted from your Square catalog and made public to AI assistants:
-            </p>
-            <ul className="space-y-1.5 text-muted-foreground">
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">•</span>
-                <span>Title</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">•</span>
-                <span>Description</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">•</span>
-                <span>Location</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">•</span>
-                <span>Picture (if available)</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">•</span>
-                <span>Price</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="mt-0.5">•</span>
-                <span>Categories</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          {squareStatus?.connected ? (
-            <>
-              <Button onClick={handlePreviewSquare} disabled={previewLoading || squareLoading} variant="outline">
-                {previewLoading ? "Loading Preview…" : "Preview Menu"}
+              <Button onClick={handleConnectSquare} disabled={connectBusy || squareLoading}>
+                {connectBusy ? "Opening Square…" : "Connect Square"}
               </Button>
-              <Button variant="ghost" onClick={handleConnectSquare} disabled={connectBusy}>
-                {connectBusy ? "Opening Square…" : "Reconnect Square"}
-              </Button>
-            </>
-          ) : (
-            <Button onClick={handleConnectSquare} disabled={connectBusy || squareLoading}>
-              {connectBusy ? "Opening Square…" : "Connect Square"}
-            </Button>
+            </div>
           )}
-        </div>
 
-        {squareStatus?.connected && !previewViewed && (
-          <p className="text-sm text-muted-foreground">Please preview your publication before publishing.</p>
-        )}
+          {/* Step 2 & 3: Connected - Show status and actions */}
+          {squareStatus?.connected && currentStep >= 2 && (
+            <div className="space-y-4">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-4 text-sm">
+                  {squareLoading ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <div className="h-4 w-4 animate-spin rounded-full border border-primary border-t-transparent" />
+                      <span>Checking Square connection…</span>
+                    </div>
+                  ) : (
+                    <dl className="grid gap-3">
+                      <div>
+                        <dt className="text-xs uppercase text-muted-foreground">Status</dt>
+                        <dd className="font-medium text-emerald-600">Connected</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase text-muted-foreground">Merchant</dt>
+                        <dd className="font-medium">{squareStatus.merchantName || squareStatus.merchantId || "Square merchant"}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase text-muted-foreground">Locations</dt>
+                        <dd className="font-mono text-xs text-muted-foreground">{squareLocationsLabel}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase text-muted-foreground">Connected</dt>
+                        <dd>{connectedAtLabel}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase text-muted-foreground">Last sync</dt>
+                        <dd>{lastSyncLabel}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs uppercase text-muted-foreground">Listings prepared</dt>
+                        <dd>{lastPublishCount}</dd>
+                      </div>
+                    </dl>
+                  )}
+                </div>
 
-        <PublicationPreview
-          open={previewOpen}
-          onOpenChange={setPreviewOpen}
-          events={previewEvents || []}
-          pendingCount={previewPendingCount}
-          totalEvents={previewTotalEvents}
-          deletionCount={previewDeletionCount}
-        />
+                <div className="rounded-md border bg-muted/30 p-4 text-sm">
+                  <h3 className="mb-3 font-medium text-foreground">What Gets Published</h3>
+                  <ul className="space-y-1.5 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5">•</span>
+                      <span>Title, Description, Price</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5">•</span>
+                      <span>Location & Categories</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5">•</span>
+                      <span>Pictures (if available)</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
 
-        <Dialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Publish Catalog</DialogTitle>
-              <DialogDescription>
-                This action will make your product catalog visible to AI assistants. This step can NOT be undone.
-                {previewViewed && previewPendingCount > 0 && (
-                  <span className="block mt-2">
-                    {previewDeletionCount > 0 ? (
-                      <>
-                        You are about to {previewPendingCount - previewDeletionCount > 0 ? "publish" : ""}
-                        {previewPendingCount - previewDeletionCount > 0 && previewDeletionCount > 0 ? " and " : ""}
-                        {previewDeletionCount > 0 ? "delete" : ""} {previewPendingCount} listing
-                        {previewPendingCount === 1 ? "" : "s"}
-                        {previewDeletionCount > 0 && previewPendingCount - previewDeletionCount > 0 ? (
-                          <> ({previewPendingCount - previewDeletionCount} to publish, {previewDeletionCount} to delete)</>
-                        ) : previewDeletionCount > 0 ? (
-                          <> ({previewDeletionCount} to delete)</>
-                        ) : null}
-                        .
-                      </>
-                    ) : (
-                      <>You are about to publish {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}.</>
-                    )}
-                  </span>
-                )}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setPublishConfirmOpen(false)} disabled={resyncBusy}>
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  setPublishConfirmOpen(false);
-                  if (activeSource === "square") {
-                    await handleResyncSquare();
-                    return;
-                  }
-                  if (activeSource === "spreadsheet") {
-                    await handlePublishSpreadsheet();
-                    return;
-                  }
-                }}
-                disabled={resyncBusy}
-              >
-                OK
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </section>
+              {/* Step 2: Review */}
+              {currentStep === 2 && (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Review your menu before publishing to Nostr.</p>
+                  <Button onClick={handlePreviewSquare} disabled={previewLoading || squareLoading}>
+                    {previewLoading ? "Loading Preview…" : "Review Menu Before Publishing"}
+                  </Button>
+                </div>
+              )}
 
-      <section className="space-y-4 rounded-lg border bg-card p-6">
-        <header className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">Spreadsheet Import</h2>
-            <p className="text-sm text-muted-foreground">
-              Upload an XLSX file with your menu. Use the template to help you.
-            </p>
-          </div>
-          <a
-            href={sampleSpreadsheetUrl}
-            download="Sample Menu Importer.xlsx"
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-          >
-            Download template
-          </a>
-        </header>
+              {/* Step 3: Publish */}
+              {currentStep === 3 && (
+                <div className="space-y-3 rounded-md border bg-muted/30 p-4">
+                  <p className="text-sm font-medium">Ready to publish your menu?</p>
+                  <p className="text-sm text-muted-foreground">
+                    {previewPendingCount} item{previewPendingCount === 1 ? "" : "s"} will be published to your Nostr relays.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      onClick={() => setPublishConfirmOpen(true)}
+                      disabled={resyncBusy}
+                    >
+                      {resyncBusy ? "Publishing…" : "Publish Menu"}
+                    </Button>
+                    <Button onClick={handlePreviewSquare} disabled={previewLoading} variant="outline">
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      {previewLoading ? "Loading…" : "Review Again"}
+                    </Button>
+                  </div>
+                </div>
+              )}
 
-        {sheetError ? (
-          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-            {sheetError}
-          </div>
-        ) : null}
+              <div className="flex flex-wrap gap-3 border-t pt-4">
+                <Button variant="ghost" onClick={handleConnectSquare} disabled={connectBusy}>
+                  {connectBusy ? "Opening Square…" : "Reconnect Square"}
+                </Button>
+                <Button onClick={handleUnpublishMenu} disabled={unpublishBusy} variant="destructive">
+                  {unpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
+                </Button>
+              </div>
+            </div>
+          )}
 
-        {sheetNotice ? (
-          <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
-            {sheetNotice}
-          </div>
-        ) : null}
-
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium">Upload XLSX</label>
-          <input
-            type="file"
-            accept=".xlsx"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void handleSpreadsheetUpload(f);
-            }}
+          <PublicationPreview
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            events={previewEvents || []}
+            pendingCount={previewPendingCount}
+            totalEvents={previewTotalEvents}
+            deletionCount={previewDeletionCount}
           />
-          {sheetFileName ? <div className="text-xs text-muted-foreground">Loaded: {sheetFileName}</div> : null}
-        </div>
 
-        <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={handlePreviewSpreadsheet}
-            disabled={sheetPreviewLoading || !sheetParsed}
-            variant="outline"
-          >
-            {sheetPreviewLoading ? "Loading Preview…" : "Preview Menu"}
-          </Button>
-        </div>
+          <Dialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Publish Menu</DialogTitle>
+                <DialogDescription>
+                  This action will make your menu visible to AI assistants.
+                  {previewViewed && previewPendingCount > 0 && (
+                    <span className="block mt-2">
+                      {previewDeletionCount > 0 ? (
+                        <>
+                          You are about to {previewPendingCount - previewDeletionCount > 0 ? "publish" : ""}
+                          {previewPendingCount - previewDeletionCount > 0 && previewDeletionCount > 0 ? " and " : ""}
+                          {previewDeletionCount > 0 ? "delete" : ""} {previewPendingCount} listing
+                          {previewPendingCount === 1 ? "" : "s"}
+                          {previewDeletionCount > 0 && previewPendingCount - previewDeletionCount > 0 ? (
+                            <> ({previewPendingCount - previewDeletionCount} to publish, {previewDeletionCount} to delete)</>
+                          ) : previewDeletionCount > 0 ? (
+                            <> ({previewDeletionCount} to delete)</>
+                          ) : null}
+                          .
+                        </>
+                      ) : (
+                        <>You are about to publish {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}.</>
+                      )}
+                    </span>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPublishConfirmOpen(false)} disabled={resyncBusy}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setPublishConfirmOpen(false);
+                    if (activeSource === "square" || selectedSource === "square") {
+                      await handleResyncSquare();
+                      return;
+                    }
+                    if (activeSource === "spreadsheet" || selectedSource === "spreadsheet") {
+                      await handlePublishSpreadsheet();
+                      return;
+                    }
+                  }}
+                  disabled={resyncBusy || sheetPublishBusy}
+                >
+                  Publish
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </section>
+      )}
 
-        {!sheetPreviewViewed && (
-          <p className="text-sm text-muted-foreground">Please preview your publication before publishing.</p>
-        )}
-      </section>
+      {/* Spreadsheet Workflow - Show when Spreadsheet is selected */}
+      {selectedSource === "spreadsheet" && !publishSuccess && (
+        <section className="space-y-4 rounded-lg border bg-card p-6">
+          <header className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <h2 className="text-lg font-semibold">Spreadsheet Import</h2>
+                <p className="text-sm text-muted-foreground">
+                  Upload an XLSX file with your menu.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <a
+                href={sampleSpreadsheetUrl}
+                download="Sample Menu Importer.xlsx"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Download template
+              </a>
+              <button
+                type="button"
+                onClick={handleChangeSource}
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Change source
+              </button>
+            </div>
+          </header>
 
-      <section className="space-y-3 rounded-lg border bg-card p-6">
-        <header>
-          <h2 className="text-lg font-semibold">Menu Actions</h2>
-          <p className="text-sm text-muted-foreground">
-            Preview a menu first (Square or Spreadsheet), then publish.
-          </p>
-          {activeSource ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Active preview source: <span className="font-medium text-foreground">{activeSource === "square" ? "Square" : "Spreadsheet"}</span>
-            </p>
+          {/* Workflow Step Indicator */}
+          <WorkflowStepIndicator currentStep={currentStep} source="spreadsheet" />
+
+          {sheetError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {sheetError}
+            </div>
           ) : null}
-        </header>
 
-        <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={() => setPublishConfirmOpen(true)}
-            disabled={!previewViewed || !activeSource || (activeSource === "spreadsheet" ? sheetPublishBusy : resyncBusy)}
-          >
-            {activeSource === "spreadsheet" ? (sheetPublishBusy ? "Publishing…" : "Publish Menu") : resyncBusy ? "Publishing…" : "Publish Menu"}
-          </Button>
-          <Button onClick={handleUnpublishMenu} disabled={unpublishBusy} variant="destructive">
-            {unpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
-          </Button>
-        </div>
-      </section>
+          {sheetNotice ? (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
+              {sheetNotice}
+            </div>
+          ) : null}
+
+          {/* Step 1: Upload */}
+          {currentStep === 1 && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium">Upload XLSX</label>
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleSpreadsheetUpload(f);
+                  }}
+                  className="text-sm"
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Use our template to format your menu correctly.
+              </p>
+            </div>
+          )}
+
+          {/* Step 2: Review */}
+          {currentStep === 2 && sheetParsed && (
+            <div className="space-y-4">
+              {sheetFileName && (
+                <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                  <span className="font-medium">Loaded:</span> {sheetFileName}
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">Review your menu before publishing to Nostr.</p>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={handlePreviewSpreadsheet}
+                  disabled={sheetPreviewLoading}
+                >
+                  {sheetPreviewLoading ? "Loading Preview…" : "Review Menu Before Publishing"}
+                </Button>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleSpreadsheetUpload(f);
+                    }}
+                  />
+                  <Button type="button" variant="outline" asChild>
+                    <span>Upload Different File</span>
+                  </Button>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Publish */}
+          {currentStep === 3 && sheetPreviewViewed && (
+            <div className="space-y-4">
+              {sheetFileName && (
+                <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                  <span className="font-medium">Loaded:</span> {sheetFileName}
+                </div>
+              )}
+              <div className="space-y-3 rounded-md border bg-muted/30 p-4">
+                <p className="text-sm font-medium">Ready to publish your menu?</p>
+                <p className="text-sm text-muted-foreground">
+                  {previewPendingCount} item{previewPendingCount === 1 ? "" : "s"} will be published to your Nostr relays.
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    onClick={() => setPublishConfirmOpen(true)}
+                    disabled={sheetPublishBusy}
+                  >
+                    {sheetPublishBusy ? "Publishing…" : "Publish Menu"}
+                  </Button>
+                  <Button onClick={handlePreviewSpreadsheet} disabled={sheetPreviewLoading} variant="outline">
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    {sheetPreviewLoading ? "Loading…" : "Review Again"}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3 border-t pt-4">
+                <Button onClick={handleUnpublishMenu} disabled={unpublishBusy} variant="destructive">
+                  {unpublishBusy ? "Unpublishing…" : "Unpublish Menu"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <PublicationPreview
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            events={previewEvents || []}
+            pendingCount={previewPendingCount}
+            totalEvents={previewTotalEvents}
+            deletionCount={previewDeletionCount}
+          />
+
+          <Dialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Publish Menu</DialogTitle>
+                <DialogDescription>
+                  This action will make your menu visible to AI assistants.
+                  {sheetPreviewViewed && previewPendingCount > 0 && (
+                    <span className="block mt-2">
+                      You are about to publish {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}.
+                    </span>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPublishConfirmOpen(false)} disabled={sheetPublishBusy}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setPublishConfirmOpen(false);
+                    await handlePublishSpreadsheet();
+                  }}
+                  disabled={sheetPublishBusy}
+                >
+                  Publish
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </section>
+      )}
     </div>
   );
 }
-
-
