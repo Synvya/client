@@ -8,11 +8,11 @@ import { getPool } from "@/lib/relayPool";
 import { parseKind0ProfileEvent } from "@/components/BusinessProfileForm";
 import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
-import { Copy, Download, Code, RefreshCw, AlertCircle, Sparkles, FileText, Package, Info, ExternalLink, HelpCircle } from "lucide-react";
+import { Copy, Download, RefreshCw, AlertCircle, Sparkles, Package, Info, ExternalLink, HelpCircle, Globe } from "lucide-react";
 import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
 import { slugify } from "@/lib/siteExport/slug";
 import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
-import { buildZipBlob, triggerBrowserDownload } from "@/lib/siteExport/zip";
+import { publishDiscoveryPage } from "@/services/discovery";
 
 export function WebsiteDataPage(): JSX.Element {
   const schema = useWebsiteData((state) => state.schema);
@@ -28,7 +28,9 @@ export function WebsiteDataPage(): JSX.Element {
   const [lastMenuEvents, setLastMenuEvents] = useState<SquareEventTemplate[] | null>(null);
   const [lastGeohash, setLastGeohash] = useState<string | null>(null);
   const [lastProfileTags, setLastProfileTags] = useState<string[][] | null>(null);
-  const [exporting, setExporting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   // Reset copied state after 2 seconds
   useEffect(() => {
@@ -210,9 +212,11 @@ export function WebsiteDataPage(): JSX.Element {
     }
   };
 
-  const handleDownloadWebsiteZip = async () => {
+  const handlePublish = async () => {
     if (!pubkey || !lastProfile) return;
-    setExporting(true);
+    setPublishing(true);
+    setPublishError(null);
+    setPublishedUrl(null);
     try {
       const typeSlug = mapBusinessTypeToEstablishmentSlug(lastProfile.businessType);
       const nameSlug = slugify(lastProfile.name || lastProfile.displayName || "business");
@@ -227,17 +231,13 @@ export function WebsiteDataPage(): JSX.Element {
         nameSlug,
       });
 
-      // Create zip file with folder structure: <type>/<name>/index.html (e.g. restaurant/indiabelly/index.html)
-      const files: Record<string, string> = {
-        [`${typeSlug}/${nameSlug}/index.html`]: html,
-      };
-
-      const zipBlob = await buildZipBlob(files);
-      triggerBrowserDownload(zipBlob, `${typeSlug}-${nameSlug}.zip`);
+      const url = await publishDiscoveryPage(typeSlug, nameSlug, html);
+      setPublishedUrl(url);
     } catch (error) {
-      console.error("Failed to export discovery page:", error);
+      console.error("Failed to publish discovery page:", error);
+      setPublishError(error instanceof Error ? error.message : "Failed to publish discovery page");
     } finally {
-      setExporting(false);
+      setPublishing(false);
     }
   };
 
@@ -280,7 +280,7 @@ export function WebsiteDataPage(): JSX.Element {
           <div className="space-y-2">
             <h1 className="text-3xl font-bold tracking-tight">Discovery</h1>
             <p className="text-lg text-muted-foreground">
-              Get discovered by AI assistants like ChatGPT and Claude. Download your discovery page to be published on Synvya, and optionally add discovery code to your own website.
+              Get discovered by AI assistants like ChatGPT and Claude. Publish your discovery page to Synvya.com, and optionally add discovery code to your own website.
             </p>
             <p className="text-sm text-muted-foreground">
               Click "Refresh" to pull your latest published profile and menu data.
@@ -309,7 +309,7 @@ export function WebsiteDataPage(): JSX.Element {
               </p>
               <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
                 <li>
-                  <strong className="text-foreground">Your Synvya Discovery Page:</strong> Download a complete discovery page package and email it to synvya@synvya.com to get your page published on synvya.com for maximum visibility.
+                  <strong className="text-foreground">Your Synvya Discovery Page:</strong> Publish your discovery page directly to synvya.com with one click for maximum visibility to AI assistants.
                 </li>
                 <li>
                   <strong className="text-foreground">Add Discovery Code to Your Website (Optional):</strong> If you have your own website, add this code to make it discoverable by AI assistants. Works alongside your Synvya page for maximum visibility.
@@ -398,31 +398,58 @@ export function WebsiteDataPage(): JSX.Element {
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
-                  <Package className="mt-1 h-6 w-6 flex-shrink-0 text-primary" />
+                  <Globe className="mt-1 h-6 w-6 flex-shrink-0 text-primary" />
                   <div>
                     <h2 className="text-xl font-semibold">Your Synvya Discovery Page</h2>
                     <p className="text-sm text-muted-foreground">
-                      Download a complete discovery page package with your restaurant information, menu, and all the code needed for AI discovery. After downloading, email the zip file to synvya@synvya.com and we'll publish it on synvya.com for you.
+                      Publish your discovery page with your restaurant information, menu, and all the code needed for AI discovery directly to synvya.com.
                     </p>
                   </div>
                 </div>
                 <Button
-                  variant="secondary"
+                  variant="default"
                   size="sm"
-                  onClick={handleDownloadWebsiteZip}
-                  disabled={exporting || !lastProfile}
+                  onClick={handlePublish}
+                  disabled={publishing || !lastProfile}
                   className="shrink-0"
                 >
-                  {exporting ? "Building zip…" : "Download Discovery Page"}
+                  {publishing ? "Publishing…" : "Publish"}
                 </Button>
               </div>
-              <div className="rounded-lg border bg-muted/30 p-4">
-                <p className="text-sm text-muted-foreground">
-                  <strong className="text-foreground">Next step:</strong> After downloading, email the zip file to{" "}
-                  <a href="mailto:synvya@synvya.com" className="text-primary hover:underline">synvya@synvya.com</a>{" "}
-                  and we'll publish your discovery page on synvya.com.
-                </p>
-              </div>
+              {publishError && (
+                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                  <div className="flex items-center gap-2 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{publishError}</span>
+                  </div>
+                </div>
+              )}
+              {publishedUrl && (
+                <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                      <Globe className="h-4 w-4" />
+                      <span>Published successfully!</span>
+                    </div>
+                    <a
+                      href={publishedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                    >
+                      View your page
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              )}
+              {!publishedUrl && !publishError && (
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Click "Publish" to make your discovery page live on synvya.com. Your page will be available within a few minutes.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         ) : (
