@@ -119,6 +119,25 @@ jobs:
             fi
           fi
 
+      - name: Check for discovery.js changes
+        id: discovery-changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Check if the before commit exists
+          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/discovery.js" | grep -q "^infra/lambda/discovery.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/discovery.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Package Square Lambda function
         if: steps.square-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}/infra/lambda
@@ -175,3 +194,22 @@ jobs:
             --region "$AWS_REGION" \
             --function-name synvya-customer-registry \
             --zip-file fileb://infra/synvya-customer-registry.zip
+
+      - name: Package Discovery Publish Lambda function
+        if: steps.discovery-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}/infra/lambda
+        run: |
+          npm ci --production
+          zip -qr ../synvya-discovery-publish.zip \
+            discovery.js package.json package-lock.json node_modules
+
+      - name: Deploy Discovery Publish Lambda function
+        if: steps.discovery-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws lambda update-function-code \
+            --region "$AWS_REGION" \
+            --function-name synvya-discovery-publish \
+            --zip-file fileb://infra/synvya-discovery-publish.zip
