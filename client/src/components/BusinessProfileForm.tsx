@@ -15,8 +15,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { uploadMedia } from "@/services/upload";
+import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
 import type { Event } from "nostr-tools";
-import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles } from "lucide-react";
+import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
 import type { OpeningHoursSpec } from "@/types/profile";
@@ -497,12 +498,15 @@ export function BusinessProfileForm(): JSX.Element {
   const setProfileBusinessType = useBusinessProfile((state) => state.setBusinessType);
   const setProfilePublished = useOnboardingProgress((state) => state.setProfilePublished);
   const setRestaurantName = useOnboardingProgress((state) => state.setRestaurantName);
+  const setDiscoveryPageUrl = useOnboardingProgress((state) => state.setDiscoveryPageUrl);
   const profilePublished = useOnboardingProgress((state) => state.profilePublished);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
   const [categoriesInput, setCategoriesInput] = useState("");
   const [cuisineInput, setCuisineInput] = useState("");
   const [status, setStatus] = useState<FormStatus>({ type: "idle", message: null });
   const [publishing, setPublishing] = useState(false);
+  const [publishStep, setPublishStep] = useState<"uploading" | "nostr" | "synvya" | null>(null);
+  const [synvyaError, setSynvyaError] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<{ picture: File | null; banner: File | null }>({
     picture: null,
     banner: null
@@ -550,6 +554,7 @@ export function BusinessProfileForm(): JSX.Element {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setStatus({ type: "idle", message: null });
+    setSynvyaError(null);
 
     const nip05 = profile.name ? `${profile.name}@synvya.com` : "";
 
@@ -578,6 +583,10 @@ export function BusinessProfileForm(): JSX.Element {
     try {
       setPublishing(true);
 
+      // Step 1: Upload media if needed
+      if (pendingFiles.picture || pendingFiles.banner) {
+        setPublishStep("uploading");
+      }
 
       if (pendingFiles.picture) {
         pictureUrl = await uploadMedia(pendingFiles.picture, "picture");
@@ -616,6 +625,8 @@ export function BusinessProfileForm(): JSX.Element {
         }
       }
 
+      // Step 2: Publish to Nostr
+      setPublishStep("nostr");
       const template = buildProfileEvent(finalPayload, { geohash, latitude, longitude });
       const signed = await signEvent(template);
       await publishToRelays(signed, relays);
@@ -665,12 +676,25 @@ export function BusinessProfileForm(): JSX.Element {
         return { picture: null, banner: null };
       });
 
-      setStatus({ type: "success", message: "Profile published to relays", eventId: signed.id });
+      // Step 3: Publish discovery page to Synvya.com
+      setPublishStep("synvya");
+      try {
+        const discoveryResult = await fetchAndPublishDiscovery(pubkey!, relays);
+        setDiscoveryPageUrl(discoveryResult.url);
+        setStatus({ type: "success", message: "Profile published and discovery page updated", eventId: signed.id });
+      } catch (synvyaErr) {
+        // Nostr publish succeeded, but Synvya.com failed
+        console.error("Failed to publish to Synvya.com:", synvyaErr);
+        const errorMessage = synvyaErr instanceof Error ? synvyaErr.message : "Failed to publish discovery page";
+        setSynvyaError(errorMessage);
+        setStatus({ type: "success", message: "Profile published to Nostr (discovery page update failed)", eventId: signed.id });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish profile";
       setStatus({ type: "error", message });
     } finally {
       setPublishing(false);
+      setPublishStep(null);
     }
   };
 
@@ -1168,8 +1192,47 @@ export function BusinessProfileForm(): JSX.Element {
       {/* Submit Section */}
       <section className="grid gap-4 rounded-lg border bg-card p-6 shadow-sm">
         <Button type="submit" disabled={publishing} size="lg">
-          {publishing ? "Publishing…" : "Publish Profile"}
+          {publishing ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {publishStep === "uploading" && "Uploading images…"}
+              {publishStep === "nostr" && "Publishing to Nostr…"}
+              {publishStep === "synvya" && "Updating discovery page…"}
+              {!publishStep && "Publishing…"}
+            </span>
+          ) : (
+            "Publish Profile"
+          )}
         </Button>
+
+        {/* Publishing progress indicator */}
+        {publishing && publishStep && (
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className={
+                publishStep === "uploading" 
+                  ? "text-primary font-medium" 
+                  : "text-emerald-600"
+              }>
+                {publishStep === "uploading" ? "1. Uploading" : "1. Uploaded"}
+              </span>
+              <span className="text-muted-foreground">→</span>
+              <span className={
+                publishStep === "nostr" 
+                  ? "text-primary font-medium" 
+                  : publishStep === "synvya" 
+                    ? "text-emerald-600" 
+                    : ""
+              }>
+                {publishStep === "synvya" ? "2. Published" : "2. Nostr"}
+              </span>
+              <span className="text-muted-foreground">→</span>
+              <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
+                3. Discovery
+              </span>
+            </div>
+          </div>
+        )}
 
         {status.message && (
           <div
@@ -1181,6 +1244,21 @@ export function BusinessProfileForm(): JSX.Element {
             {status.eventId && status.type === "success" ? (
               <p className="mt-1 font-mono text-xs text-muted-foreground">Event ID: {status.eventId}</p>
             ) : null}
+          </div>
+        )}
+
+        {/* Synvya.com error with contact support option */}
+        {synvyaError && (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+            <p className="font-medium text-amber-800">Discovery page update failed</p>
+            <p className="mt-1 text-amber-700">{synvyaError}</p>
+            <a
+              href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nRestaurant: ${profile.displayName || profile.name}\nPublic Key: ${pubkey}`)}`}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              <Mail className="h-3.5 w-3.5" />
+              Contact support@synvya.com
+            </a>
           </div>
         )}
 
