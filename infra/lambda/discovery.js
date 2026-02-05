@@ -1,3 +1,7 @@
+/**
+ * Discovery page publish Lambda - triggers GitHub workflow to publish pages to synvya.com
+ * @version 1.0.0
+ */
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
 
 const secretsClient = new SecretsManagerClient({});
