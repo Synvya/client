@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PublicationPreview } from "@/components/PublicationPreview";
-import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw, AlertCircle } from "lucide-react";
+import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw, AlertCircle, Loader2, Mail } from "lucide-react";
 import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
 import {
   fetchSquareStatus,
@@ -22,6 +22,7 @@ import { buildDeletionEventByAddress } from "@/lib/handlerEvents";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import sampleSpreadsheetUrl from "@/assets/Sample Menu Importer.xlsx?url";
 import { buildSpreadsheetPreviewEvents, parseMenuSpreadsheetXlsx } from "@/lib/spreadsheet/menuSpreadsheet";
+import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
 import { cn } from "@/lib/utils";
 
 type MenuSource = "square" | "spreadsheet";
@@ -89,6 +90,7 @@ export function MenuPage(): JSX.Element {
     setLocation: state.setLocation,
   }));
   const setMenuPublished = useOnboardingProgress((state) => state.setMenuPublished);
+  const setDiscoveryPageUrl = useOnboardingProgress((state) => state.setDiscoveryPageUrl);
   const profilePublished = useOnboardingProgress((state) => state.profilePublished);
 
   const location = useLocation();
@@ -121,6 +123,10 @@ export function MenuPage(): JSX.Element {
   const [sheetPreviewEvents, setSheetPreviewEvents] = useState<SquareEventTemplate[] | null>(null);
   const [sheetPreviewLoading, setSheetPreviewLoading] = useState(false);
   const [sheetPublishBusy, setSheetPublishBusy] = useState(false);
+
+  // Multi-step publish progress and Synvya.com error handling
+  const [publishStep, setPublishStep] = useState<"nostr" | "synvya" | null>(null);
+  const [synvyaError, setSynvyaError] = useState<string | null>(null);
 
   // Compute current workflow step
   const currentStep: WorkflowStep = useMemo(() => {
@@ -349,8 +355,11 @@ export function MenuPage(): JSX.Element {
     }
     setSheetError(null);
     setSheetNotice(null);
+    setSynvyaError(null);
     setSheetPublishBusy(true);
     try {
+      // Step 1: Publish to Nostr
+      setPublishStep("nostr");
       const publishedIds: string[] = [];
       // Publish products first, then collections (safer for references)
       const ordered = [
@@ -363,7 +372,6 @@ export function MenuPage(): JSX.Element {
         await publishToRelays(signed, relays);
         publishedIds.push(signed.id);
       }
-      setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} from spreadsheet.`);
       setSheetPreviewViewed(false);
       setPreviewViewed(false);
       setSheetPreviewEvents(null);
@@ -373,11 +381,26 @@ export function MenuPage(): JSX.Element {
       if (activeSource === "spreadsheet") {
         setActiveSource(null);
       }
+
+      // Step 2: Publish discovery page to Synvya.com
+      setPublishStep("synvya");
+      try {
+        const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays);
+        setDiscoveryPageUrl(discoveryResult.url);
+        setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} and updated discovery page.`);
+      } catch (synvyaErr) {
+        // Nostr publish succeeded, but Synvya.com failed
+        console.error("Failed to publish to Synvya.com:", synvyaErr);
+        const errorMessage = synvyaErr instanceof Error ? synvyaErr.message : "Failed to publish discovery page";
+        setSynvyaError(errorMessage);
+        setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} (discovery page update failed).`);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish spreadsheet menu.";
       setSheetError(message);
     } finally {
       setSheetPublishBusy(false);
+      setPublishStep(null);
     }
   };
 
@@ -434,8 +457,11 @@ export function MenuPage(): JSX.Element {
     if (!pubkey) return;
     setSquareError(null);
     setSquareNotice(null);
+    setSynvyaError(null);
     setResyncBusy(true);
     try {
+      // Step 1: Publish to Nostr
+      setPublishStep("nostr");
       const profileLocation = await resolveProfileLocation(pubkey, relays, cachedProfileLocation);
       if (profileLocation && profileLocation !== cachedProfileLocation) {
         setCachedProfileLocation(profileLocation);
@@ -449,13 +475,35 @@ export function MenuPage(): JSX.Element {
       if (effectiveLocation && effectiveLocation !== cachedProfileLocation) {
         setCachedProfileLocation(effectiveLocation);
       }
+
+      // Helper to publish discovery page after successful Nostr publish
+      const publishDiscovery = async (): Promise<{ success: boolean; url?: string; error?: string }> => {
+        setPublishStep("synvya");
+        try {
+          const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays);
+          setDiscoveryPageUrl(discoveryResult.url);
+          return { success: true, url: discoveryResult.url };
+        } catch (synvyaErr) {
+          console.error("Failed to publish to Synvya.com:", synvyaErr);
+          const errorMessage = synvyaErr instanceof Error ? synvyaErr.message : "Failed to publish discovery page";
+          setSynvyaError(errorMessage);
+          return { success: false, error: errorMessage };
+        }
+      };
+
       if (!events.length) {
-        setSquareNotice("Square catalog is already up to date.");
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
         setPublishSuccess(true);
         setMenuPublished(true);
+        // Step 2: Publish discovery page
+        const discoveryResult = await publishDiscovery();
+        if (discoveryResult.success) {
+          setSquareNotice("Square catalog is already up to date. Discovery page updated.");
+        } else {
+          setSquareNotice("Square catalog is already up to date (discovery page update failed).");
+        }
         return;
       }
 
@@ -505,12 +553,19 @@ export function MenuPage(): JSX.Element {
         );
       }
       if (messages.length > 0) {
-        setSquareNotice(messages.join(" "));
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
         setPublishSuccess(true);
         setMenuPublished(true);
+        // Step 2: Publish discovery page after successful Nostr publish
+        const discoveryResult = await publishDiscovery();
+        if (discoveryResult.success) {
+          messages.push("Discovery page updated.");
+        } else {
+          messages.push("(Discovery page update failed)");
+        }
+        setSquareNotice(messages.join(" "));
       }
 
       const errorMessages: string[] = [];
@@ -534,18 +589,25 @@ export function MenuPage(): JSX.Element {
         !updateFailures.length &&
         !deletionFailures.length
       ) {
-        setSquareNotice("No listings required publishing.");
         setStatusVersion((value) => value + 1);
         setPreviewViewed(false);
         setPreviewEvents(null);
         setPublishSuccess(true);
         setMenuPublished(true);
+        // Step 2: Publish discovery page
+        const discoveryResult = await publishDiscovery();
+        if (discoveryResult.success) {
+          setSquareNotice("No listings required publishing. Discovery page updated.");
+        } else {
+          setSquareNotice("No listings required publishing (discovery page update failed).");
+        }
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish catalog to Nostr.";
       setSquareError(message);
     } finally {
       setResyncBusy(false);
+      setPublishStep(null);
     }
   };
 
@@ -709,6 +771,41 @@ export function MenuPage(): JSX.Element {
               {squareNotice}
             </div>
           ) : null}
+
+          {/* Publishing progress indicator */}
+          {resyncBusy && publishStep && (
+            <div className="flex items-center gap-3 rounded-md border bg-muted/50 p-3 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <div className="flex items-center gap-2">
+                <span className={
+                  publishStep === "nostr"
+                    ? "text-primary font-medium"
+                    : "text-emerald-600"
+                }>
+                  {publishStep === "nostr" ? "1. Publishing to Nostr" : "1. Published"}
+                </span>
+                <span className="text-muted-foreground">→</span>
+                <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
+                  2. Updating discovery page
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Synvya.com error with contact support option */}
+          {synvyaError && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <p className="font-medium text-amber-800">Discovery page update failed</p>
+              <p className="mt-1 text-amber-700">{synvyaError}</p>
+              <a
+                href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nPublic Key: ${pubkey}`)}`}
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Contact support@synvya.com
+              </a>
+            </div>
+          )}
 
           {/* Step 1: Connect */}
           {currentStep === 1 && (
@@ -936,6 +1033,41 @@ export function MenuPage(): JSX.Element {
               {sheetNotice}
             </div>
           ) : null}
+
+          {/* Publishing progress indicator */}
+          {sheetPublishBusy && publishStep && (
+            <div className="flex items-center gap-3 rounded-md border bg-muted/50 p-3 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <div className="flex items-center gap-2">
+                <span className={
+                  publishStep === "nostr"
+                    ? "text-primary font-medium"
+                    : "text-emerald-600"
+                }>
+                  {publishStep === "nostr" ? "1. Publishing to Nostr" : "1. Published"}
+                </span>
+                <span className="text-muted-foreground">→</span>
+                <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
+                  2. Updating discovery page
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Synvya.com error with contact support option */}
+          {synvyaError && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <p className="font-medium text-amber-800">Discovery page update failed</p>
+              <p className="mt-1 text-amber-700">{synvyaError}</p>
+              <a
+                href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nPublic Key: ${pubkey}`)}`}
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Contact support@synvya.com
+              </a>
+            </div>
+          )}
 
           {/* Step 1: Upload */}
           {currentStep === 1 && (
