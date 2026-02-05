@@ -17,7 +17,7 @@ import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { uploadMedia } from "@/services/upload";
 import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
 import type { Event } from "nostr-tools";
-import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail, Check } from "lucide-react";
+import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail, Check, ExternalLink } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
 import type { OpeningHoursSpec } from "@/types/profile";
@@ -498,6 +498,7 @@ export function BusinessProfileForm(): JSX.Element {
   const setProfilePublished = useOnboardingProgress((state) => state.setProfilePublished);
   const setRestaurantName = useOnboardingProgress((state) => state.setRestaurantName);
   const setDiscoveryPageUrl = useOnboardingProgress((state) => state.setDiscoveryPageUrl);
+  const discoveryPageUrl = useOnboardingProgress((state) => state.discoveryPageUrl);
   const profilePublished = useOnboardingProgress((state) => state.profilePublished);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
   const [categoriesInput, setCategoriesInput] = useState("");
@@ -815,7 +816,7 @@ export function BusinessProfileForm(): JSX.Element {
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
           1
         </span>
-        <span className="font-medium text-foreground">Step 1 of 3:</span>
+        <span className="font-medium text-foreground">Step 1 of 2:</span>
         <span>Set Up Your Profile</span>
       </div>
 
@@ -1252,15 +1253,28 @@ export function BusinessProfileForm(): JSX.Element {
                 <p className="mt-1 text-sm text-emerald-600">
                   Your restaurant is now discoverable by AI assistants.
                 </p>
-                <Button
-                  type="button"
-                  onClick={() => navigate("/app/menu")}
-                  className="mt-3"
-                  variant="default"
-                >
-                  Next: Add Your Menu
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {discoveryPageUrl && (
+                    <Button
+                      type="button"
+                      onClick={() => window.open(discoveryPageUrl, "_blank")}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      View Discovery Page
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    onClick={() => navigate("/app/menu")}
+                    variant="default"
+                    size="sm"
+                  >
+                    Next: Add Your Menu
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
