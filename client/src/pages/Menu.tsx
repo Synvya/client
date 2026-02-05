@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PublicationPreview } from "@/components/PublicationPreview";
-import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw, AlertCircle, Loader2, Mail } from "lucide-react";
+import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw, AlertCircle, Loader2, Mail, ExternalLink } from "lucide-react";
 import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
 import {
   fetchSquareStatus,
@@ -91,6 +91,7 @@ export function MenuPage(): JSX.Element {
   }));
   const setMenuPublished = useOnboardingProgress((state) => state.setMenuPublished);
   const setDiscoveryPageUrl = useOnboardingProgress((state) => state.setDiscoveryPageUrl);
+  const discoveryPageUrl = useOnboardingProgress((state) => state.discoveryPageUrl);
   const profilePublished = useOnboardingProgress((state) => state.profilePublished);
 
   const location = useLocation();
@@ -665,16 +666,38 @@ export function MenuPage(): JSX.Element {
             <div className="flex-1">
               <p className="font-medium text-emerald-700">Your menu is now live!</p>
               <p className="mt-1 text-sm text-emerald-600">
-                Next, let's make your restaurant discoverable by AI assistants.
+                Your restaurant is now discoverable by AI assistants.
               </p>
-              <Button
-                onClick={() => navigate("/app/website")}
-                className="mt-4"
-                variant="default"
-              >
-                Go to Get Discovered
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+              {discoveryPageUrl && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => window.open(discoveryPageUrl, "_blank")}
+                    variant="default"
+                    size="sm"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    View Discovery Page
+                  </Button>
+                  <Button
+                    onClick={() => navigate("/app/settings")}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Go to Account
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+              {!discoveryPageUrl && (
+                <Button
+                  onClick={() => navigate("/app/settings")}
+                  className="mt-4"
+                  variant="default"
+                >
+                  Go to Account
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
         </section>
