@@ -1,12 +1,15 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { useOnboardingProgress } from "@/state/useOnboardingProgress";
+import { useWebsiteData } from "@/state/useWebsiteData";
 import { KeyBackupDrawer } from "@/components/KeyBackupDrawer";
-import { ChevronDown, ChevronUp, Copy, KeyRound, RadioTower, Check, Circle, AlertTriangle, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp, Copy, KeyRound, RadioTower, Check, Circle, AlertTriangle, ChevronRight, ExternalLink, Globe, Download, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChecklistItemProps {
@@ -63,12 +66,42 @@ export function SettingsPage(): JSX.Element {
   // Discovery is considered published when we have a URL
   const discoveryPublished = discoveryPageUrl !== null;
   
+  // Website data for the "Add to your own website" section
+  const schema = useWebsiteData((state) => state.schema);
+  
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
+  const [schemaCopied, setSchemaCopied] = useState(false);
+  const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
   const [newRelay, setNewRelay] = useState("");
   const [busy, setBusy] = useState(false);
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
+
+  // Reset URL copied state after 2 seconds
+  useEffect(() => {
+    if (urlCopied) {
+      const timer = setTimeout(() => setUrlCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [urlCopied]);
+
+  // Reset schema copied state after 2 seconds
+  useEffect(() => {
+    if (schemaCopied) {
+      const timer = setTimeout(() => setSchemaCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [schemaCopied]);
+
+  // Reset download status after 2 seconds
+  useEffect(() => {
+    if (downloadStatus === "success") {
+      const timer = setTimeout(() => setDownloadStatus("idle"), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [downloadStatus]);
 
   const handleReveal = async () => {
     setBusy(true);
@@ -100,6 +133,44 @@ export function SettingsPage(): JSX.Element {
     await navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCopyUrl = async () => {
+    if (!discoveryPageUrl) return;
+    try {
+      await navigator.clipboard.writeText(discoveryPageUrl);
+      setUrlCopied(true);
+    } catch (error) {
+      console.error("Failed to copy URL to clipboard:", error);
+    }
+  };
+
+  const handleCopySchema = async () => {
+    if (!schema) return;
+    try {
+      await navigator.clipboard.writeText(schema);
+      setSchemaCopied(true);
+    } catch (error) {
+      console.error("Failed to copy schema to clipboard:", error);
+    }
+  };
+
+  const handleDownloadSchema = () => {
+    if (!schema) return;
+    try {
+      const blob = new Blob([schema], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "schema-org-snippet.html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setDownloadStatus("success");
+    } catch (error) {
+      console.error("Failed to download:", error);
+    }
   };
 
   const handleAddRelay = (event: FormEvent<HTMLFormElement>) => {
@@ -140,7 +211,13 @@ export function SettingsPage(): JSX.Element {
           <ChecklistItem
             label="Discovery page live"
             isComplete={discoveryPublished}
-            onClick={() => navigate("/app/website")}
+            onClick={() => {
+              if (discoveryPageUrl) {
+                window.open(discoveryPageUrl, "_blank");
+              } else {
+                navigate("/app/profile");
+              }
+            }}
           />
           <ChecklistItem
             label={keyBackedUp ? "Key backed up" : "Key not backed up"}
@@ -171,6 +248,55 @@ export function SettingsPage(): JSX.Element {
                 {busy ? "Loading…" : "Backup Now"}
               </Button>
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* Discovery Page Section - Show when published */}
+      {discoveryPageUrl && (
+        <section className="space-y-4 rounded-lg border bg-card p-6">
+          <header className="flex items-center gap-3">
+            <Globe className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <h2 className="text-lg font-semibold">Discovery Page</h2>
+              <p className="text-sm text-muted-foreground">
+                Your restaurant's public page for AI assistants.
+              </p>
+            </div>
+          </header>
+
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4">
+            <div className="flex items-center gap-2 text-sm">
+              <Check className="h-4 w-4 text-emerald-600" />
+              <span className="font-medium text-emerald-700">Your restaurant is live!</span>
+            </div>
+            <a
+              href={discoveryPageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 block text-sm font-medium text-primary hover:underline"
+            >
+              {discoveryPageUrl.replace("https://", "")}
+            </a>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => window.open(discoveryPageUrl, "_blank")}
+            >
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View Page
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopyUrl}
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              {urlCopied ? "Copied!" : "Copy URL"}
+            </Button>
           </div>
         </section>
       )}
@@ -211,6 +337,79 @@ export function SettingsPage(): JSX.Element {
           )}
         </div>
       </section>
+
+      {/* Website Code Section - For technical users */}
+      {schema && (
+        <section className="rounded-lg border bg-card shadow-sm">
+          <CollapsibleSection
+            title="Add to Your Own Website"
+            description="For technical users: embed discovery code on your own site"
+            badge={undefined}
+            isComplete={false}
+            defaultOpen={false}
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Have your own website? Copy/paste this code into your website's{" "}
+                <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section to make it discoverable by AI assistants.
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                <Button variant="default" size="sm" onClick={handleCopySchema} disabled={schemaCopied}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  {schemaCopied ? "Copied!" : "Copy Code"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownloadSchema} disabled={downloadStatus === "success"}>
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloadStatus === "success" ? "Downloaded!" : "Download"}
+                </Button>
+              </div>
+
+              <div className="rounded-lg border bg-muted/30">
+                <Textarea
+                  value={schema}
+                  readOnly
+                  className="min-h-[200px] resize-none rounded-lg border-0 bg-transparent font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
+                  style={{
+                    fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
+                  }}
+                />
+              </div>
+
+              <div className="rounded-lg border bg-muted/30 p-4">
+                <h3 className="mb-3 font-semibold flex items-center gap-2 text-sm">
+                  <HelpCircle className="h-4 w-4 text-primary" />
+                  How to use this code
+                </h3>
+                <ol className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">1.</span>
+                    <span>Copy the code above by clicking the "Copy Code" button</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">2.</span>
+                    <span>
+                      Find your website's main page file (usually{" "}
+                      <code className="rounded bg-muted px-1 py-0.5">index.html</code>)
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">3.</span>
+                    <span>
+                      Paste the code inside the{" "}
+                      <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">4.</span>
+                    <span>Save and publish your website</span>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </CollapsibleSection>
+        </section>
+      )}
 
       {/* Advanced Settings */}
       <section className="space-y-4 rounded-lg border bg-card p-6">
