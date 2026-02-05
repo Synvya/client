@@ -23,7 +23,7 @@ export function WebsiteDataPage(): JSX.Element {
   const clearSchema = useWebsiteData((state) => state.clearSchema);
   const pubkey = useAuth((state) => state.pubkey);
   const relays = useRelays((state) => state.relays);
-  const setDiscoveryPublished = useOnboardingProgress((state) => state.setDiscoveryPublished);
+  const setDiscoveryPageUrl = useOnboardingProgress((state) => state.setDiscoveryPageUrl);
   const [copied, setCopied] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
@@ -255,7 +255,7 @@ export function WebsiteDataPage(): JSX.Element {
 
       const url = await publishDiscoveryPage(typeSlug, nameSlug, html);
       setPublishedUrl(url);
-      setDiscoveryPublished(true);
+      setDiscoveryPageUrl(url);
     } catch (error) {
       console.error("Failed to publish discovery page:", error);
       setPublishError(error instanceof Error ? error.message : "Failed to publish discovery page");
