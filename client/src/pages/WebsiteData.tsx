@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { useWebsiteData } from "@/state/useWebsiteData";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
+import { useOnboardingProgress } from "@/state/useOnboardingProgress";
 import { getPool } from "@/lib/relayPool";
 import { parseKind0ProfileEvent } from "@/components/BusinessProfileForm";
 import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
-import { Copy, Download, RefreshCw, AlertCircle, Sparkles, Package, Info, ExternalLink, HelpCircle, Globe } from "lucide-react";
+import { Copy, Download, RefreshCw, AlertCircle, Sparkles, ExternalLink, HelpCircle, Globe, Check, Share2 } from "lucide-react";
 import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
 import { slugify } from "@/lib/siteExport/slug";
 import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
@@ -21,7 +23,9 @@ export function WebsiteDataPage(): JSX.Element {
   const clearSchema = useWebsiteData((state) => state.clearSchema);
   const pubkey = useAuth((state) => state.pubkey);
   const relays = useRelays((state) => state.relays);
+  const setDiscoveryPublished = useOnboardingProgress((state) => state.setDiscoveryPublished);
   const [copied, setCopied] = useState(false);
+  const [urlCopied, setUrlCopied] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
   const [refreshing, setRefreshing] = useState(false);
   const [lastProfile, setLastProfile] = useState<BusinessProfile | null>(null);
@@ -39,6 +43,14 @@ export function WebsiteDataPage(): JSX.Element {
       return () => clearTimeout(timer);
     }
   }, [copied]);
+
+  // Reset URL copied state after 2 seconds
+  useEffect(() => {
+    if (urlCopied) {
+      const timer = setTimeout(() => setUrlCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [urlCopied]);
 
   // Reset download status after 2 seconds
   useEffect(() => {
@@ -63,6 +75,16 @@ export function WebsiteDataPage(): JSX.Element {
       setCopied(true);
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
+    }
+  };
+
+  const handleCopyUrl = async () => {
+    if (!publishedUrl) return;
+    try {
+      await navigator.clipboard.writeText(publishedUrl);
+      setUrlCopied(true);
+    } catch (error) {
+      console.error("Failed to copy URL to clipboard:", error);
     }
   };
 
@@ -233,6 +255,7 @@ export function WebsiteDataPage(): JSX.Element {
 
       const url = await publishDiscoveryPage(typeSlug, nameSlug, html);
       setPublishedUrl(url);
+      setDiscoveryPublished(true);
     } catch (error) {
       console.error("Failed to publish discovery page:", error);
       setPublishError(error instanceof Error ? error.message : "Failed to publish discovery page");
@@ -274,182 +297,194 @@ export function WebsiteDataPage(): JSX.Element {
 
   return (
     <div className="container py-10">
-      <div className="mx-auto max-w-4xl space-y-8">
-        {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight">Discovery</h1>
-            <p className="text-lg text-muted-foreground">
-              Get discovered by AI assistants like ChatGPT and Claude. Publish your discovery page to Synvya.com, and optionally add discovery code to your own website.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Click "Refresh" to pull your latest published profile and menu data.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleRefresh}
-              disabled={refreshing || !pubkey || !relays.length}
-              className="shrink-0"
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </Button>
-          </div>
+      <div className="mx-auto max-w-4xl space-y-6">
+        {/* Progress Indicator */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+            3
+          </span>
+          <span className="font-medium text-foreground">Step 3 of 3:</span>
+          <span>Get Discovered</span>
         </div>
 
-        {/* Explanation Card */}
-        <div className="rounded-lg border bg-card p-6 shadow-sm">
-          <div className="flex items-start gap-3">
-            <Info className="mt-1 h-5 w-5 flex-shrink-0 text-primary" />
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold">What You Get</h2>
-              <p className="text-sm text-muted-foreground">
-                This page generates two things from your latest published profile and menu data to help AI assistants find your restaurant:
-              </p>
-              <ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
-                <li>
-                  <strong className="text-foreground">Your Synvya Discovery Page:</strong> Publish your discovery page directly to synvya.com with one click for maximum visibility to AI assistants.
-                </li>
-                <li>
-                  <strong className="text-foreground">Add Discovery Code to Your Website (Optional):</strong> If you have your own website, add this code to make it discoverable by AI assistants. Works alongside your Synvya page for maximum visibility.
-                </li>
-              </ul>
-            </div>
-          </div>
+        {/* Header */}
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold tracking-tight">Get Discovered</h1>
+          <p className="text-lg text-muted-foreground">
+            Make your restaurant visible to ChatGPT, Claude, and other AI assistants.
+          </p>
         </div>
+
+        {/* Success State - Show when published */}
+        {publishedUrl && (
+          <section className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white">
+                <Check className="h-4 w-4" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <p className="font-medium text-emerald-700">Your restaurant is live!</p>
+                  <a
+                    href={publishedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-primary hover:underline"
+                  >
+                    {publishedUrl.replace("https://", "")}
+                  </a>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => window.open(publishedUrl, "_blank")}
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    View Page
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyUrl}
+                  >
+                    <Share2 className="mr-2 h-4 w-4" />
+                    {urlCopied ? "Copied!" : "Share"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePublish}
+                    disabled={publishing}
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${publishing ? "animate-spin" : ""}`} />
+                    {publishing ? "Updating…" : "Update"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Outputs */}
         {schema ? (
-          <div className="space-y-8">
-            {/* Status Bar */}
-            <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-3">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                <span className="font-medium">Last updated:</span>
-                <span className="text-muted-foreground">{formatLastUpdated(lastUpdated)}</span>
-              </div>
-            </div>
-
-            {/* Discovery Code */}
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold">Add Discovery Code to Your Website</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Have your own website? Copy/paste this code into your website's <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section to make it discoverable by AI assistants.
-                  </p>
+          <div className="space-y-6">
+            {/* Primary Action: Publish to Synvya.com */}
+            {!publishedUrl && (
+              <section className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <Globe className="mt-1 h-6 w-6 flex-shrink-0 text-primary" />
+                  <div className="flex-1">
+                    <h2 className="text-xl font-semibold">Publish to Synvya.com</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      One click to make your restaurant discoverable by AI assistants. Your page includes your profile, menu, and all the structured data AI needs to recommend you.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex gap-2">
+
+                {publishError && (
+                  <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+                    <div className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>{publishError}</span>
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  onClick={handlePublish}
+                  disabled={publishing || !lastProfile}
+                  size="lg"
+                  className="w-full sm:w-auto"
+                >
+                  <Globe className="mr-2 h-4 w-4" />
+                  {publishing ? "Publishing…" : "Publish to Synvya.com"}
+                </Button>
+              </section>
+            )}
+
+            {/* Secondary Action: Add to Your Own Website (Collapsed) */}
+            <CollapsibleSection
+              title="Add to Your Own Website"
+              description="For technical users: embed discovery code on your own site"
+              badge="recommended"
+              isComplete={false}
+              defaultOpen={false}
+            >
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Have your own website? Copy/paste this code into your website's{" "}
+                  <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section to make it discoverable by AI assistants.
+                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="default" size="sm" onClick={handleCopy} disabled={copied}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    {copied ? "Copied!" : "Copy Code"}
+                  </Button>
                   <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloadStatus === "success"}>
                     <Download className="mr-2 h-4 w-4" />
                     {downloadStatus === "success" ? "Downloaded!" : "Download"}
                   </Button>
-                  <Button variant="default" size="sm" onClick={handleCopy} disabled={copied}>
-                    <Copy className="mr-2 h-4 w-4" />
-                    {copied ? "Copied!" : "Copy"}
-                  </Button>
                 </div>
-              </div>
-              <div className="rounded-lg border bg-card shadow-sm">
-                <Textarea
-                  value={schema}
-                  readOnly
-                  className="min-h-[420px] resize-none rounded-lg border-0 font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
-                  style={{
-                    fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
-                  }}
-                />
-              </div>
-              <div className="rounded-lg border bg-card p-6 shadow-sm">
-                <h3 className="mb-4 font-semibold flex items-center gap-2">
-                  <HelpCircle className="h-5 w-5 text-primary" />
-                  How to use this code
-                </h3>
-                <ol className="space-y-3 text-sm text-muted-foreground">
-                  <li className="flex gap-3">
-                    <span className="font-semibold text-foreground shrink-0">1.</span>
-                    <span>Copy the code above by clicking the "Copy" button</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="font-semibold text-foreground shrink-0">2.</span>
-                    <span>
-                      Find your website's main page file (usually called{" "}
-                      <code className="rounded bg-muted px-1 py-0.5">index.html</code>). If you're not sure how to do this, ask your web developer or hosting provider.
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="font-semibold text-foreground shrink-0">3.</span>
-                    <span>
-                      Paste the code inside the{" "}
-                      <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section, before the closing{" "}
-                      <code className="rounded bg-muted px-1 py-0.5">&lt;/head&gt;</code> tag
-                    </span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="font-semibold text-foreground shrink-0">4.</span>
-                    <span>Save and publish your website</span>
-                  </li>
-                </ol>
-              </div>
-            </div>
 
-            {/* Synvya Discovery Page */}
-            <div className="space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <Globe className="mt-1 h-6 w-6 flex-shrink-0 text-primary" />
-                  <div>
-                    <h2 className="text-xl font-semibold">Your Synvya Discovery Page</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Publish your discovery page with your restaurant information, menu, and all the code needed for AI discovery directly to synvya.com.
-                    </p>
-                  </div>
+                <div className="rounded-lg border bg-muted/30">
+                  <Textarea
+                    value={schema}
+                    readOnly
+                    className="min-h-[300px] resize-none rounded-lg border-0 bg-transparent font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
+                    style={{
+                      fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
+                    }}
+                  />
                 </div>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={handlePublish}
-                  disabled={publishing || !lastProfile}
-                  className="shrink-0"
-                >
-                  {publishing ? "Publishing…" : "Publish"}
-                </Button>
-              </div>
-              {publishError && (
-                <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-                  <div className="flex items-center gap-2 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>{publishError}</span>
-                  </div>
-                </div>
-              )}
-              {publishedUrl && (
-                <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
-                      <Globe className="h-4 w-4" />
-                      <span>Published successfully!</span>
-                    </div>
-                    <a
-                      href={publishedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                    >
-                      View your page
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
-              )}
-              {!publishedUrl && !publishError && (
+
                 <div className="rounded-lg border bg-muted/30 p-4">
-                  <p className="text-sm text-muted-foreground">
-                    Click "Publish" to make your discovery page live on synvya.com. Your page will be available within a few minutes.
-                  </p>
+                  <h3 className="mb-3 font-semibold flex items-center gap-2 text-sm">
+                    <HelpCircle className="h-4 w-4 text-primary" />
+                    How to use this code
+                  </h3>
+                  <ol className="space-y-2 text-sm text-muted-foreground">
+                    <li className="flex gap-3">
+                      <span className="font-semibold text-foreground shrink-0">1.</span>
+                      <span>Copy the code above by clicking the "Copy Code" button</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="font-semibold text-foreground shrink-0">2.</span>
+                      <span>
+                        Find your website's main page file (usually{" "}
+                        <code className="rounded bg-muted px-1 py-0.5">index.html</code>)
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="font-semibold text-foreground shrink-0">3.</span>
+                      <span>
+                        Paste the code inside the{" "}
+                        <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section
+                      </span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span className="font-semibold text-foreground shrink-0">4.</span>
+                      <span>Save and publish your website</span>
+                    </li>
+                  </ol>
                 </div>
-              )}
+              </div>
+            </CollapsibleSection>
+
+            {/* Subtle Refresh Link */}
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <span>Last updated {formatLastUpdated(lastUpdated)}</span>
+              <span>·</span>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="inline-flex items-center gap-1 text-primary hover:underline disabled:opacity-50"
+              >
+                <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                {refreshing ? "Refreshing…" : "Refresh"}
+              </button>
             </div>
           </div>
         ) : (
@@ -460,7 +495,7 @@ export function WebsiteDataPage(): JSX.Element {
             </div>
             <h3 className="mt-6 text-lg font-semibold">Get Started with Discovery</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Publish your restaurant profile and menu to generate your discovery page and code that help AI assistants find and recommend your restaurant.
+              First, publish your restaurant profile and menu. Then come back here to make your restaurant discoverable by AI assistants.
             </p>
             <div className="mt-6 flex gap-3 justify-center">
               <Button
@@ -468,7 +503,7 @@ export function WebsiteDataPage(): JSX.Element {
                 disabled={refreshing || !pubkey || !relays.length}
               >
                 <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                {refreshing ? "Refreshing..." : "Refresh"}
+                {refreshing ? "Refreshing..." : "Check for Data"}
               </Button>
               <Button
                 variant="outline"
@@ -481,9 +516,7 @@ export function WebsiteDataPage(): JSX.Element {
             </div>
           </div>
         )}
-
       </div>
     </div>
   );
 }
-
