@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/state/useAuth";
 import { useRelays } from "@/state/useRelays";
 import { useMemberOf } from "@/state/useMemberOf";
+import { useOnboardingProgress } from "@/state/useOnboardingProgress";
 import type { BusinessProfile, BusinessType } from "@/types/profile";
 import { buildProfileEvent } from "@/lib/events";
 import { publishToRelays, getPool } from "@/lib/relayPool";
@@ -11,9 +13,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { uploadMedia } from "@/services/upload";
 import type { Event } from "nostr-tools";
-import { Image as ImageIcon, UploadCloud, Clock } from "lucide-react";
+import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
 import type { OpeningHoursSpec } from "@/types/profile";
@@ -484,6 +487,7 @@ export function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessP
 }
 
 export function BusinessProfileForm(): JSX.Element {
+  const navigate = useNavigate();
   const signEvent = useAuth((state) => state.signEvent);
   const pubkey = useAuth((state) => state.pubkey);
   const authStatus = useAuth((state) => state.status);
@@ -491,6 +495,9 @@ export function BusinessProfileForm(): JSX.Element {
   const memberOfDomain = useMemberOf((state) => state.domain);
   const setProfileLocation = useBusinessProfile((state) => state.setLocation);
   const setProfileBusinessType = useBusinessProfile((state) => state.setBusinessType);
+  const setProfilePublished = useOnboardingProgress((state) => state.setProfilePublished);
+  const setRestaurantName = useOnboardingProgress((state) => state.setRestaurantName);
+  const profilePublished = useOnboardingProgress((state) => state.profilePublished);
   const [profile, setProfile] = useState<BusinessProfile>(createInitialProfile);
   const [categoriesInput, setCategoriesInput] = useState("");
   const [cuisineInput, setCuisineInput] = useState("");
@@ -505,6 +512,7 @@ export function BusinessProfileForm(): JSX.Element {
     banner: null
   });
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [hasExistingProfile, setHasExistingProfile] = useState(false);
   const [openingHoursDialogOpen, setOpeningHoursDialogOpen] = useState(false);
   const pictureInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
@@ -518,6 +526,26 @@ export function BusinessProfileForm(): JSX.Element {
       .map((value) => value.trim())
       .filter(Boolean);
   }, [categoriesInput]);
+
+  // Check if essential info is complete
+  const isEssentialComplete = useMemo(() => {
+    return Boolean(profile.name && profile.displayName && profile.businessType);
+  }, [profile.name, profile.displayName, profile.businessType]);
+
+  // Check if location & contact is complete
+  const isLocationComplete = useMemo(() => {
+    return Boolean(profile.street && profile.city && profile.state && profile.zip);
+  }, [profile.street, profile.city, profile.state, profile.zip]);
+
+  // Check if hours & details is complete
+  const isHoursComplete = useMemo(() => {
+    return Boolean(profile.openingHours && profile.openingHours.length > 0);
+  }, [profile.openingHours]);
+
+  // Check if media is complete
+  const isMediaComplete = useMemo(() => {
+    return Boolean(profile.picture || pendingFiles.picture);
+  }, [profile.picture, pendingFiles.picture]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -625,6 +653,11 @@ export function BusinessProfileForm(): JSX.Element {
       originalBusinessTypeRef.current = finalPayload.businessType;
       setProfileBusinessType(finalPayload.businessType);
 
+      // Update onboarding progress
+      setProfilePublished(true);
+      setRestaurantName(finalPayload.displayName || finalPayload.name || null);
+      setHasExistingProfile(true);
+
       setPendingFiles({ picture: null, banner: null });
       setPreviewUrls((prev) => {
         if (prev.picture) URL.revokeObjectURL(prev.picture);
@@ -700,6 +733,11 @@ export function BusinessProfileForm(): JSX.Element {
 
         setProfileLocation(patch.location ?? null);
         setProfileBusinessType(patch.businessType ?? null);
+        setHasExistingProfile(true);
+        
+        // Update onboarding progress if profile exists
+        setProfilePublished(true);
+        setRestaurantName(patch.displayName || patch.name || null);
 
         if (cancelled) {
           return;
@@ -745,15 +783,42 @@ export function BusinessProfileForm(): JSX.Element {
       cancelled = true;
       loadingProfileRef.current = false;
     };
-  }, [authStatus, profileLoaded, pubkey, relays]);
+  }, [authStatus, profileLoaded, pubkey, relays, setProfilePublished, setRestaurantName, setProfileLocation, setProfileBusinessType]);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <section className="grid gap-6 rounded-lg border bg-card p-6 shadow-sm">
-        <header>
-          <h2 className="text-lg font-semibold">Profile</h2>
-        </header>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Progress Indicator */}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
+          1
+        </span>
+        <span className="font-medium text-foreground">Step 1 of 3:</span>
+        <span>Set Up Your Profile</span>
+      </div>
 
+      {/* Welcome Message for New Users */}
+      {!hasExistingProfile && profileLoaded && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 h-5 w-5 text-primary" />
+            <div>
+              <p className="font-medium text-foreground">Welcome! Let's set up your restaurant profile.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This information helps AI assistants like ChatGPT and Claude recommend your restaurant to hungry diners.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Essential Info Section - Required */}
+      <CollapsibleSection
+        title="Essential Info"
+        description="Basic information about your restaurant"
+        badge="required"
+        isComplete={isEssentialComplete}
+        defaultOpen={true}
+      >
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="handle">Name</Label>
@@ -764,7 +829,9 @@ export function BusinessProfileForm(): JSX.Element {
               value={profile.name}
               onChange={(event) => handleNameChange(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">Lowercase name without spaces.</p>
+            <p className="text-xs text-muted-foreground">
+              Lowercase name without spaces. This becomes your unique identifier for AI assistants.
+            </p>
           </div>
 
           <div className="grid gap-2">
@@ -778,6 +845,23 @@ export function BusinessProfileForm(): JSX.Element {
           </div>
 
           <div className="grid gap-2">
+            <Label htmlFor="businessType">Food Establishment Type</Label>
+            <select
+              id="businessType"
+              className="h-10 rounded-md border border-input bg-transparent px-3 text-sm"
+              value={profile.businessType}
+              onChange={(event) => updateField("businessType", event.target.value as BusinessType)}
+            >
+              {businessTypes.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">Categorizes your business for AI discovery.</p>
+          </div>
+
+          <div className="grid gap-2">
             <Label htmlFor="about">About</Label>
             <Textarea
               id="about"
@@ -787,7 +871,7 @@ export function BusinessProfileForm(): JSX.Element {
                 const truncated = [...event.target.value].slice(0, ABOUT_MAX_LENGTH).join("");
                 updateField("about", truncated);
               }}
-              rows={10}
+              rows={6}
               className="whitespace-pre-wrap font-mono text-sm"
             />
             <p className="text-sm text-muted-foreground">
@@ -795,15 +879,78 @@ export function BusinessProfileForm(): JSX.Element {
             </p>
           </div>
 
+          <div className="grid gap-2">
+            <Label htmlFor="website">Website</Label>
+            <Input
+              id="website"
+              type="url"
+              placeholder="https://myshop.com"
+              value={profile.website}
+              onChange={(event) => updateField("website", event.target.value)}
+            />
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      {/* Location & Contact Section - Recommended */}
+      <CollapsibleSection
+        title="Location & Contact"
+        description="Help customers find and reach you"
+        badge="recommended"
+        isComplete={isLocationComplete}
+        defaultOpen={!isLocationComplete}
+      >
+        <div className="grid gap-4">
+          <p className="text-sm text-muted-foreground">
+            AI assistants use your address to recommend you for "near me" searches.
+          </p>
+
+          <div className="grid gap-2">
+            <Label htmlFor="street">Street</Label>
+            <Input
+              id="street"
+              placeholder="123 Main St"
+              value={profile.street ?? ""}
+              onChange={(event) => updateField("street", event.target.value)}
+            />
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="website">Website</Label>
+              <Label htmlFor="city">City</Label>
               <Input
-                id="website"
-                type="url"
-                placeholder="https://myshop.com"
-                value={profile.website}
-                onChange={(event) => updateField("website", event.target.value)}
+                id="city"
+                placeholder="San Francisco"
+                value={profile.city ?? ""}
+                onChange={(event) => updateField("city", event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="state">State</Label>
+              <select
+                id="state"
+                className="h-10 rounded-md border border-input bg-transparent px-3 text-sm"
+                value={profile.state ?? ""}
+                onChange={(event) => updateField("state", event.target.value)}
+              >
+                <option value="">Select a state</option>
+                {usStates.map((state) => (
+                  <option key={state.value} value={state.value}>
+                    {state.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="zip">Zip code</Label>
+              <Input
+                id="zip"
+                placeholder="98052"
+                value={profile.zip ?? ""}
+                onChange={(event) => updateField("zip", event.target.value)}
               />
             </div>
           </div>
@@ -842,110 +989,22 @@ export function BusinessProfileForm(): JSX.Element {
               <p className="text-xs text-muted-foreground">Organization membership (read-only).</p>
             </div>
           )}
+        </div>
+      </CollapsibleSection>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="street">Street</Label>
-              <Input
-                id="street"
-                placeholder="123 Main St"
-                value={profile.street ?? ""}
-                onChange={(event) => updateField("street", event.target.value)}
-              />
-            </div>
-          </div>
+      {/* Hours & Details Section - Recommended */}
+      <CollapsibleSection
+        title="Hours & Details"
+        description="Operating hours and food categories"
+        badge="recommended"
+        isComplete={isHoursComplete}
+        defaultOpen={!isHoursComplete && isLocationComplete}
+      >
+        <div className="grid gap-4">
+          <p className="text-sm text-muted-foreground">
+            Helps AI match you to specific food requests and availability.
+          </p>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="city">City</Label>
-              <Input
-                id="city"
-                placeholder="San Francisco"
-                value={profile.city ?? ""}
-                onChange={(event) => updateField("city", event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="state">State</Label>
-              <select
-                id="state"
-                className="h-10 rounded-md border border-input bg-transparent px-3 text-sm"
-                value={profile.state ?? ""}
-                onChange={(event) => updateField("state", event.target.value)}
-              >
-                <option value="">Select a state</option>
-                {usStates.map((state) => (
-                  <option key={state.value} value={state.value}>
-                    {state.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="zip">Zip code</Label>
-              <Input
-                id="zip"
-                placeholder="98052"
-                value={profile.zip ?? ""}
-                onChange={(event) => updateField("zip", event.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="businessType">Food Establishment Type</Label>
-            <select
-              id="businessType"
-              className="h-10 rounded-md border border-input bg-transparent px-3 text-sm"
-              value={profile.businessType}
-              onChange={(event) => updateField("businessType", event.target.value as BusinessType)}
-            >
-              {businessTypes.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-muted-foreground">Required tag that categorizes the business for AI discovery.</p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              id="acceptsReservations"
-              type="checkbox"
-              className="h-4 w-4 rounded border-gray-300"
-              checked={profile.acceptsReservations ?? false}
-              onChange={(event) => updateField("acceptsReservations", event.target.checked)}
-            />
-            <Label htmlFor="acceptsReservations" className="cursor-pointer">
-              Accepts Reservations
-            </Label>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="categories">Categories</Label>
-            <Input
-              id="categories"
-              placeholder="bakery, local, sweets"
-              value={categoriesInput}
-              onChange={(event) => setCategoriesInput(event.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Comma separated values.</p>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="cuisine">Cuisine</Label>
-            <Input
-              id="cuisine"
-              placeholder="Italian, Seafood"
-              value={cuisineInput}
-              onChange={(event) => setCuisineInput(event.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Comma separated values.</p>
-          </div>
           <div className="grid gap-2">
             <Label>Opening Hours</Label>
             <Button
@@ -968,105 +1027,147 @@ export function BusinessProfileForm(): JSX.Element {
                 : "Set opening hours"}
             </Button>
           </div>
-        </div>
-      </section>
 
-      <section className="grid gap-6 rounded-lg border bg-card p-6 shadow-sm">
-        <header className="flex items-center gap-3">
-          <ImageIcon className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <h3 className="text-lg font-semibold">Media</h3>
-            <p className="text-sm text-muted-foreground">Upload a profile picture and banner.</p>
-          </div>
-        </header>
-
-        <div className="grid gap-4 md:grid-cols-2">
           <div className="grid gap-2">
-            <Label htmlFor="picture">Profile Picture</Label>
-            <div className="flex items-center gap-3">
-              <Input
-                id="picture"
-                readOnly
-                value={pendingFiles.picture ? pendingFiles.picture.name : profile.picture}
-                placeholder="Select an image…"
-              />
-              <input
-                ref={pictureInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    handleFileSelect(file, "picture");
-                    event.target.value = "";
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={publishing}
-                onClick={() => pictureInputRef.current?.click()}
-              >
-                <UploadCloud className="mr-2 h-4 w-4" />
-                {pendingFiles.picture ? "Change" : "Upload"}
-              </Button>
-            </div>
-            {(pendingFiles.picture ? previewUrls.picture : profile.picture) && (
-              <img
-                src={(pendingFiles.picture ? previewUrls.picture : profile.picture) ?? undefined}
-                alt="Profile preview"
-                className="h-32 w-32 rounded-md object-cover"
-              />
-            )}
+            <Label htmlFor="cuisine">Cuisine</Label>
+            <Input
+              id="cuisine"
+              placeholder="Italian, Seafood"
+              value={cuisineInput}
+              onChange={(event) => setCuisineInput(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Comma separated values.</p>
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="banner">Profile Banner</Label>
-            <div className="flex items-center gap-3">
-              <Input
-                id="banner"
-                readOnly
-                value={pendingFiles.banner ? pendingFiles.banner.name : profile.banner}
-                placeholder="Select an image…"
-              />
-              <input
-                ref={bannerInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    handleFileSelect(file, "banner");
-                    event.target.value = "";
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={publishing}
-                onClick={() => bannerInputRef.current?.click()}
-              >
-                <UploadCloud className="mr-2 h-4 w-4" />
-                {pendingFiles.banner ? "Change" : "Upload"}
-              </Button>
-            </div>
-            {(pendingFiles.banner ? previewUrls.banner : profile.banner) && (
-              <img
-                src={(pendingFiles.banner ? previewUrls.banner : profile.banner) ?? undefined}
-                alt="Banner preview"
-                className="h-32 w-full rounded-md object-cover"
-              />
-            )}
+            <Label htmlFor="categories">Categories</Label>
+            <Input
+              id="categories"
+              placeholder="bakery, local, sweets"
+              value={categoriesInput}
+              onChange={(event) => setCategoriesInput(event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Comma separated values.</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="acceptsReservations"
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300"
+              checked={profile.acceptsReservations ?? false}
+              onChange={(event) => updateField("acceptsReservations", event.target.checked)}
+            />
+            <Label htmlFor="acceptsReservations" className="cursor-pointer">
+              Accepts Reservations
+            </Label>
           </div>
         </div>
-      </section>
+      </CollapsibleSection>
 
+      {/* Media Section - Recommended */}
+      <CollapsibleSection
+        title="Media"
+        description="Profile picture and banner image"
+        badge="recommended"
+        isComplete={isMediaComplete}
+        defaultOpen={!isMediaComplete && isHoursComplete}
+      >
+        <div className="grid gap-4">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <ImageIcon className="h-4 w-4" />
+            <span>Images help your restaurant stand out in AI recommendations.</span>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-2">
+              <Label htmlFor="picture">Profile Picture</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="picture"
+                  readOnly
+                  value={pendingFiles.picture ? pendingFiles.picture.name : profile.picture}
+                  placeholder="Select an image…"
+                />
+                <input
+                  ref={pictureInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      handleFileSelect(file, "picture");
+                      event.target.value = "";
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={publishing}
+                  onClick={() => pictureInputRef.current?.click()}
+                >
+                  <UploadCloud className="mr-2 h-4 w-4" />
+                  {pendingFiles.picture ? "Change" : "Upload"}
+                </Button>
+              </div>
+              {(pendingFiles.picture ? previewUrls.picture : profile.picture) && (
+                <img
+                  src={(pendingFiles.picture ? previewUrls.picture : profile.picture) ?? undefined}
+                  alt="Profile preview"
+                  className="h-32 w-32 rounded-md object-cover"
+                />
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="banner">Profile Banner</Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  id="banner"
+                  readOnly
+                  value={pendingFiles.banner ? pendingFiles.banner.name : profile.banner}
+                  placeholder="Select an image…"
+                />
+                <input
+                  ref={bannerInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      handleFileSelect(file, "banner");
+                      event.target.value = "";
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={publishing}
+                  onClick={() => bannerInputRef.current?.click()}
+                >
+                  <UploadCloud className="mr-2 h-4 w-4" />
+                  {pendingFiles.banner ? "Change" : "Upload"}
+                </Button>
+              </div>
+              {(pendingFiles.banner ? previewUrls.banner : profile.banner) && (
+                <img
+                  src={(pendingFiles.banner ? previewUrls.banner : profile.banner) ?? undefined}
+                  alt="Banner preview"
+                  className="h-32 w-full rounded-md object-cover"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      {/* Submit Section */}
       <section className="grid gap-4 rounded-lg border bg-card p-6 shadow-sm">
-        <Button type="submit" disabled={publishing}>
+        <Button type="submit" disabled={publishing} size="lg">
           {publishing ? "Publishing…" : "Publish Profile"}
         </Button>
 
@@ -1081,6 +1182,20 @@ export function BusinessProfileForm(): JSX.Element {
               <p className="mt-1 font-mono text-xs text-muted-foreground">Event ID: {status.eventId}</p>
             ) : null}
           </div>
+        )}
+
+        {/* Next Step Button - shown after successful publish */}
+        {status.type === "success" && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => navigate("/app/menu")}
+            className="mt-2"
+          >
+            Next: Add Your Menu
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
         )}
       </section>
 
