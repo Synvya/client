@@ -8,7 +8,6 @@ import { ReservationsPage } from "@/pages/Reservations";
 import { TestHarnessPage } from "@/pages/TestHarness";
 import { LandingPage } from "@/pages/Landing";
 import { SquareCallbackPage } from "@/pages/SquareCallback";
-import { WebsiteDataPage } from "@/pages/WebsiteData";
 import { MenuPage } from "@/pages/Menu";
 
 function ProtectedApp(): JSX.Element {
@@ -35,8 +34,9 @@ export function App(): JSX.Element {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="menu" element={<MenuPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
-        <Route path="website" element={<WebsiteDataPage />} />
-        <Route path="website-data" element={<Navigate to="/app/website" replace />} />
+        {/* WebsiteData page merged into Account - redirect for bookmarks */}
+        <Route path="website" element={<Navigate to="/app/settings" replace />} />
+        <Route path="website-data" element={<Navigate to="/app/settings" replace />} />
         {import.meta.env.DEV && (
           <Route path="test-harness" element={<TestHarnessPage />} />
         )}
