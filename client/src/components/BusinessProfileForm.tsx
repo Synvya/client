@@ -17,7 +17,7 @@ import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { uploadMedia } from "@/services/upload";
 import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
 import type { Event } from "nostr-tools";
-import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail } from "lucide-react";
+import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail, Check } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
 import type { OpeningHoursSpec } from "@/types/profile";
@@ -25,7 +25,6 @@ import type { OpeningHoursSpec } from "@/types/profile";
 interface FormStatus {
   type: "idle" | "success" | "error";
   message: string | null;
-  eventId?: string;
 }
 
 const businessTypes: { label: string; value: BusinessType }[] = [
@@ -681,13 +680,13 @@ export function BusinessProfileForm(): JSX.Element {
       try {
         const discoveryResult = await fetchAndPublishDiscovery(pubkey!, relays);
         setDiscoveryPageUrl(discoveryResult.url);
-        setStatus({ type: "success", message: "Profile published and discovery page updated", eventId: signed.id });
+        setStatus({ type: "success", message: "Profile published and discovery page updated" });
       } catch (synvyaErr) {
         // Nostr publish succeeded, but Synvya.com failed
         console.error("Failed to publish to Synvya.com:", synvyaErr);
         const errorMessage = synvyaErr instanceof Error ? synvyaErr.message : "Failed to publish discovery page";
         setSynvyaError(errorMessage);
-        setStatus({ type: "success", message: "Profile published to Nostr (discovery page update failed)", eventId: signed.id });
+        setStatus({ type: "success", message: "Profile published to Nostr (discovery page update failed)" });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish profile";
@@ -1234,16 +1233,36 @@ export function BusinessProfileForm(): JSX.Element {
           </div>
         )}
 
-        {status.message && (
-          <div
-            className={`rounded-md border p-3 text-sm ${
-              status.type === "success" ? "border-green-200 bg-green-100 text-green-700" : "border-destructive/40 bg-destructive/10 text-destructive"
-            }`}
-          >
+        {/* Error message */}
+        {status.type === "error" && status.message && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
             <p>{status.message}</p>
-            {status.eventId && status.type === "success" ? (
-              <p className="mt-1 font-mono text-xs text-muted-foreground">Event ID: {status.eventId}</p>
-            ) : null}
+          </div>
+        )}
+
+        {/* Success State - shown after successful publish */}
+        {status.type === "success" && (
+          <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500 text-white">
+                <Check className="h-4 w-4" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-emerald-700">Your profile is now live!</p>
+                <p className="mt-1 text-sm text-emerald-600">
+                  Your restaurant is now discoverable by AI assistants.
+                </p>
+                <Button
+                  type="button"
+                  onClick={() => navigate("/app/menu")}
+                  className="mt-3"
+                  variant="default"
+                >
+                  Next: Add Your Menu
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1260,20 +1279,6 @@ export function BusinessProfileForm(): JSX.Element {
               Contact support@synvya.com
             </a>
           </div>
-        )}
-
-        {/* Next Step Button - shown after successful publish */}
-        {status.type === "success" && (
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={() => navigate("/app/menu")}
-            className="mt-2"
-          >
-            Next: Add Your Menu
-            <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
         )}
       </section>
 
