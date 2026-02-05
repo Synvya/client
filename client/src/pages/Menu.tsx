@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PublicationPreview } from "@/components/PublicationPreview";
-import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw } from "lucide-react";
+import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw, AlertCircle } from "lucide-react";
 import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
 import {
   fetchSquareStatus,
@@ -89,6 +89,7 @@ export function MenuPage(): JSX.Element {
     setLocation: state.setLocation,
   }));
   const setMenuPublished = useOnboardingProgress((state) => state.setMenuPublished);
+  const profilePublished = useOnboardingProgress((state) => state.profilePublished);
 
   const location = useLocation();
   const [squareStatus, setSquareStatus] = useState<SquareConnectionStatus | null>(null);
@@ -569,6 +570,29 @@ export function MenuPage(): JSX.Element {
         <span>Add Your Menu</span>
       </div>
 
+      {/* Profile-first guard - Show when profile is not published */}
+      {!profilePublished && (
+        <section className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 text-amber-600" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-amber-800">Publish your profile first</h3>
+              <p className="mt-1 text-sm text-amber-700">
+                Before adding your menu, you need to publish your restaurant profile. This ensures your menu items are properly linked to your business.
+              </p>
+              <Button
+                onClick={() => navigate("/app/profile")}
+                className="mt-3"
+                variant="default"
+              >
+                Go to Profile
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Success State */}
       {publishSuccess && (
         <section className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-6">
@@ -594,8 +618,8 @@ export function MenuPage(): JSX.Element {
         </section>
       )}
 
-      {/* Source Selection - Show when no source is selected */}
-      {!selectedSource && !publishSuccess && (
+      {/* Source Selection - Show when no source is selected and profile is published */}
+      {profilePublished && !selectedSource && !publishSuccess && (
         <section className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Choose Your Menu Source</h2>
@@ -649,7 +673,8 @@ export function MenuPage(): JSX.Element {
       )}
 
       {/* Square Workflow - Show when Square is selected */}
-      {selectedSource === "square" && !publishSuccess && (
+      {/* Square Workflow - Show when Square is selected and profile is published */}
+      {profilePublished && selectedSource === "square" && !publishSuccess && (
         <section className="space-y-4 rounded-lg border bg-card p-6">
           <header className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -866,7 +891,8 @@ export function MenuPage(): JSX.Element {
       )}
 
       {/* Spreadsheet Workflow - Show when Spreadsheet is selected */}
-      {selectedSource === "spreadsheet" && !publishSuccess && (
+      {/* Spreadsheet Workflow - Show when Spreadsheet is selected and profile is published */}
+      {profilePublished && selectedSource === "spreadsheet" && !publishSuccess && (
         <section className="space-y-4 rounded-lg border bg-card p-6">
           <header className="flex items-center justify-between">
             <div className="flex items-center gap-3">
