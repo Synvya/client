@@ -41,8 +41,11 @@ function NavItem({ to, label, isComplete }: NavItemProps): JSX.Element {
 export function Header(): JSX.Element {
   const profilePublished = useOnboardingProgress((state) => state.profilePublished);
   const menuPublished = useOnboardingProgress((state) => state.menuPublished);
-  const discoveryPublished = useOnboardingProgress((state) => state.discoveryPublished);
+  const discoveryPageUrl = useOnboardingProgress((state) => state.discoveryPageUrl);
   const restaurantName = useOnboardingProgress((state) => state.restaurantName);
+  
+  // Discovery is considered published when we have a URL
+  const discoveryPublished = discoveryPageUrl !== null;
 
   return (
     <header className="border-b">

@@ -11,7 +11,7 @@ describe("useOnboardingProgress", () => {
     const state = useOnboardingProgress.getState();
     expect(state.profilePublished).toBe(false);
     expect(state.menuPublished).toBe(false);
-    expect(state.discoveryPublished).toBe(false);
+    expect(state.discoveryPageUrl).toBeNull();
     expect(state.keyBackedUp).toBe(false);
     expect(state.restaurantName).toBeNull();
   });
@@ -50,20 +50,28 @@ describe("useOnboardingProgress", () => {
     });
   });
 
-  describe("setDiscoveryPublished", () => {
-    it("should set discoveryPublished to true", () => {
-      const { setDiscoveryPublished } = useOnboardingProgress.getState();
-      setDiscoveryPublished(true);
+  describe("setDiscoveryPageUrl", () => {
+    it("should set discoveryPageUrl to a URL", () => {
+      const { setDiscoveryPageUrl } = useOnboardingProgress.getState();
+      setDiscoveryPageUrl("https://synvya.com/restaurant/test/");
 
-      expect(useOnboardingProgress.getState().discoveryPublished).toBe(true);
+      expect(useOnboardingProgress.getState().discoveryPageUrl).toBe("https://synvya.com/restaurant/test/");
     });
 
-    it("should set discoveryPublished to false", () => {
-      const { setDiscoveryPublished } = useOnboardingProgress.getState();
-      setDiscoveryPublished(true);
-      setDiscoveryPublished(false);
+    it("should update discoveryPageUrl", () => {
+      const { setDiscoveryPageUrl } = useOnboardingProgress.getState();
+      setDiscoveryPageUrl("https://synvya.com/restaurant/old/");
+      setDiscoveryPageUrl("https://synvya.com/restaurant/new/");
 
-      expect(useOnboardingProgress.getState().discoveryPublished).toBe(false);
+      expect(useOnboardingProgress.getState().discoveryPageUrl).toBe("https://synvya.com/restaurant/new/");
+    });
+
+    it("should set discoveryPageUrl to null", () => {
+      const { setDiscoveryPageUrl } = useOnboardingProgress.getState();
+      setDiscoveryPageUrl("https://synvya.com/restaurant/test/");
+      setDiscoveryPageUrl(null);
+
+      expect(useOnboardingProgress.getState().discoveryPageUrl).toBeNull();
     });
   });
 
@@ -116,14 +124,14 @@ describe("useOnboardingProgress", () => {
       // Set all values
       state.setProfilePublished(true);
       state.setMenuPublished(true);
-      state.setDiscoveryPublished(true);
+      state.setDiscoveryPageUrl("https://synvya.com/restaurant/test/");
       state.setKeyBackedUp(true);
       state.setRestaurantName("Test Restaurant");
 
       // Verify they are set
       expect(useOnboardingProgress.getState().profilePublished).toBe(true);
       expect(useOnboardingProgress.getState().menuPublished).toBe(true);
-      expect(useOnboardingProgress.getState().discoveryPublished).toBe(true);
+      expect(useOnboardingProgress.getState().discoveryPageUrl).toBe("https://synvya.com/restaurant/test/");
       expect(useOnboardingProgress.getState().keyBackedUp).toBe(true);
       expect(useOnboardingProgress.getState().restaurantName).toBe("Test Restaurant");
 
@@ -133,7 +141,7 @@ describe("useOnboardingProgress", () => {
       // Verify all are reset
       expect(useOnboardingProgress.getState().profilePublished).toBe(false);
       expect(useOnboardingProgress.getState().menuPublished).toBe(false);
-      expect(useOnboardingProgress.getState().discoveryPublished).toBe(false);
+      expect(useOnboardingProgress.getState().discoveryPageUrl).toBeNull();
       expect(useOnboardingProgress.getState().keyBackedUp).toBe(false);
       expect(useOnboardingProgress.getState().restaurantName).toBeNull();
     });
@@ -146,12 +154,12 @@ describe("useOnboardingProgress", () => {
       state.setProfilePublished(true);
       expect(useOnboardingProgress.getState().profilePublished).toBe(true);
       expect(useOnboardingProgress.getState().menuPublished).toBe(false);
-      expect(useOnboardingProgress.getState().discoveryPublished).toBe(false);
+      expect(useOnboardingProgress.getState().discoveryPageUrl).toBeNull();
 
       state.setMenuPublished(true);
       expect(useOnboardingProgress.getState().profilePublished).toBe(true);
       expect(useOnboardingProgress.getState().menuPublished).toBe(true);
-      expect(useOnboardingProgress.getState().discoveryPublished).toBe(false);
+      expect(useOnboardingProgress.getState().discoveryPageUrl).toBeNull();
 
       state.setRestaurantName("Test");
       expect(useOnboardingProgress.getState().profilePublished).toBe(true);
@@ -170,12 +178,13 @@ describe("getOnboardingProgressSnapshot", () => {
     const state = useOnboardingProgress.getState();
     state.setProfilePublished(true);
     state.setRestaurantName("My Restaurant");
+    state.setDiscoveryPageUrl("https://synvya.com/restaurant/my-restaurant/");
 
     const snapshot = getOnboardingProgressSnapshot();
 
     expect(snapshot.profilePublished).toBe(true);
     expect(snapshot.menuPublished).toBe(false);
-    expect(snapshot.discoveryPublished).toBe(false);
+    expect(snapshot.discoveryPageUrl).toBe("https://synvya.com/restaurant/my-restaurant/");
     expect(snapshot.keyBackedUp).toBe(false);
     expect(snapshot.restaurantName).toBe("My Restaurant");
   });
@@ -186,7 +195,7 @@ describe("getOnboardingProgressSnapshot", () => {
     // Type check: snapshot should not have action functions
     expect(snapshot).not.toHaveProperty("setProfilePublished");
     expect(snapshot).not.toHaveProperty("setMenuPublished");
-    expect(snapshot).not.toHaveProperty("setDiscoveryPublished");
+    expect(snapshot).not.toHaveProperty("setDiscoveryPageUrl");
     expect(snapshot).not.toHaveProperty("setKeyBackedUp");
     expect(snapshot).not.toHaveProperty("setRestaurantName");
     expect(snapshot).not.toHaveProperty("reset");

@@ -56,9 +56,12 @@ export function SettingsPage(): JSX.Element {
   
   const profilePublished = useOnboardingProgress((state) => state.profilePublished);
   const menuPublished = useOnboardingProgress((state) => state.menuPublished);
-  const discoveryPublished = useOnboardingProgress((state) => state.discoveryPublished);
+  const discoveryPageUrl = useOnboardingProgress((state) => state.discoveryPageUrl);
   const keyBackedUp = useOnboardingProgress((state) => state.keyBackedUp);
   const setKeyBackedUp = useOnboardingProgress((state) => state.setKeyBackedUp);
+  
+  // Discovery is considered published when we have a URL
+  const discoveryPublished = discoveryPageUrl !== null;
   
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerSecret, setDrawerSecret] = useState<string | null>(null);
