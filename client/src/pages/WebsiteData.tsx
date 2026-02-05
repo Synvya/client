@@ -60,13 +60,13 @@ export function WebsiteDataPage(): JSX.Element {
     }
   }, [downloadStatus]);
 
-  // Auto-refresh on mount if we have auth and no schema
+  // Auto-refresh on mount to always show latest data
   useEffect(() => {
-    if (pubkey && relays.length && !schema && !refreshing) {
+    if (pubkey && relays.length && !refreshing) {
       handleRefresh();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pubkey, relays.length]); // Only run when auth/relays change
+  }, []); // Only run once on mount
 
   const handleCopy = async () => {
     if (!schema) return;
@@ -315,6 +315,14 @@ export function WebsiteDataPage(): JSX.Element {
           </p>
         </div>
 
+        {/* Loading State - Show while refreshing on page load */}
+        {refreshing && !schema && (
+          <div className="flex items-center justify-center gap-3 rounded-lg border bg-card p-8 shadow-sm">
+            <RefreshCw className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Loading your profile and menu data...</span>
+          </div>
+        )}
+
         {/* Success State - Show when published */}
         {publishedUrl && (
           <section className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-6">
@@ -369,6 +377,14 @@ export function WebsiteDataPage(): JSX.Element {
         {/* Outputs */}
         {schema ? (
           <div className="space-y-6">
+            {/* Updating indicator - subtle bar when refreshing with existing data */}
+            {refreshing && (
+              <div className="flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                <span>Updating...</span>
+              </div>
+            )}
+
             {/* Primary Action: Publish to Synvya.com */}
             {!publishedUrl && (
               <section className="space-y-4 rounded-lg border bg-card p-6 shadow-sm">
@@ -487,8 +503,8 @@ export function WebsiteDataPage(): JSX.Element {
               </button>
             </div>
           </div>
-        ) : (
-          /* Empty State */
+        ) : !refreshing ? (
+          /* Empty State - Only show when not refreshing */
           <div className="rounded-lg border bg-card p-12 text-center shadow-sm">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-muted">
               <Sparkles className="h-10 w-10 text-muted-foreground" />
@@ -515,7 +531,7 @@ export function WebsiteDataPage(): JSX.Element {
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
