@@ -35,6 +35,13 @@ Parameters:
     Type: String
     Default: "2025-01-23"
     Description: Square API version header.
+  GitHubTokenSecretArn:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing the GitHub PAT for website repo.
+  GitHubTokenSecretKey:
+    Type: String
+    Default: github-token
+    Description: Optional key within the secret JSON that stores the GitHub token.
 
 Globals:
   Function:
@@ -181,6 +188,30 @@ Resources:
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi
 
+  DiscoveryPublishFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: synvya-discovery-publish
+      CodeUri: lambda/
+      Handler: discovery.handler
+      Description: Publishes discovery pages to synvya.com via GitHub workflow.
+      Environment:
+        Variables:
+          CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+          GITHUB_TOKEN_SECRET_ARN: !Ref GitHubTokenSecretArn
+          GITHUB_TOKEN_SECRET_KEY: !Ref GitHubTokenSecretKey
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref GitHubTokenSecretArn
+      Events:
+        Publish:
+          Type: HttpApi
+          Properties:
+            Path: /discovery/publish
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+
 Outputs:
   ApiBaseUrl:
     Description: Base URL for the Synvya for Restaurants API.
@@ -188,3 +219,6 @@ Outputs:
   UploadProxyEndpoint:
     Description: API Gateway endpoint for the upload proxy.
     Value: !Sub "https://${UploadApi}.execute-api.${AWS::Region}.amazonaws.com/media/upload"
+  DiscoveryPublishEndpoint:
+    Description: API Gateway endpoint for publishing discovery pages.
+    Value: !Sub "https://${UploadApi}.execute-api.${AWS::Region}.amazonaws.com/discovery/publish"
