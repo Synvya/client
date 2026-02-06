@@ -902,17 +902,6 @@ export function BusinessProfileForm(): JSX.Element {
               {[...profile.about].length}/8,196 characters
             </p>
           </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="website">Website</Label>
-            <Input
-              id="website"
-              type="url"
-              placeholder="https://myshop.com"
-              value={profile.website}
-              onChange={(event) => updateField("website", event.target.value)}
-            />
-          </div>
         </div>
       </CollapsibleSection>
 
@@ -925,6 +914,17 @@ export function BusinessProfileForm(): JSX.Element {
         defaultOpen={!isLocationComplete}
       >
         <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="website">Website</Label>
+            <Input
+              id="website"
+              type="url"
+              placeholder="https://myshop.com"
+              value={profile.website}
+              onChange={(event) => updateField("website", event.target.value)}
+            />
+          </div>
+
           <p className="text-sm text-muted-foreground">
             AI assistants use your address to recommend you for "near me" searches.
           </p>
