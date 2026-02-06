@@ -49,6 +49,37 @@ function firstNonEmpty(...values: Array<string | undefined | null>): string {
   return "";
 }
 
+/**
+ * Computes a d-tag for a menu item row so that the same item in different
+ * menus/sections gets a distinct identifier (supporting one 30402 event per row).
+ */
+function computeItemDTag(
+  name: string,
+  menu: string,
+  section: string,
+  fallbackIndex: number
+): string {
+  const context = [section, menu].filter(Boolean).join("-");
+  const base = context
+    ? (slugify(name) && slugify(context) ? `${slugify(name)}-${slugify(context)}` : slugify(name))
+    : slugify(name);
+  return base || `item-${fallbackIndex + 1}`;
+}
+
+/** Ensures each d-tag is unique; duplicates get -2, -3, ... suffix. */
+function uniquifyDTags(baseDTags: string[]): string[] {
+  const used = new Set<string>();
+  return baseDTags.map((d) => {
+    let s = d;
+    let c = 1;
+    while (used.has(s)) {
+      s = `${d}-${++c}`;
+    }
+    used.add(s);
+    return s;
+  });
+}
+
 export async function parseMenuSpreadsheetXlsx(file: File): Promise<{
   menus: MenuRow[];
   items: MenuItemRow[];
@@ -107,19 +138,27 @@ export function buildSpreadsheetPreviewEvents(params: {
     titleByMenuName.set(name, description);
   }
 
-  // Build 30402 items first and keep a map name -> dTag for collection a-tags.
-  const itemEvents: SquareEventTemplate[] = [];
-  const dTagByItemName = new Map<string, string>();
+  const baseDTags = items.map((row, i) =>
+    computeItemDTag(
+      asString(row.Name),
+      asString((row as any)["Part of Menu"]),
+      asString((row as any)["Part of Menu Section"]),
+      i
+    )
+  );
+  const finalDTags = uniquifyDTags(baseDTags);
 
-  for (const row of items) {
+  // Build 30402 items first; each row gets its own d-tag for distinct events per menu/section.
+  const itemEvents: SquareEventTemplate[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const row = items[i];
     const name = asString(row.Name);
     if (!name) continue;
     const description = asString(row.Description);
     const content = `**${name}**\n\n${description}`.trim();
 
-    const dTag = slugify(name) || `item-${itemEvents.length + 1}`;
-    dTagByItemName.set(name, dTag);
-
+    const dTag = finalDTags[i];
     const tags: string[][] = [];
     tags.push(["d", dTag]);
     tags.push(["title", name]);
@@ -180,11 +219,11 @@ export function buildSpreadsheetPreviewEvents(params: {
 
   // Build membership map: collection name -> item dTags
   const collectionToProductDTags = new Map<string, string[]>();
-  for (const row of items) {
+  for (let i = 0; i < items.length; i++) {
+    const row = items[i];
     const name = asString(row.Name);
     if (!name) continue;
-    const dTag = dTagByItemName.get(name);
-    if (!dTag) continue;
+    const dTag = finalDTags[i];
 
     const menu = asString((row as any)["Part of Menu"]);
     const section = asString((row as any)["Part of Menu Section"]);
