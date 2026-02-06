@@ -629,7 +629,7 @@ export function MenuPage(): JSX.Element {
         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
           2
         </span>
-        <span className="font-medium text-foreground">Step 2 of 3:</span>
+        <span className="font-medium text-foreground">Step 2 of 2:</span>
         <span>Add Your Menu</span>
       </div>
 
@@ -669,33 +669,14 @@ export function MenuPage(): JSX.Element {
                 Your restaurant is now discoverable by AI assistants.
               </p>
               {discoveryPageUrl && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => window.open(discoveryPageUrl, "_blank")}
-                    variant="default"
-                    size="sm"
-                  >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    View Discovery Page
-                  </Button>
-                  <Button
-                    onClick={() => navigate("/app/settings")}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Go to Account
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-              {!discoveryPageUrl && (
                 <Button
-                  onClick={() => navigate("/app/settings")}
-                  className="mt-4"
+                  onClick={() => window.open(discoveryPageUrl, "_blank")}
                   variant="default"
+                  size="sm"
+                  className="mt-3"
                 >
-                  Go to Account
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View Discovery Page
                 </Button>
               )}
             </div>
