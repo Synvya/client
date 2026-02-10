@@ -801,13 +801,16 @@ export function MenuPage(): JSX.Element {
                 </p>
               </div>
             </div>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={handleChangeSource}
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className="shrink-0 gap-1.5"
             >
+              <RefreshCw className="h-3.5 w-3.5" />
               Change source
-            </button>
+            </Button>
           </header>
 
           {/* Workflow Step Indicator */}
@@ -1062,13 +1065,16 @@ export function MenuPage(): JSX.Element {
               >
                 Download template
               </a>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={handleChangeSource}
-                className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                className="shrink-0 gap-1.5"
               >
+                <RefreshCw className="h-3.5 w-3.5" />
                 Change source
-              </button>
+              </Button>
             </div>
           </header>
 
