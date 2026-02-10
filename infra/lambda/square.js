@@ -1768,38 +1768,43 @@ async function performSync(record, options) {
     });
   }
 
-  const expressionValues = {
-    ":sync": new Date().toISOString(),
-    ":count": toPublish.length,
-    ":fp": fingerprints,
-    ":u": new Date().toISOString(),
-    ":loc": catalog.locations
-  };
-  const removeExpressions = [];
-  let updateExpression =
-    "SET lastSyncAt = :sync, lastPublishCount = :count, publishedFingerprints = :fp, updatedAt = :u, locations = :loc";
-  if (profileLocation) {
-    updateExpression += ", profileLocation = :profileLocation";
-    expressionValues[":profileLocation"] = profileLocation;
-  } else if (locationChanged && existingLocation) {
-    removeExpressions.push("profileLocation");
+  const persistFingerprints = options?.persistFingerprints !== false;
+  if (persistFingerprints) {
+    const expressionValues = {
+      ":sync": new Date().toISOString(),
+      ":count": toPublish.length,
+      ":fp": fingerprints,
+      ":u": new Date().toISOString(),
+      ":loc": catalog.locations
+    };
+    const removeExpressions = [];
+    let updateExpression =
+      "SET lastSyncAt = :sync, lastPublishCount = :count, publishedFingerprints = :fp, updatedAt = :u, locations = :loc";
+    if (profileLocation) {
+      updateExpression += ", profileLocation = :profileLocation";
+      expressionValues[":profileLocation"] = profileLocation;
+    } else if (locationChanged && existingLocation) {
+      removeExpressions.push("profileLocation");
+    }
+    if (profileGeoHash) {
+      updateExpression += ", profileGeoHash = :profileGeoHash";
+      expressionValues[":profileGeoHash"] = profileGeoHash;
+    } else if ((locationChanged && existingGeoHash) || (!profileGeoHash && existingGeoHash && !profileLocation)) {
+      removeExpressions.push("profileGeoHash");
+    }
+    const finalExpression =
+      removeExpressions.length > 0 ? `${updateExpression} REMOVE ${removeExpressions.join(", ")}` : updateExpression;
+    await dynamo.send(
+      new UpdateCommand({
+        TableName: squareConnectionsTable,
+        Key: { [squarePrimaryKey]: extractPubkey(refreshed) },
+        UpdateExpression: finalExpression,
+        ExpressionAttributeValues: expressionValues
+      })
+    );
+  } else {
+    console.log("performSync: persistFingerprints=false, skipping DynamoDB fingerprint update (e.g. post-OAuth)");
   }
-  if (profileGeoHash) {
-    updateExpression += ", profileGeoHash = :profileGeoHash";
-    expressionValues[":profileGeoHash"] = profileGeoHash;
-  } else if ((locationChanged && existingGeoHash) || (!profileGeoHash && existingGeoHash && !profileLocation)) {
-    removeExpressions.push("profileGeoHash");
-  }
-  const finalExpression =
-    removeExpressions.length > 0 ? `${updateExpression} REMOVE ${removeExpressions.join(", ")}` : updateExpression;
-  await dynamo.send(
-    new UpdateCommand({
-      TableName: squareConnectionsTable,
-      Key: { [squarePrimaryKey]: extractPubkey(refreshed) },
-      UpdateExpression: finalExpression,
-      ExpressionAttributeValues: expressionValues
-    })
-  );
 
   return {
     totalEvents: events.length,
@@ -1930,7 +1935,7 @@ async function handleExchange(event, requestOrigin = null) {
     })
   );
 
-  const result = await performSync({ ...item, pubkey }, { profileLocation });
+  const result = await performSync({ ...item, pubkey }, { profileLocation, persistFingerprints: false });
 
   return jsonResponse(200, {
     connected: true,

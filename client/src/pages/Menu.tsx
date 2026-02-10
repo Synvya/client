@@ -115,6 +115,7 @@ export function MenuPage(): JSX.Element {
 
   const [selectedSource, setSelectedSource] = useState<MenuSource | null>(null);
   const [activeSource, setActiveSource] = useState<MenuSource | null>(null);
+  const [pendingAutoPreviewSquare, setPendingAutoPreviewSquare] = useState(false);
 
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [sheetNotice, setSheetNotice] = useState<string | null>(null);
@@ -211,10 +212,58 @@ export function MenuPage(): JSX.Element {
       setSquareNotice("Square connection completed.");
       setStatusVersion((value) => value + 1);
       setSelectedSource("square");
+      setPendingAutoPreviewSquare(true);
       const next = location.pathname;
       window.history.replaceState(null, "", next);
     }
   }, [location.pathname, location.search]);
+
+  // Auto-load catalog preview when returning from Square OAuth callback
+  useEffect(() => {
+    if (!pendingAutoPreviewSquare || !squareStatus?.connected || !pubkey || previewLoading) return;
+    setPendingAutoPreviewSquare(false);
+    setSquareError(null);
+    setPreviewLoading(true);
+    setPublishSuccess(false);
+    void (async () => {
+      try {
+        const profileLocation = await resolveProfileLocation(pubkey, relays, cachedProfileLocation);
+        if (profileLocation && profileLocation !== cachedProfileLocation) {
+          setCachedProfileLocation(profileLocation);
+        }
+        const effectiveLocation =
+          profileLocation ?? squareStatus?.profileLocation ?? cachedProfileLocation ?? null;
+        const result = await previewSquareCatalog({
+          pubkey,
+          profileLocation: effectiveLocation ?? undefined,
+        });
+        if (effectiveLocation && effectiveLocation !== cachedProfileLocation) {
+          setCachedProfileLocation(effectiveLocation);
+        }
+        setPreviewEvents(result.events);
+        setPreviewPendingCount(result.pendingCount);
+        setPreviewTotalEvents(result.totalEvents);
+        setPreviewDeletionCount(result.deletionCount || 0);
+        setPreviewOpen(true);
+        setPreviewViewed(true);
+        setActiveSource("square");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to preview catalog.";
+        setSquareError(message);
+      } finally {
+        setPreviewLoading(false);
+      }
+    })();
+  }, [
+    pendingAutoPreviewSquare,
+    squareStatus?.connected,
+    pubkey,
+    previewLoading,
+    relays,
+    cachedProfileLocation,
+    setCachedProfileLocation,
+    squareStatus?.profileLocation,
+  ]);
 
   const connectedAt = squareStatus?.connectedAt ?? null;
   const lastSyncAt = squareStatus?.lastSyncAt ?? null;

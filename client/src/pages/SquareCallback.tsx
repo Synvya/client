@@ -84,7 +84,7 @@ export function SquareCallbackPage(): JSX.Element {
         clearSquareState();
         setProcessing("completed");
         setTimeout(() => {
-          navigate("/app/settings?square=connected", { replace: true });
+          navigate("/app/menu?square=connected", { replace: true });
         }, 800);
       } catch (err) {
         clearSquareState();
