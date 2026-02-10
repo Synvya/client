@@ -11,6 +11,7 @@ import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping
 import { slugify } from "@/lib/siteExport/slug";
 import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
 import { publishDiscoveryPage } from "@/services/discovery";
+import { useWebsiteData } from "@/state/useWebsiteData";
 import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
 
@@ -159,7 +160,17 @@ export async function fetchAndPublishDiscovery(
     throw new Error("No profile found. Please publish your profile first.");
   }
 
-  return publishDiscoveryToSynvya(pubkey, data);
+  const result = await publishDiscoveryToSynvya(pubkey, data);
+
+  useWebsiteData.getState().updateSchema(
+    data.profile,
+    data.menuEvents,
+    data.geohash,
+    pubkey,
+    data.profileTags
+  );
+
+  return result;
 }
 
 /**

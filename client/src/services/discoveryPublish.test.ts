@@ -28,11 +28,18 @@ vi.mock("@/services/discovery", () => ({
   publishDiscoveryPage: vi.fn()
 }));
 
+vi.mock("@/state/useWebsiteData", () => ({
+  useWebsiteData: {
+    getState: vi.fn()
+  }
+}));
+
 import { getPool } from "@/lib/relayPool";
 import { parseKind0ProfileEvent } from "@/components/BusinessProfileForm";
 import { deduplicateEvents } from "@/lib/nostrEventProcessing";
 import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
 import { publishDiscoveryPage } from "@/services/discovery";
+import { useWebsiteData } from "@/state/useWebsiteData";
 
 describe("discoveryPublish", () => {
   const mockPubkey = "abc123pubkey";
@@ -264,10 +271,65 @@ describe("discoveryPublish", () => {
         "https://synvya.com/restaurant/testrestaurant/"
       );
 
+      const updateSchema = vi.fn();
+      vi.mocked(useWebsiteData.getState).mockReturnValue({ updateSchema } as any);
+
       const result = await fetchAndPublishDiscovery(mockPubkey, mockRelays);
 
       expect(result.url).toBe("https://synvya.com/restaurant/testrestaurant/");
       expect(result.profile.name).toBe("testrestaurant");
+      expect(updateSchema).toHaveBeenCalledTimes(1);
+      expect(updateSchema).toHaveBeenCalledWith(
+        mockProfile,
+        mockMenuEvents,
+        "c23nb",
+        mockPubkey,
+        mockProfileEvent.tags
+      );
+    });
+
+    it("does not call updateSchema when no profile exists", async () => {
+      const mockPool = {
+        get: vi.fn().mockResolvedValue(null),
+        querySync: vi.fn()
+      };
+      vi.mocked(getPool).mockReturnValue(mockPool as any);
+
+      const updateSchema = vi.fn();
+      vi.mocked(useWebsiteData.getState).mockReturnValue({ updateSchema } as any);
+
+      await expect(fetchAndPublishDiscovery(mockPubkey, mockRelays)).rejects.toThrow(
+        "No profile found. Please publish your profile first."
+      );
+
+      expect(updateSchema).not.toHaveBeenCalled();
+    });
+
+    it("does not call updateSchema when publish fails", async () => {
+      const mockPool = {
+        get: vi.fn().mockResolvedValue(mockProfileEvent),
+        querySync: vi.fn().mockResolvedValue(mockMenuEvents)
+      };
+      vi.mocked(getPool).mockReturnValue(mockPool as any);
+      vi.mocked(parseKind0ProfileEvent).mockReturnValue({
+        patch: mockProfile,
+        categories: []
+      });
+      vi.mocked(deduplicateEvents).mockReturnValue(mockMenuEvents);
+      vi.mocked(buildStaticSiteFiles).mockReturnValue({
+        html: "<html>Test</html>",
+        handle: "testrestaurant"
+      });
+      vi.mocked(publishDiscoveryPage).mockRejectedValue(new Error("Network error"));
+
+      const updateSchema = vi.fn();
+      vi.mocked(useWebsiteData.getState).mockReturnValue({ updateSchema } as any);
+
+      await expect(fetchAndPublishDiscovery(mockPubkey, mockRelays)).rejects.toThrow(
+        "Network error"
+      );
+
+      expect(updateSchema).not.toHaveBeenCalled();
     });
   });
 
