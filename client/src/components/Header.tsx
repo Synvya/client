@@ -70,7 +70,7 @@ export function Header(): JSX.Element {
               isComplete={menuPublished}
             />
             <NavLink
-              to="/app/analytics"
+              to="/app/dashboard"
               className={({ isActive }) =>
                 cn(
                   "transition-colors hover:text-primary",
@@ -78,7 +78,7 @@ export function Header(): JSX.Element {
                 )
               }
             >
-              Analytics
+              Dashboard
             </NavLink>
             {/* TODO: Re-enable when Reservations feature is ready */}
             {false && (
