@@ -137,10 +137,10 @@ export function AnalyticsPage(): JSX.Element {
       <div className="space-y-6">
         <div className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">
-            Bot Analytics
+            Analytics
           </h1>
           <p className="text-muted-foreground">
-            See which AI bots are visiting your discovery page.
+            AI Assistants visiting your Synvya discovery page.
           </p>
         </div>
 
@@ -153,8 +153,7 @@ export function AnalyticsPage(): JSX.Element {
         {!error && records.length === 0 && (
           <div className="rounded-lg border bg-card p-8 text-center shadow-sm">
             <p className="text-muted-foreground">
-              No bot visits recorded yet. Once AI bots crawl your discovery
-              page, their visits will appear here.
+              No AI searches recorded yet.
             </p>
           </div>
         )}
