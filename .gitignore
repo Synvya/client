@@ -6,6 +6,7 @@ client/.env.*
 # Internal files
 .cursorrules
 internal/*
+CLAUDE.md
 
 # Other files
 .DS_Store
