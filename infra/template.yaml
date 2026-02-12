@@ -207,7 +207,7 @@ Resources:
   BotAnalyticsFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: synvya-bot-analytics
+      FunctionName: synvya-bot-analytics-api
       CodeUri: lambda/
       Handler: analytics.handler
       Description: Serves bot analytics data for merchant discovery pages.
