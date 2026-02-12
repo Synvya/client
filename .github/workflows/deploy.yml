@@ -238,10 +238,10 @@ jobs:
         working-directory: ${{ github.workspace }}/infra/lambda
         run: |
           npm ci --production
-          zip -qr ../synvya-bot-analytics.zip \
+          zip -qr ../synvya-bot-analytics-api.zip \
             analytics.js package.json package-lock.json node_modules
 
-      - name: Deploy Bot Analytics Lambda function
+      - name: Deploy Bot Analytics API Lambda function
         if: steps.analytics-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}
         env:
@@ -249,5 +249,5 @@ jobs:
         run: |
           aws lambda update-function-code \
             --region "$AWS_REGION" \
-            --function-name synvya-bot-analytics \
-            --zip-file fileb://infra/synvya-bot-analytics.zip
+            --function-name synvya-bot-analytics-api \
+            --zip-file fileb://infra/synvya-bot-analytics-api.zip
