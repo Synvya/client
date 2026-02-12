@@ -188,6 +188,45 @@ Resources:
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi
 
+  BotAnalyticsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: synvya-bot-analytics
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: npub
+          AttributeType: S
+        - AttributeName: dateBotKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: npub
+          KeyType: HASH
+        - AttributeName: dateBotKey
+          KeyType: RANGE
+
+  BotAnalyticsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: synvya-bot-analytics
+      CodeUri: lambda/
+      Handler: analytics.handler
+      Description: Serves bot analytics data for merchant discovery pages.
+      Environment:
+        Variables:
+          CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+          BOT_ANALYTICS_TABLE: !Ref BotAnalyticsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BotAnalyticsTable
+      Events:
+        GetAnalytics:
+          Type: HttpApi
+          Properties:
+            Path: /analytics/{npub}
+            Method: GET
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+
   DiscoveryPublishFunction:
     Type: AWS::Serverless::Function
     Properties:
