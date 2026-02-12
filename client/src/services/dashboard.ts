@@ -42,7 +42,7 @@ export async function fetchBotAnalytics(
   npub: string
 ): Promise<BotAnalyticsRecord[]> {
   const base = getApiBaseUrl();
-  const response = await fetch(`${base}/analytics/${npub}`, {
+  const response = await fetch(`${base}/dashboard/${npub}`, {
     method: "GET",
     headers: {
       Accept: "application/json",

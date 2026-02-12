@@ -15,7 +15,7 @@ import { useAuth } from "@/state/useAuth";
 import {
   fetchBotAnalytics,
   type BotAnalyticsRecord,
-} from "@/services/analytics";
+} from "@/services/dashboard";
 
 /** Consistent colors for bot platforms */
 const BOT_COLORS = [

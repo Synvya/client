@@ -204,13 +204,13 @@ Resources:
         - AttributeName: dateBotKey
           KeyType: RANGE
 
-  BotAnalyticsFunction:
+  ClientDashboardFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: synvya-bot-analytics-api
+      FunctionName: synvya-client-dashboard-api
       CodeUri: lambda/
-      Handler: analytics.handler
-      Description: Serves bot analytics data for merchant discovery pages.
+      Handler: dashboard.handler
+      Description: Serves bot analytics data for the client dashboard.
       Environment:
         Variables:
           CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
@@ -219,10 +219,10 @@ Resources:
         - DynamoDBCrudPolicy:
             TableName: !Ref BotAnalyticsTable
       Events:
-        GetAnalytics:
+        GetDashboard:
           Type: HttpApi
           Properties:
-            Path: /analytics/{npub}
+            Path: /dashboard/{npub}
             Method: GET
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi

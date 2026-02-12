@@ -9,7 +9,7 @@ import { TestHarnessPage } from "@/pages/TestHarness";
 import { LandingPage } from "@/pages/Landing";
 import { SquareCallbackPage } from "@/pages/SquareCallback";
 import { MenuPage } from "@/pages/Menu";
-import { AnalyticsPage } from "@/pages/Analytics";
+import { AnalyticsPage } from "@/pages/Dashboard";
 
 function ProtectedApp(): JSX.Element {
   return (
@@ -35,7 +35,7 @@ export function App(): JSX.Element {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="menu" element={<MenuPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="dashboard" element={<AnalyticsPage />} />
         {/* WebsiteData page merged into Account - redirect for bookmarks */}
         <Route path="website" element={<Navigate to="/app/settings" replace />} />
         <Route path="website-data" element={<Navigate to="/app/settings" replace />} />

@@ -21,11 +21,11 @@ vi.mock("@aws-sdk/lib-dynamodb", () => ({
   }
 }));
 
-const { extractNpub, handler } = await import("./analytics.js");
+const { extractNpub, handler } = await import("./dashboard.js");
 
 describe("extractNpub", () => {
   it("should extract npub from valid path", () => {
-    expect(extractNpub("/analytics/npub1abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567ab")).toBeTruthy();
+    expect(extractNpub("/dashboard/npub1abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567ab")).toBeTruthy();
   });
 
   it("should return null for missing path", () => {
@@ -35,17 +35,17 @@ describe("extractNpub", () => {
   });
 
   it("should return null for path without npub segment", () => {
-    expect(extractNpub("/analytics/")).toBeNull();
+    expect(extractNpub("/dashboard/")).toBeNull();
     expect(extractNpub("/analytics")).toBeNull();
     expect(extractNpub("/other/path")).toBeNull();
   });
 
   it("should extract npub even with prefix path segments", () => {
-    expect(extractNpub("/api/analytics/npub1test")).toBe("npub1test");
+    expect(extractNpub("/api/dashboard/npub1test")).toBe("npub1test");
   });
 
   it("should not match paths with trailing segments", () => {
-    expect(extractNpub("/analytics/npub1test/extra")).toBeNull();
+    expect(extractNpub("/dashboard/npub1test/extra")).toBeNull();
   });
 });
 
@@ -79,7 +79,7 @@ describe("handler", () => {
 
   it("should return 405 for non-GET requests", async () => {
     const event = {
-      requestContext: { http: { method: "POST", path: `/analytics/${validNpub}` } },
+      requestContext: { http: { method: "POST", path: `/dashboard/${validNpub}` } },
       headers: {}
     };
 
@@ -91,7 +91,7 @@ describe("handler", () => {
 
   it("should return 400 for missing npub in path", async () => {
     const event = {
-      requestContext: { http: { method: "GET", path: "/analytics/" } },
+      requestContext: { http: { method: "GET", path: "/dashboard/" } },
       headers: {}
     };
 
@@ -103,7 +103,7 @@ describe("handler", () => {
 
   it("should return 400 for invalid npub format", async () => {
     const event = {
-      requestContext: { http: { method: "GET", path: "/analytics/not-an-npub" } },
+      requestContext: { http: { method: "GET", path: "/dashboard/not-an-npub" } },
       headers: {}
     };
 
@@ -122,7 +122,7 @@ describe("handler", () => {
     mockSend.mockResolvedValueOnce({ Items: items });
 
     const event = {
-      requestContext: { http: { method: "GET", path: `/analytics/${validNpub}` } },
+      requestContext: { http: { method: "GET", path: `/dashboard/${validNpub}` } },
       headers: {}
     };
 
@@ -139,7 +139,7 @@ describe("handler", () => {
     mockSend.mockResolvedValueOnce({ Items: [] });
 
     const event = {
-      requestContext: { http: { method: "GET", path: `/analytics/${validNpub}` } },
+      requestContext: { http: { method: "GET", path: `/dashboard/${validNpub}` } },
       headers: {}
     };
 
@@ -154,7 +154,7 @@ describe("handler", () => {
     mockSend.mockResolvedValueOnce({});
 
     const event = {
-      requestContext: { http: { method: "GET", path: `/analytics/${validNpub}` } },
+      requestContext: { http: { method: "GET", path: `/dashboard/${validNpub}` } },
       headers: {}
     };
 
@@ -169,7 +169,7 @@ describe("handler", () => {
     mockSend.mockRejectedValueOnce(new Error("DynamoDB connection failed"));
 
     const event = {
-      requestContext: { http: { method: "GET", path: `/analytics/${validNpub}` } },
+      requestContext: { http: { method: "GET", path: `/dashboard/${validNpub}` } },
       headers: {}
     };
 
@@ -184,7 +184,7 @@ describe("handler", () => {
     mockSend.mockResolvedValueOnce({ Items: [] });
 
     const event = {
-      requestContext: { http: { method: "GET", path: `/analytics/${validNpub}` } },
+      requestContext: { http: { method: "GET", path: `/dashboard/${validNpub}` } },
       headers: { origin: "https://account.synvya.com" }
     };
 
@@ -201,7 +201,7 @@ describe("handler", () => {
     mockSend.mockResolvedValueOnce({ Items: [] });
 
     const event = {
-      requestContext: { http: { method: "GET", path: `/analytics/${validNpub}` } },
+      requestContext: { http: { method: "GET", path: `/dashboard/${validNpub}` } },
       headers: {}
     };
 
@@ -217,7 +217,7 @@ describe("handler", () => {
 describe("handler - npub validation", () => {
   it("should reject npub that is too short", async () => {
     const event = {
-      requestContext: { http: { method: "GET", path: "/analytics/npub1short" } },
+      requestContext: { http: { method: "GET", path: "/dashboard/npub1short" } },
       headers: {}
     };
 
@@ -228,7 +228,7 @@ describe("handler - npub validation", () => {
 
   it("should reject npub with uppercase letters", async () => {
     const event = {
-      requestContext: { http: { method: "GET", path: "/analytics/npub1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQCMV7nu" } },
+      requestContext: { http: { method: "GET", path: "/dashboard/npub1QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQCMV7nu" } },
       headers: {}
     };
 
@@ -239,7 +239,7 @@ describe("handler - npub validation", () => {
 
   it("should reject npub without npub1 prefix", async () => {
     const event = {
-      requestContext: { http: { method: "GET", path: "/analytics/nsec1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqcmv7nu" } },
+      requestContext: { http: { method: "GET", path: "/dashboard/nsec1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqcmv7nu" } },
       headers: {}
     };
 

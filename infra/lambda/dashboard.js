@@ -62,7 +62,7 @@ function withErrorHandling(handler) {
 
 export function extractNpub(path) {
   if (!path || typeof path !== "string") return null;
-  const match = path.match(/\/analytics\/([^/]+)$/);
+  const match = path.match(/\/dashboard\/([^/]+)$/);
   return match ? match[1] : null;
 }
 
