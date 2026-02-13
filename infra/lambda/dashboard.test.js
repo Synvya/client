@@ -210,7 +210,7 @@ describe("handler", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
     const queryParams = mockSend.mock.calls[0][0];
     expect(queryParams.KeyConditionExpression).toBe("npub = :npub");
-    expect(queryParams.ExpressionAttributeValues[":npub"]).toBe(validNpub);
+    expect(queryParams.ExpressionAttributeValues[":npub"]).toBe(`nostr:${validNpub}`);
   });
 });
 

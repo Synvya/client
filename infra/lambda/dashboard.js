@@ -76,7 +76,7 @@ async function handleGetAnalytics(npub, requestOrigin = null) {
       TableName: analyticsTable,
       KeyConditionExpression: "npub = :npub",
       ExpressionAttributeValues: {
-        ":npub": npub
+        ":npub": `nostr:${npub}`
       }
     })
   );
