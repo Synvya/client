@@ -17,6 +17,23 @@ import {
   type BotAnalyticsRecord,
 } from "@/services/dashboard";
 
+/** Map raw bot identifiers to user-friendly display names */
+const BOT_DISPLAY_NAMES: Record<string, string> = {
+  GPTBot: "ChatGPT Bot",
+  "ChatGPT-User": "ChatGPT User",
+  Bingbot: "Bing Bot",
+  BraveBot: "Brave Bot",
+  PerplexityBot: "Perplexity AI Bot",
+  Googlebot: "Google Bot",
+  ClaudeBot: "Claude AI Bot",
+  "Anthropic-AI": "Claude User",
+  CCBot: "Common Bot",
+};
+
+function displayBotName(bot: string): string {
+  return BOT_DISPLAY_NAMES[bot] ?? bot;
+}
+
 /** Consistent colors for bot platforms */
 const BOT_COLORS = [
   "hsl(141.9, 69.8%, 45.5%)", // primary green
@@ -39,7 +56,8 @@ function aggregateByBot(
 ): { bot: string; visits: number }[] {
   const map = new Map<string, number>();
   for (const r of records) {
-    map.set(r.bot, (map.get(r.bot) ?? 0) + r.visitCount);
+    const name = displayBotName(r.bot);
+    map.set(name, (map.get(name) ?? 0) + r.visitCount);
   }
   return Array.from(map.entries())
     .map(([bot, visits]) => ({ bot, visits }))
@@ -54,12 +72,13 @@ function aggregateByDate(
   const dateMap = new Map<string, Map<string, number>>();
 
   for (const r of records) {
-    botsSet.add(r.bot);
+    const name = displayBotName(r.bot);
+    botsSet.add(name);
     if (!dateMap.has(r.date)) {
       dateMap.set(r.date, new Map());
     }
     const botMap = dateMap.get(r.date)!;
-    botMap.set(r.bot, (botMap.get(r.bot) ?? 0) + r.visitCount);
+    botMap.set(name, (botMap.get(name) ?? 0) + r.visitCount);
   }
 
   const bots = Array.from(botsSet).sort();
