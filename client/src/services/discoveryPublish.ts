@@ -20,6 +20,8 @@ export interface DiscoveryPublishResult {
   url: string;
   /** The profile data that was used */
   profile: BusinessProfile;
+  /** The generated HTML for instant preview */
+  html: string;
 }
 
 export interface FetchedDiscoveryData {
@@ -137,7 +139,8 @@ export async function publishDiscoveryToSynvya(
 
   return {
     url,
-    profile
+    profile,
+    html
   };
 }
 

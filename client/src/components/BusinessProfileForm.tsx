@@ -507,6 +507,7 @@ export function BusinessProfileForm(): JSX.Element {
   const [publishing, setPublishing] = useState(false);
   const [publishStep, setPublishStep] = useState<"uploading" | "nostr" | "synvya" | null>(null);
   const [synvyaError, setSynvyaError] = useState<string | null>(null);
+  const [lastPublishedHtml, setLastPublishedHtml] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<{ picture: File | null; banner: File | null }>({
     picture: null,
     banner: null
@@ -681,6 +682,7 @@ export function BusinessProfileForm(): JSX.Element {
       try {
         const discoveryResult = await fetchAndPublishDiscovery(pubkey!, relays);
         setDiscoveryPageUrl(discoveryResult.url);
+        setLastPublishedHtml(discoveryResult.html);
         setStatus({ type: "success", message: "Profile published and discovery page updated" });
       } catch (synvyaErr) {
         // Nostr publish succeeded, but Synvya.com failed
@@ -1254,7 +1256,21 @@ export function BusinessProfileForm(): JSX.Element {
                   Your restaurant is now discoverable by AI assistants.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {discoveryPageUrl && (
+                  {lastPublishedHtml && (
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        const blob = new Blob([lastPublishedHtml], { type: "text/html" });
+                        window.open(URL.createObjectURL(blob), "_blank");
+                      }}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Preview Discovery Page
+                    </Button>
+                  )}
+                  {discoveryPageUrl && !lastPublishedHtml && (
                     <Button
                       type="button"
                       onClick={() => window.open(discoveryPageUrl, "_blank")}

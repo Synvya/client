@@ -129,6 +129,7 @@ export function MenuPage(): JSX.Element {
   // Multi-step publish progress and Synvya.com error handling
   const [publishStep, setPublishStep] = useState<"nostr" | "synvya" | null>(null);
   const [synvyaError, setSynvyaError] = useState<string | null>(null);
+  const [lastPublishedHtml, setLastPublishedHtml] = useState<string | null>(null);
 
   // Compute current workflow step
   const currentStep: WorkflowStep = useMemo(() => {
@@ -437,6 +438,7 @@ export function MenuPage(): JSX.Element {
       try {
         const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays);
         setDiscoveryPageUrl(discoveryResult.url);
+        setLastPublishedHtml(discoveryResult.html);
         setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} and updated discovery page.`);
       } catch (synvyaErr) {
         // Nostr publish succeeded, but Synvya.com failed
@@ -532,6 +534,7 @@ export function MenuPage(): JSX.Element {
         try {
           const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays);
           setDiscoveryPageUrl(discoveryResult.url);
+          setLastPublishedHtml(discoveryResult.html);
           return { success: true, url: discoveryResult.url };
         } catch (synvyaErr) {
           console.error("Failed to publish to Synvya.com:", synvyaErr);
@@ -717,17 +720,31 @@ export function MenuPage(): JSX.Element {
               <p className="mt-1 text-sm text-emerald-600">
                 Your restaurant is now discoverable by AI assistants.
               </p>
-              {discoveryPageUrl && (
-                <Button
-                  onClick={() => window.open(discoveryPageUrl, "_blank")}
-                  variant="default"
-                  size="sm"
-                  className="mt-3"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  View Discovery Page
-                </Button>
-              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {lastPublishedHtml && (
+                  <Button
+                    onClick={() => {
+                      const blob = new Blob([lastPublishedHtml], { type: "text/html" });
+                      window.open(URL.createObjectURL(blob), "_blank");
+                    }}
+                    variant="default"
+                    size="sm"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Preview Discovery Page
+                  </Button>
+                )}
+                {discoveryPageUrl && !lastPublishedHtml && (
+                  <Button
+                    onClick={() => window.open(discoveryPageUrl, "_blank")}
+                    variant="default"
+                    size="sm"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    View Discovery Page
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </section>
