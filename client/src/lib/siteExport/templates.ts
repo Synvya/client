@@ -7,6 +7,7 @@ import { menuSlugFromMenuName, slugify } from "./slug";
 type MenuItemLink = {
   name: string;
   slug: string;
+  dTag: string;
   description?: string;
   dietaryBadges: string[];
   contains: string[];
@@ -139,7 +140,8 @@ export function buildExportSiteModel(params: {
         items:
           sec.hasMenuItem?.map((mi) => ({
             name: mi.name,
-            slug: `${slugify(mi.name)}.html`,
+            slug: mi["@id"] ? `items/${mi["@id"]}.html` : `${slugify(mi.name)}.html`,
+            dTag: mi["@id"] || slugify(mi.name),
             description: mi.description,
             dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map((u) => u.split("/").pop() || u) : [],
             contains: [],
@@ -152,7 +154,8 @@ export function buildExportSiteModel(params: {
     const directItems =
       menu.hasMenuItem?.map((mi) => ({
         name: mi.name,
-        slug: `${slugify(mi.name)}.html`,
+        slug: mi["@id"] ? `items/${mi["@id"]}.html` : `${slugify(mi.name)}.html`,
+        dTag: mi["@id"] || slugify(mi.name),
         description: mi.description,
         dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map((u) => u.split("/").pop() || u) : [],
         contains: [],
@@ -273,7 +276,6 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
 
   // Generate anchor slugs (without .html extension)
   const menuAnchorSlug = (menuName: string) => `menu-${slugify(menuName)}`;
-  const itemAnchorSlug = (itemName: string) => `item-${slugify(itemName)}`;
 
   // Render all menus with all items inline
   const menusHtml = model.menus
@@ -285,7 +287,7 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
         .map((sec) => {
           const itemsHtml = sec.items
             .map((item) => {
-              const itemAnchor = itemAnchorSlug(item.name);
+              const itemAnchor = `item-${item.dTag}`;
               const badges = item.dietaryBadges.length
                 ? `<div class="itemBadges">${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
                 : "";
@@ -296,7 +298,8 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
                 ? `<div class="itemCardPrice">$${escapeHtml(item.price.amount)}</div>`
                 : "";
 
-              return `<div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
+              return `<a href="items/${item.dTag}.html" style="text-decoration:none;color:inherit">
+              <div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
                 ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.name)}" class="itemCardImage" />` : ""}
                 <div class="itemCardContent">
                   <div class="itemCardRow">
@@ -309,7 +312,8 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
                     ${priceHtml}
                   </div>
                 </div>
-              </div>`;
+              </div>
+              </a>`;
             })
             .join("\n");
 
@@ -321,7 +325,7 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
       const directItemsHtml = menu.directItems.length
         ? `<h3 style="margin-top:32px;margin-bottom:16px;font-size:20px;color:#374151">Items</h3>\n${menu.directItems
             .map((item) => {
-              const itemAnchor = itemAnchorSlug(item.name);
+              const itemAnchor = `item-${item.dTag}`;
               const badges = item.dietaryBadges.length
                 ? `<div class="itemBadges">${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
                 : "";
@@ -332,7 +336,8 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
                 ? `<div class="itemCardPrice">$${escapeHtml(item.price.amount)}</div>`
                 : "";
 
-              return `<div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
+              return `<a href="items/${item.dTag}.html" style="text-decoration:none;color:inherit">
+              <div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
                 ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.name)}" class="itemCardImage" />` : ""}
                 <div class="itemCardContent">
                   <div class="itemCardRow">
@@ -345,7 +350,8 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
                     ${priceHtml}
                   </div>
                 </div>
-              </div>`;
+              </div>
+              </a>`;
             })
             .join("\n")}`
         : "";

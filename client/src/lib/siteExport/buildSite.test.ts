@@ -66,7 +66,7 @@ describe("siteExport buildSite", () => {
 
     // Check anchor navigation
     expect(html).toContain('id="menu-dinner-menu"');
-    expect(html).toContain('id="item-bacalao-al-pil-pil"');
+    expect(html).toContain('id="item-sq-c9ab1636203e078f"');
     expect(html).toContain('href="#menu-dinner-menu"');
   });
 

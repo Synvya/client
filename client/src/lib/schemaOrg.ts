@@ -40,6 +40,7 @@ interface SchemaOrgOffer extends SchemaOrgThing {
   "@type": "Offer";
   price: string;
   priceCurrency: string;
+  availability?: string;
 }
 
 interface SchemaOrgEntryPoint extends SchemaOrgThing {
@@ -70,6 +71,8 @@ interface SchemaOrgMenuItem extends SchemaOrgThing {
   suitableForDiet?: string[];
   ingredients?: string[];
   image?: string;
+  category?: string;
+  breadcrumb?: SchemaOrgThing;
 }
 
 interface SchemaOrgMenuSection extends SchemaOrgThing {
@@ -101,6 +104,8 @@ interface SchemaOrgFoodEstablishment extends SchemaOrgThing {
   telephone?: string;
   email?: string;
   url?: string;
+  brand?: SchemaOrgThing;
+  areaServed?: string;
   servesCuisine?: string;
   keywords?: string;
   priceRange?: string;
@@ -227,8 +232,8 @@ function menuUrlForTitle(baseUrl: string, menuTitle: string): string {
   return `${baseUrl}/${menuSlugFromMenuName(menuTitle)}.html`;
 }
 
-function menuItemUrlForTitle(baseUrl: string, itemTitle: string): string {
-  return `${baseUrl}/${slugify(itemTitle)}.html`;
+function menuItemUrlForDTag(baseUrl: string, dTag: string): string {
+  return `${baseUrl}/items/${dTag}.html`;
 }
 
 // ============================================================================
@@ -447,9 +452,19 @@ export function buildFoodEstablishmentSchema(
     schema.email = email;
   }
 
-  if (profile.website) {
-    schema.url = profile.website;
-  }
+  // Canonical URL: always use synvya.com discovery page
+  const typeSlug = mapBusinessTypeToEstablishmentSlug(businessType);
+  const nameSlug = slugify(profile.name || profile.displayName || "business");
+  schema.url = `https://synvya.com/${typeSlug}/${nameSlug}/`;
+
+  // Brand
+  schema.brand = {
+    "@type": "Brand",
+    "name": profile.displayName || profile.name
+  };
+
+  // Area served (ISO 3166-1 alpha-2 country code)
+  schema.areaServed = addressData.country || "US";
 
   // Cuisine - extract from tags or use profile
   let cuisine: string | undefined;
@@ -798,6 +813,51 @@ export function buildMenuSchema(
     menus.push(fallbackMenu);
   }
 
+  // Step 6: Enrich items with category and breadcrumb
+  for (const menu of menus) {
+    const menuName = menu.name;
+
+    // Items in sections
+    if (menu.hasMenuSection) {
+      for (const section of menu.hasMenuSection) {
+        const sectionName = section.name;
+        if (section.hasMenuItem) {
+          for (const item of section.hasMenuItem) {
+            item.category = `${menuName} > ${sectionName}`;
+            if (baseUrl) {
+              item.breadcrumb = {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                  { "@type": "ListItem", "position": 1, "name": merchantName, "item": `${baseUrl}/` },
+                  { "@type": "ListItem", "position": 2, "name": menuName, "item": `${baseUrl}/#menu-${slugify(menuName)}` },
+                  { "@type": "ListItem", "position": 3, "name": sectionName, "item": `${baseUrl}/#section-${slugify(sectionName)}` },
+                  { "@type": "ListItem", "position": 4, "name": item.name }
+                ]
+              };
+            }
+          }
+        }
+      }
+    }
+
+    // Direct items (not in sections)
+    if (menu.hasMenuItem) {
+      for (const item of menu.hasMenuItem) {
+        item.category = menuName;
+        if (baseUrl) {
+          item.breadcrumb = {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              { "@type": "ListItem", "position": 1, "name": merchantName, "item": `${baseUrl}/` },
+              { "@type": "ListItem", "position": 2, "name": menuName, "item": `${baseUrl}/#menu-${slugify(menuName)}` },
+              { "@type": "ListItem", "position": 3, "name": item.name }
+            ]
+          };
+        }
+      }
+    }
+  }
+
   return menus;
 }
 
@@ -835,7 +895,8 @@ function buildMenuItem(
     menuItem.offers = {
       "@type": "Offer",
       "price": priceTag,
-      "priceCurrency": currencyTag
+      "priceCurrency": currencyTag,
+      "availability": "https://schema.org/InStock"
     };
   }
   // If no price tag, don't include offers property at all
@@ -863,8 +924,8 @@ function buildMenuItem(
       }
     }
   }
-  if (opts.baseUrl) {
-    menuItem.url = menuItemUrlForTitle(opts.baseUrl, titleTag);
+  if (opts.baseUrl && dTag) {
+    menuItem.url = menuItemUrlForDTag(opts.baseUrl, dTag);
   }
 
   return menuItem;

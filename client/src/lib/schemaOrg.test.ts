@@ -33,7 +33,9 @@ describe("schemaOrg", () => {
       expect(schema.description).toBe("A great place to eat");
       expect(schema.telephone).toBe("tel:2065551234");
       expect(schema.email).toBe("mailto:info@test.com");
-      expect(schema.url).toBe("https://test.com");
+      expect(schema.url).toBe("https://synvya.com/restaurant/testrestaurant/");
+      expect(schema.brand).toEqual({ "@type": "Brand", "name": "Test Restaurant" });
+      expect(schema.areaServed).toBe("US");
       expect(schema.image).toBe("https://example.com/banner.jpg");
       expect(schema.logo).toBe("https://example.com/pic.jpg");
       expect(schema.address).toEqual({
@@ -290,7 +292,8 @@ describe("schemaOrg", () => {
       expect(menus[0].hasMenuItem![0].offers).toEqual({
         "@type": "Offer",
         "price": "14.99",
-        "priceCurrency": "USD"
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
       });
     });
 

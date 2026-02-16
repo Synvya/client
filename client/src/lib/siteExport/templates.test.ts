@@ -98,11 +98,15 @@ describe("templates", () => {
       expect(html).toContain("Fresh salad");
       expect(html).toContain("$12");
 
-      // Check anchor links
+      // Check anchor links (use d-tag for item IDs)
       expect(html).toContain('id="menu-dinner-menu"');
-      expect(html).toContain('id="item-spaghetti-carbonara"');
-      expect(html).toContain('id="item-caesar-salad"');
+      expect(html).toContain('id="item-sq-123"');
+      expect(html).toContain('id="item-sq-456"');
       expect(html).toContain('href="#menu-dinner-menu"');
+
+      // Check item links to dedicated pages
+      expect(html).toContain('href="items/sq-123.html"');
+      expect(html).toContain('href="items/sq-456.html"');
 
       // Check schema is included
       expect(html).toContain("application/ld+json");
