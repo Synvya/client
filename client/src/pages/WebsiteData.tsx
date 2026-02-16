@@ -35,6 +35,7 @@ export function WebsiteDataPage(): JSX.Element {
   const [publishing, setPublishing] = useState(false);
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [lastPublishedHtml, setLastPublishedHtml] = useState<string | null>(null);
 
   // Reset copied state after 2 seconds
   useEffect(() => {
@@ -253,6 +254,7 @@ export function WebsiteDataPage(): JSX.Element {
         nameSlug,
       });
 
+      setLastPublishedHtml(html);
       const url = await publishDiscoveryPage(typeSlug, nameSlug, html);
       setPublishedUrl(url);
       setDiscoveryPageUrl(url);
@@ -343,13 +345,26 @@ export function WebsiteDataPage(): JSX.Element {
                   </a>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {lastPublishedHtml && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => {
+                        const blob = new Blob([lastPublishedHtml], { type: "text/html" });
+                        window.open(URL.createObjectURL(blob), "_blank");
+                      }}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Preview
+                    </Button>
+                  )}
                   <Button
-                    variant="default"
+                    variant="outline"
                     size="sm"
                     onClick={() => window.open(publishedUrl, "_blank")}
                   >
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    View Page
+                    <Globe className="mr-2 h-4 w-4" />
+                    View Live Page
                   </Button>
                   <Button
                     variant="outline"
@@ -369,6 +384,9 @@ export function WebsiteDataPage(): JSX.Element {
                     {publishing ? "Updating…" : "Update"}
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Preview shows your page instantly. The live page may take up to a minute to update.
+                </p>
               </div>
             </div>
           </section>
