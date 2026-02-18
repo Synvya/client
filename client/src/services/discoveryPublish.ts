@@ -45,7 +45,8 @@ export interface FetchedDiscoveryData {
  */
 export async function fetchDiscoveryData(
   pubkey: string,
-  relays: string[]
+  relays: string[],
+  localMenuEvents?: SquareEventTemplate[]
 ): Promise<FetchedDiscoveryData | null> {
   if (!pubkey || !relays.length) {
     throw new Error("Missing pubkey or relays");
@@ -100,9 +101,16 @@ export async function fetchDiscoveryData(
   // Deduplicate events
   const menuEvents = deduplicateEvents(allMenuEvents, pubkey);
 
+  // If relay returned no menu events but we have local events (just published),
+  // use them to avoid the relay propagation race condition
+  const effectiveMenuEvents =
+    menuEvents.length === 0 && localMenuEvents && localMenuEvents.length > 0
+      ? localMenuEvents
+      : menuEvents;
+
   return {
     profile,
-    menuEvents: menuEvents.length > 0 ? menuEvents : null,
+    menuEvents: effectiveMenuEvents.length > 0 ? effectiveMenuEvents : null,
     geohash: geohashTag || null,
     profileTags: (profileEvent.tags as string[][]) || []
   };
@@ -155,9 +163,10 @@ export async function publishDiscoveryToSynvya(
  */
 export async function fetchAndPublishDiscovery(
   pubkey: string,
-  relays: string[]
+  relays: string[],
+  localMenuEvents?: SquareEventTemplate[]
 ): Promise<DiscoveryPublishResult> {
-  const data = await fetchDiscoveryData(pubkey, relays);
+  const data = await fetchDiscoveryData(pubkey, relays, localMenuEvents);
 
   if (!data) {
     throw new Error("No profile found. Please publish your profile first.");

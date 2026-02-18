@@ -3,8 +3,10 @@
  * @version 1.0.0
  */
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const secretsClient = new SecretsManagerClient({});
+const s3Client = new S3Client({});
 
 const GITHUB_REPO_OWNER = "Synvya";
 const GITHUB_REPO_NAME = "website";
@@ -90,9 +92,23 @@ function buildCorsHeaders(originOverride) {
 }
 
 /**
+ * Uploads the HTML file directly to the website S3 bucket.
+ */
+async function uploadHtmlToS3(bucket, typeSlug, nameSlug, html) {
+  const key = `${typeSlug}/${nameSlug}/index.html`;
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: key,
+    Body: html,
+    ContentType: "text/html"
+  });
+  await s3Client.send(command);
+}
+
+/**
  * Triggers the publish-discovery workflow in the website repo.
  */
-async function triggerWorkflow(token, typeSlug, nameSlug, htmlBase64) {
+async function triggerWorkflow(token, typeSlug, nameSlug) {
   const url = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/actions/workflows/${GITHUB_WORKFLOW_FILE}/dispatches`;
 
   const response = await fetch(url, {
@@ -107,8 +123,7 @@ async function triggerWorkflow(token, typeSlug, nameSlug, htmlBase64) {
       ref: "main",
       inputs: {
         type_slug: typeSlug,
-        name_slug: nameSlug,
-        html_content: htmlBase64
+        name_slug: nameSlug
       }
     })
   });
@@ -208,14 +223,18 @@ export const handler = async (event) => {
   }
 
   try {
+    // Upload HTML directly to the website S3 bucket
+    const bucket = process.env.WEBSITE_S3_BUCKET;
+    if (!bucket) {
+      throw new Error("WEBSITE_S3_BUCKET environment variable is not set");
+    }
+    await uploadHtmlToS3(bucket, typeSlug, nameSlug, html);
+
     // Get GitHub token from Secrets Manager
     const token = await getGitHubToken();
 
-    // Base64 encode the HTML for workflow dispatch input
-    const htmlBase64 = Buffer.from(html).toString("base64");
-
-    // Trigger the workflow
-    await triggerWorkflow(token, typeSlug, nameSlug, htmlBase64);
+    // Trigger the workflow (HTML is already on S3)
+    await triggerWorkflow(token, typeSlug, nameSlug);
 
     // Return success response with the published URL
     const publishedUrl = `https://synvya.com/${typeSlug}/${nameSlug}/`;
@@ -242,4 +261,4 @@ export const handler = async (event) => {
 };
 
 // Export for testing
-export { isValidSlug, buildCorsHeaders, getGitHubToken, triggerWorkflow };
+export { isValidSlug, buildCorsHeaders, getGitHubToken, uploadHtmlToS3, triggerWorkflow };

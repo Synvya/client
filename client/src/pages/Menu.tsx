@@ -417,6 +417,8 @@ export function MenuPage(): JSX.Element {
         ...sheetPreviewEvents.filter((e) => e.kind === 30402),
         ...sheetPreviewEvents.filter((e) => e.kind === 30405),
       ];
+      // Save events before clearing state (needed for discovery publish fallback)
+      const publishedMenuEvents = [...ordered];
       for (const template of ordered) {
         const signed = await signEvent(template as any);
         validateEvent(signed);
@@ -436,7 +438,7 @@ export function MenuPage(): JSX.Element {
       // Step 2: Publish discovery page to Synvya.com
       setPublishStep("synvya");
       try {
-        const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays);
+        const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays, publishedMenuEvents);
         setDiscoveryPageUrl(discoveryResult.url);
         setLastPublishedHtml(discoveryResult.html);
         setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} and updated discovery page.`);
@@ -528,11 +530,14 @@ export function MenuPage(): JSX.Element {
         setCachedProfileLocation(effectiveLocation);
       }
 
+      // Collect menu events for discovery publish fallback (exclude deletion events)
+      const squareMenuEvents = events.filter((e) => e.kind === 30402 || e.kind === 30405);
+
       // Helper to publish discovery page after successful Nostr publish
       const publishDiscovery = async (): Promise<{ success: boolean; url?: string; error?: string }> => {
         setPublishStep("synvya");
         try {
-          const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays);
+          const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays, squareMenuEvents);
           setDiscoveryPageUrl(discoveryResult.url);
           setLastPublishedHtml(discoveryResult.html);
           return { success: true, url: discoveryResult.url };

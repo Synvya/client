@@ -158,6 +158,47 @@ describe("discoveryPublish", () => {
       expect(result?.menuEvents).toBeNull();
     });
 
+    it("uses localMenuEvents when relay returns empty", async () => {
+      const localEvents = [
+        { kind: 30402, tags: [["d", "pizza"]], content: "", created_at: 1700000000 },
+        { kind: 30405, tags: [["d", "dinner"]], content: "", created_at: 1700000001 }
+      ];
+      const mockPool = {
+        get: vi.fn().mockResolvedValue(mockProfileEvent),
+        querySync: vi.fn().mockResolvedValue([])
+      };
+      vi.mocked(getPool).mockReturnValue(mockPool as any);
+      vi.mocked(parseKind0ProfileEvent).mockReturnValue({
+        patch: mockProfile,
+        categories: []
+      });
+      vi.mocked(deduplicateEvents).mockReturnValue([]);
+
+      const result = await fetchDiscoveryData(mockPubkey, mockRelays, localEvents as any);
+
+      expect(result?.menuEvents).toEqual(localEvents);
+    });
+
+    it("uses relay events when both relay and local events exist", async () => {
+      const localEvents = [
+        { kind: 30402, tags: [["d", "pizza"]], content: "", created_at: 1700000000 }
+      ];
+      const mockPool = {
+        get: vi.fn().mockResolvedValue(mockProfileEvent),
+        querySync: vi.fn().mockResolvedValue(mockMenuEvents)
+      };
+      vi.mocked(getPool).mockReturnValue(mockPool as any);
+      vi.mocked(parseKind0ProfileEvent).mockReturnValue({
+        patch: mockProfile,
+        categories: []
+      });
+      vi.mocked(deduplicateEvents).mockReturnValue(mockMenuEvents);
+
+      const result = await fetchDiscoveryData(mockPubkey, mockRelays, localEvents as any);
+
+      expect(result?.menuEvents).toEqual(mockMenuEvents);
+    });
+
     it("returns null geohash when profile has no g tag", async () => {
       const profileWithoutGeohash = {
         ...mockProfileEvent,

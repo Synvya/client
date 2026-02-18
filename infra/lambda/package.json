@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.906.0",
+    "@aws-sdk/client-s3": "^3.906.0",
     "@aws-sdk/client-secrets-manager": "^3.906.0",
     "@aws-sdk/lib-dynamodb": "^3.906.0",
     "ngeohash": "^0.6.3",

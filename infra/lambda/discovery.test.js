@@ -5,6 +5,32 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { isValidSlug, buildCorsHeaders, handler } from "./discovery.js";
 
+// Mock S3 client
+vi.mock("@aws-sdk/client-s3", () => {
+  const mockSend = vi.fn().mockResolvedValue({});
+  return {
+    S3Client: vi.fn(() => ({ send: mockSend })),
+    PutObjectCommand: vi.fn((params) => ({ ...params, _type: "PutObjectCommand" })),
+    __mockSend: mockSend
+  };
+});
+
+// Mock Secrets Manager
+vi.mock("@aws-sdk/client-secrets-manager", () => {
+  const mockSend = vi.fn().mockResolvedValue({
+    SecretString: JSON.stringify({ "github-token": "test-github-token" })
+  });
+  return {
+    SecretsManagerClient: vi.fn(() => ({ send: mockSend })),
+    GetSecretValueCommand: vi.fn(),
+    __mockSend: mockSend
+  };
+});
+
+// Mock global fetch for GitHub API calls
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
+
 describe("isValidSlug", () => {
   it("should accept valid slugs", () => {
     expect(isValidSlug("restaurant")).toBe(true);
@@ -81,7 +107,7 @@ describe("buildCorsHeaders", () => {
 
 describe("handler", () => {
   const originalEnv = process.env;
-  
+
   beforeEach(() => {
     process.env = { ...originalEnv };
     vi.resetAllMocks();
@@ -243,8 +269,8 @@ describe("handler", () => {
     expect(JSON.parse(response.body).error).toBe("Missing required fields: typeSlug, nameSlug, html");
   });
 
-  it("should return 500 when GITHUB_TOKEN_SECRET_ARN is not set", async () => {
-    delete process.env.GITHUB_TOKEN_SECRET_ARN;
+  it("should return 500 when WEBSITE_S3_BUCKET is not set", async () => {
+    delete process.env.WEBSITE_S3_BUCKET;
 
     const event = {
       requestContext: { http: { method: "POST" } },
@@ -261,9 +287,90 @@ describe("handler", () => {
     expect(response.statusCode).toBe(500);
     expect(JSON.parse(response.body).error).toBe("Failed to publish discovery page");
   });
+
+  it("should upload HTML to S3 and trigger workflow on success", async () => {
+    process.env.WEBSITE_S3_BUCKET = "test-website-bucket";
+    process.env.GITHUB_TOKEN_SECRET_ARN = "arn:aws:secretsmanager:us-east-1:123:secret:test";
+
+    const { __mockSend: mockS3Send } = await import("@aws-sdk/client-s3");
+    const { __mockSend: mockSecretsSend } = await import("@aws-sdk/client-secrets-manager");
+    mockS3Send.mockResolvedValue({});
+    mockSecretsSend.mockResolvedValue({
+      SecretString: JSON.stringify({ "github-token": "test-github-token" })
+    });
+    mockFetch.mockResolvedValue({ ok: true, status: 204 });
+
+    const event = {
+      requestContext: { http: { method: "POST" } },
+      headers: {},
+      body: JSON.stringify({
+        typeSlug: "restaurant",
+        nameSlug: "test-restaurant",
+        html: "<html><body>Test</body></html>"
+      })
+    };
+
+    const response = await handler(event);
+
+    expect(response.statusCode).toBe(200);
+    const body = JSON.parse(response.body);
+    expect(body.published).toBe(true);
+    expect(body.url).toBe("https://synvya.com/restaurant/test-restaurant/");
+
+    // Verify S3 upload was called
+    expect(mockS3Send).toHaveBeenCalled();
+
+    // Verify workflow was triggered without html_content
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const fetchCall = mockFetch.mock.calls[0];
+    const fetchBody = JSON.parse(fetchCall[1].body);
+    expect(fetchBody.inputs).toEqual({
+      type_slug: "restaurant",
+      name_slug: "test-restaurant"
+    });
+    expect(fetchBody.inputs.html_content).toBeUndefined();
+  });
+
+  it("should return 500 when S3 upload fails", async () => {
+    process.env.WEBSITE_S3_BUCKET = "test-website-bucket";
+    process.env.GITHUB_TOKEN_SECRET_ARN = "arn:aws:secretsmanager:us-east-1:123:secret:test";
+
+    const { __mockSend: mockS3Send } = await import("@aws-sdk/client-s3");
+    mockS3Send.mockRejectedValue(new Error("S3 access denied"));
+
+    const event = {
+      requestContext: { http: { method: "POST" } },
+      headers: {},
+      body: JSON.stringify({
+        typeSlug: "restaurant",
+        nameSlug: "test",
+        html: "<html><body>Test</body></html>"
+      })
+    };
+
+    const response = await handler(event);
+
+    expect(response.statusCode).toBe(500);
+    expect(JSON.parse(response.body).error).toBe("Failed to publish discovery page");
+    // Workflow should not have been triggered
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
 });
 
 describe("handler - input validation edge cases", () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    // Don't set WEBSITE_S3_BUCKET so these fail at S3 check, not validation
+    delete process.env.WEBSITE_S3_BUCKET;
+    vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
   it("should accept slug with numbers", async () => {
     const event = {
       requestContext: { http: { method: "POST" } },
@@ -275,9 +382,9 @@ describe("handler - input validation edge cases", () => {
       })
     };
 
-    // Will fail at GitHub token fetch, but should pass validation
+    // Will fail at S3 bucket check, but should pass validation
     const response = await handler(event);
-    expect(response.statusCode).toBe(500); // Fails at token fetch, not validation
+    expect(response.statusCode).toBe(500); // Fails at S3 bucket, not validation
   });
 
   it("should accept slug with hyphens", async () => {
@@ -292,7 +399,7 @@ describe("handler - input validation edge cases", () => {
     };
 
     const response = await handler(event);
-    expect(response.statusCode).toBe(500); // Fails at token fetch, not validation
+    expect(response.statusCode).toBe(500); // Fails at S3 bucket, not validation
   });
 
   it("should accept slug with underscores", async () => {
@@ -307,6 +414,25 @@ describe("handler - input validation edge cases", () => {
     };
 
     const response = await handler(event);
-    expect(response.statusCode).toBe(500); // Fails at token fetch, not validation
+    expect(response.statusCode).toBe(500); // Fails at S3 bucket, not validation
+  });
+});
+
+describe("uploadHtmlToS3", () => {
+  it("should upload HTML with correct key and content type", async () => {
+    const { uploadHtmlToS3 } = await import("./discovery.js");
+    const { PutObjectCommand, __mockSend: mockS3Send } = await import("@aws-sdk/client-s3");
+
+    mockS3Send.mockResolvedValue({});
+
+    await uploadHtmlToS3("my-bucket", "restaurant", "el-candado", "<html>hello</html>");
+
+    expect(PutObjectCommand).toHaveBeenCalledWith({
+      Bucket: "my-bucket",
+      Key: "restaurant/el-candado/index.html",
+      Body: "<html>hello</html>",
+      ContentType: "text/html"
+    });
+    expect(mockS3Send).toHaveBeenCalled();
   });
 });
