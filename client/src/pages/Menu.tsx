@@ -163,7 +163,9 @@ export function MenuPage(): JSX.Element {
         if (!status.connected) {
           setSquareNotice(null);
           setPreviewViewed(false);
-          setPreviewEvents(null);
+          if (activeSource !== "spreadsheet") {
+            setPreviewEvents(null);
+          }
           if (activeSource === "square") {
             setActiveSource(null);
           }
@@ -177,7 +179,9 @@ export function MenuPage(): JSX.Element {
         setSquareError(message);
         setSquareStatus(null);
         setPreviewViewed(false);
-        setPreviewEvents(null);
+        if (activeSource !== "spreadsheet") {
+          setPreviewEvents(null);
+        }
         if (activeSource === "square") {
           setActiveSource(null);
         }
