@@ -2,14 +2,14 @@ import * as XLSX from "xlsx";
 import type { SquareEventTemplate } from "@/services/square";
 import { slugify } from "@/lib/siteExport/slug";
 
-type MenuRow = {
+export type MenuRow = {
   Name?: string;
   Description?: string;
   "Menu Type"?: string;
   "Parent Menu"?: string;
 };
 
-type MenuItemRow = {
+export type MenuItemRow = {
   Name?: string;
   Description?: string;
   Price?: number | string;
@@ -162,6 +162,7 @@ export function buildSpreadsheetPreviewEvents(params: {
     const tags: string[][] = [];
     tags.push(["d", dTag]);
     tags.push(["title", name]);
+    tags.push(["simple", "physical"]);
 
     const priceRaw = (row as any).Price;
     const currency = firstNonEmpty(asString((row as any).Currency), "USD");

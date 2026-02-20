@@ -42,6 +42,9 @@ Parameters:
     Type: String
     Default: github-token
     Description: Optional key within the secret JSON that stores the GitHub token.
+  MenuImportSecretArn:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing Anthropic and OpenAI API keys for PDF menu import.
 
 Globals:
   Function:
@@ -247,6 +250,49 @@ Resources:
           Type: HttpApi
           Properties:
             Path: /discovery/publish
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+
+  MenuImportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: synvya-menu-import
+      CodeUri: lambda/
+      Handler: menuimport.handler
+      Timeout: 30
+      MemorySize: 512
+      Description: Handles PDF menu extraction, description enrichment, and image generation.
+      Environment:
+        Variables:
+          CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+          MENU_IMPORT_SECRET_ARN: !Ref MenuImportSecretArn
+          UPLOAD_SECRET_ARN: !Ref UploadSecretArn
+          UPLOAD_SECRET_KEY: !Ref UploadSecretKey
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref MenuImportSecretArn
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref UploadSecretArn
+      Events:
+        Extract:
+          Type: HttpApi
+          Properties:
+            Path: /menu-import/extract
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+        Enrich:
+          Type: HttpApi
+          Properties:
+            Path: /menu-import/enrich
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+        GenerateImage:
+          Type: HttpApi
+          Properties:
+            Path: /menu-import/generate-image
             Method: POST
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi

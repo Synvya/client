@@ -708,7 +708,8 @@ ${item.description || ""}`.trim();
         ? variation.sku.trim()
         : slug(item.id, variation.id);
       tags.push(["d", dTag]);
-      
+      tags.push(["simple", "physical"]);
+
       // title: use item.name directly (no variation suffix)
       tags.push(["title", item.name]);
 

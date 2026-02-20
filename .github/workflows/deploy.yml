@@ -20,6 +20,7 @@ jobs:
       VITE_SQUARE_ENV: ${{ secrets.VITE_SQUARE_ENV }}
       VITE_SQUARE_APPLICATION_ID: ${{ secrets.VITE_SQUARE_APPLICATION_ID }}
       VITE_SQUARE_REDIRECT_URI: ${{ secrets.VITE_SQUARE_REDIRECT_URI }}
+      VITE_MENU_IMPORT_URL: ${{ secrets.VITE_MENU_IMPORT_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -51,7 +52,7 @@ jobs:
 
       - name: Sync build to S3
         working-directory: client
-        run: aws s3 sync dist/ s3://client2-synvya-com --delete
+        run: aws s3 sync dist/ s3://client2-synvya-com --delete --exclude "menu-images/*"
 
       - name: Invalidate CloudFront cache
         env:
@@ -157,6 +158,25 @@ jobs:
             fi
           fi
 
+      - name: Check for menuimport.js changes
+        id: menuimport-changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Check if the before commit exists
+          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/menuimport.js" | grep -q "^infra/lambda/menuimport.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/menuimport.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Package Square Lambda function
         if: steps.square-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}/infra/lambda
@@ -251,3 +271,22 @@ jobs:
             --region "$AWS_REGION" \
             --function-name synvya-client-dashboard-api \
             --zip-file fileb://infra/synvya-client-dashboard-api.zip
+
+      - name: Package Menu Import Lambda function
+        if: steps.menuimport-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}/infra/lambda
+        run: |
+          npm ci --production
+          zip -qr ../synvya-menu-import.zip \
+            menuimport.js package.json package-lock.json node_modules
+
+      - name: Deploy Menu Import Lambda function
+        if: steps.menuimport-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws lambda update-function-code \
+            --region "$AWS_REGION" \
+            --function-name synvya-menu-import \
+            --zip-file fileb://infra/synvya-menu-import.zip
