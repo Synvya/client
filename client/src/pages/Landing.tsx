@@ -120,7 +120,7 @@ export function LandingPage(): JSX.Element {
   const showSpinner = status === "loading" || status === "idle";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4 py-8">
+    <div className="flex min-h-screen flex-col items-center bg-muted/40 px-4 py-8">
       <div className="w-full max-w-4xl space-y-8 rounded-3xl border bg-card px-8 py-12 shadow-sm">
         <div className="space-y-4 text-center">
           <div className="flex justify-center">
@@ -313,6 +313,99 @@ export function LandingPage(): JSX.Element {
       </div>
       <TermsOfServiceDialog open={termsDialogOpen} onOpenChange={setTermsDialogOpen} />
       <PrivacyPolicyDialog open={privacyDialogOpen} onOpenChange={setPrivacyDialogOpen} />
+
+      {/* SEO content sections — visible to crawlers and users scrolling below the fold */}
+      <div className="w-full max-w-4xl space-y-12 mt-12">
+
+        {/* Why AI Discovery */}
+        <section className="space-y-3 text-center">
+          <h2 className="text-2xl font-bold tracking-tight">Why AI Discovery Matters for Restaurants</h2>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Diners are changing how they find restaurants. Instead of scrolling through crowded directory apps, millions now ask AI assistants like ChatGPT, Claude, and Perplexity for personalized recommendations. If your restaurant isn't visible to these AI tools, you're missing out on a growing source of customers.
+          </p>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Synvya bridges that gap. We help restaurant owners publish their profile, menu, and key details in an AI-friendly format so that when someone asks "Where can I get great tacos near me?" or "Find a vegan restaurant in Seattle," your restaurant can be the answer.
+          </p>
+        </section>
+
+        {/* How It Works */}
+        <section className="space-y-6">
+          <h2 className="text-2xl font-bold tracking-tight text-center">How It Works</h2>
+          <div className="grid gap-6 sm:grid-cols-3">
+            <div className="rounded-xl border bg-card p-6 text-center space-y-2">
+              <div className="text-3xl font-bold text-primary">1</div>
+              <h3 className="font-semibold">Create Your Profile</h3>
+              <p className="text-sm text-muted-foreground">
+                Set up your restaurant's identity in minutes. Add your name, location, cuisine type, hours, and contact details. No technical knowledge required.
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-6 text-center space-y-2">
+              <div className="text-3xl font-bold text-primary">2</div>
+              <h3 className="font-semibold">Import Your Menu</h3>
+              <p className="text-sm text-muted-foreground">
+                Upload your menu from Square, a spreadsheet, a PDF, or even a photo. Our AI extracts every item, price, and description automatically.
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-6 text-center space-y-2">
+              <div className="text-3xl font-bold text-primary">3</div>
+              <h3 className="font-semibold">Get Discovered</h3>
+              <p className="text-sm text-muted-foreground">
+                Your restaurant becomes visible to AI assistants. When diners ask for recommendations, your profile and menu are ready to be surfaced.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* What You Get */}
+        <section className="space-y-4">
+          <h2 className="text-2xl font-bold tracking-tight text-center">What You Get</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border bg-card p-5 space-y-1">
+              <h3 className="font-semibold">AI-Optimized Presence</h3>
+              <p className="text-sm text-muted-foreground">
+                Your restaurant info and full menu are published in a format that AI assistants like ChatGPT, Claude, and Perplexity can read and recommend.
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-5 space-y-1">
+              <h3 className="font-semibold">Multiple Import Options</h3>
+              <p className="text-sm text-muted-foreground">
+                Connect your Square POS for automatic sync, upload a spreadsheet, or simply take a photo of your paper menu. We handle the rest.
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-5 space-y-1">
+              <h3 className="font-semibold">Live Sync Across Platforms</h3>
+              <p className="text-sm text-muted-foreground">
+                Changes to your menu are published instantly. Update a price, add a seasonal dish, or remove a sold-out item and AI assistants see it right away.
+              </p>
+            </div>
+            <div className="rounded-xl border bg-card p-5 space-y-1">
+              <h3 className="font-semibold">Your Data, Your Control</h3>
+              <p className="text-sm text-muted-foreground">
+                No middlemen, no lock-in. You own your restaurant's data and can update or remove it at any time. Built on open protocols so you're never dependent on a single platform.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing */}
+        <section className="space-y-3 text-center">
+          <h2 className="text-2xl font-bold tracking-tight">Simple, Transparent Pricing</h2>
+          <p className="text-muted-foreground">
+            AI Discovery for <strong className="text-foreground">$19.99/month</strong>. Start with a free two-week trial, cancel anytime.
+          </p>
+          <p className="text-sm text-muted-foreground max-w-xl mx-auto">
+            No setup fees, no long-term contracts. Get your restaurant in front of AI-powered diners for less than the cost of a single food delivery commission.
+          </p>
+        </section>
+
+        {/* Footer */}
+        <footer className="border-t pt-6 pb-4 text-center text-xs text-muted-foreground space-y-1">
+          <p>&copy; {new Date().getFullYear()} Synvya. All rights reserved.</p>
+          <p>
+            <a href="https://synvya.com" className="underline underline-offset-2 hover:text-foreground">synvya.com</a>
+          </p>
+        </footer>
+      </div>
     </div>
   );
 }
