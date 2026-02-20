@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { PublicationPreview } from "@/components/PublicationPreview";
-import { Store, FileSpreadsheet, ArrowRight, Check, RefreshCw, AlertCircle, Loader2, Mail, ExternalLink } from "lucide-react";
+import { MenuManagerView, type MenuItemPatch } from "@/components/MenuManagerView";
+import { Store, FileSpreadsheet, FileText, ArrowLeft, ArrowRight, Check, RefreshCw, AlertCircle, Loader2, Mail, ExternalLink, Sparkles, ImageIcon } from "lucide-react";
 import { buildSquareAuthorizeUrl } from "@/lib/square/auth";
 import {
   fetchSquareStatus,
@@ -24,8 +25,13 @@ import sampleSpreadsheetUrl from "@/assets/Sample Menu Importer.xlsx?url";
 import { buildSpreadsheetPreviewEvents, parseMenuSpreadsheetXlsx } from "@/lib/spreadsheet/menuSpreadsheet";
 import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
 import { cn } from "@/lib/utils";
+import type { PdfImportState, PdfReviewItem, PdfExtractedMenu } from "@/lib/menuImport/types";
+import { pdfStateToSpreadsheetRows } from "@/lib/menuImport/pdfToMenuData";
+import { extractPdfMenu, enrichMenuDescriptions, generateMenuItemImage } from "@/services/menuImport";
+import { pdfToImages } from "@/lib/menuImport/pdfToImages";
+import { fetchLiveMenuData, type LiveMenuData, type LiveMenuItem } from "@/lib/menu/menuFetch";
 
-type MenuSource = "square" | "spreadsheet";
+type MenuSource = "square" | "spreadsheet" | "pdf";
 type WorkflowStep = 1 | 2 | 3;
 
 interface WorkflowStepIndicatorProps {
@@ -36,8 +42,8 @@ interface WorkflowStepIndicatorProps {
 function WorkflowStepIndicator({ currentStep, source }: WorkflowStepIndicatorProps): JSX.Element {
   const steps = [
     { step: 1, label: source === "square" ? "Connect" : "Upload" },
-    { step: 2, label: "Review Menu" },
-    { step: 3, label: "Publish" },
+    { step: 2, label: source === "pdf" ? "Review & Publish" : "Review Menu" },
+    ...(source !== "pdf" ? [{ step: 3, label: "Publish" }] : []),
   ];
 
   return (
@@ -113,6 +119,12 @@ export function MenuPage(): JSX.Element {
   const [unpublishBusy, setUnpublishBusy] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
 
+  // Menu Manager state
+  const [pageMode, setPageMode] = useState<"manager" | "import">("manager");
+  const [managerLoading, setManagerLoading] = useState(false);
+  const [managerError, setManagerError] = useState<string | null>(null);
+  const [managerData, setManagerData] = useState<LiveMenuData | null>(null);
+
   const [selectedSource, setSelectedSource] = useState<MenuSource | null>(null);
   const [activeSource, setActiveSource] = useState<MenuSource | null>(null);
   const [pendingAutoPreviewSquare, setPendingAutoPreviewSquare] = useState(false);
@@ -125,6 +137,21 @@ export function MenuPage(): JSX.Element {
   const [sheetPreviewEvents, setSheetPreviewEvents] = useState<SquareEventTemplate[] | null>(null);
   const [sheetPreviewLoading, setSheetPreviewLoading] = useState(false);
   const [sheetPublishBusy, setSheetPublishBusy] = useState(false);
+
+  // PDF import state
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const [pdfExtracting, setPdfExtracting] = useState(false);
+  const [pdfImportState, setPdfImportState] = useState<PdfImportState | null>(null);
+  const [pdfPreviewViewed, setPdfPreviewViewed] = useState(false);
+  const [pdfPreviewEvents, setPdfPreviewEvents] = useState<SquareEventTemplate[] | null>(null);
+  const [pdfPreviewLoading, setPdfPreviewLoading] = useState(false);
+  const [pdfPublishBusy, setPdfPublishBusy] = useState(false);
+  const [pdfEnriching, setPdfEnriching] = useState(false);
+  const [pdfImageGenProgress, setPdfImageGenProgress] = useState<{ current: number; total: number } | null>(null);
+  const [pdfLightboxUrl, setPdfLightboxUrl] = useState<string | null>(null);
+  const [pdfLightboxName, setPdfLightboxName] = useState<string>("");
 
   // Multi-step publish progress and Synvya.com error handling
   const [publishStep, setPublishStep] = useState<"nostr" | "synvya" | null>(null);
@@ -143,8 +170,12 @@ export function MenuPage(): JSX.Element {
       if (!sheetPreviewViewed) return 2;
       return 3;
     }
+    if (selectedSource === "pdf") {
+      if (!pdfImportState) return 1;
+      return 2;
+    }
     return 1;
-  }, [selectedSource, squareStatus?.connected, previewViewed, sheetParsed, sheetPreviewViewed]);
+  }, [selectedSource, squareStatus?.connected, previewViewed, sheetParsed, sheetPreviewViewed, pdfImportState, pdfPreviewViewed]);
 
   useEffect(() => {
     if (!pubkey) {
@@ -218,6 +249,7 @@ export function MenuPage(): JSX.Element {
       setStatusVersion((value) => value + 1);
       setSelectedSource("square");
       setPendingAutoPreviewSquare(true);
+      setPageMode("import");
       const next = location.pathname;
       window.history.replaceState(null, "", next);
     }
@@ -453,11 +485,269 @@ export function MenuPage(): JSX.Element {
         setSynvyaError(errorMessage);
         setSheetNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} (discovery page update failed).`);
       }
+      void refreshManagerData();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish spreadsheet menu.";
       setSheetError(message);
     } finally {
       setSheetPublishBusy(false);
+      setPublishStep(null);
+    }
+  };
+
+  const fileToBase64Image = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        resolve(dataUrl.split(",")[1]);
+      };
+      reader.onerror = () => reject(new Error("Failed to read image file."));
+      reader.readAsDataURL(file);
+    });
+
+  const handlePdfUpload = async (file: File) => {
+    if (!pubkey) return;
+    setPdfError(null);
+    setPdfNotice(null);
+    setPdfPreviewViewed(false);
+    setPdfPreviewEvents(null);
+    setPdfFileName(file.name);
+    setPdfExtracting(true);
+    setPublishSuccess(false);
+    try {
+      const isImage = file.type.startsWith("image/");
+      const pageImages = isImage
+        ? [await fileToBase64Image(file)]
+        : await pdfToImages(file);
+      const result = await extractPdfMenu(pageImages, "");
+
+      const reviewItems: PdfReviewItem[] = result.items.map((item) => ({
+        ...item,
+        imageGenEnabled: false,
+        imageGenStatus: "idle" as const,
+      }));
+
+      setPdfImportState({
+        fileName: file.name,
+        menus: result.menus,
+        items: reviewItems,
+      });
+      setPdfNotice(`Extracted ${result.items.length} item${result.items.length === 1 ? "" : "s"} from ${file.name}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to extract menu.";
+      setPdfError(message);
+      setPdfImportState(null);
+    } finally {
+      setPdfExtracting(false);
+    }
+  };
+
+  const handlePdfEnrich = async () => {
+    if (!pdfImportState) return;
+    setPdfError(null);
+    setPdfEnriching(true);
+    try {
+      const result = await enrichMenuDescriptions(
+        pdfImportState.items.map((i) => ({
+          name: i.name,
+          description: i.description,
+          ingredients: i.ingredients,
+        })),
+        { name: "", cuisine: "", about: "" },
+      );
+
+      const enrichMap = new Map(result.items.map((i) => [i.name, i.enrichedDescription]));
+      setPdfImportState((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((item) => ({
+            ...item,
+            enrichedDescription: enrichMap.get(item.name) || item.enrichedDescription,
+          })),
+        };
+      });
+      setPdfNotice("Descriptions enriched successfully.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to enrich descriptions.";
+      setPdfError(message);
+    } finally {
+      setPdfEnriching(false);
+    }
+  };
+
+  const handlePdfGenerateImages = async () => {
+    if (!pdfImportState) return;
+    setPdfError(null);
+
+    // Generate images for all items that don't already have one
+    const enabledItems = pdfImportState.items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => item.imageGenStatus !== "done");
+
+    if (!enabledItems.length) {
+      setPdfNotice("All items already have generated images.");
+      return;
+    }
+
+    setPdfImageGenProgress({ current: 0, total: enabledItems.length });
+
+    for (let i = 0; i < enabledItems.length; i++) {
+      const { item, index } = enabledItems[i];
+      setPdfImageGenProgress({ current: i + 1, total: enabledItems.length });
+
+      // Mark as generating
+      setPdfImportState((prev) => {
+        if (!prev) return prev;
+        const items = [...prev.items];
+        items[index] = { ...items[index], imageGenStatus: "generating" };
+        return { ...prev, items };
+      });
+
+      try {
+        const result = await generateMenuItemImage({
+          itemName: item.name,
+          imageDescription: item.imageDescription,
+          cuisineContext: "",
+        });
+
+        setPdfImportState((prev) => {
+          if (!prev) return prev;
+          const items = [...prev.items];
+          items[index] = { ...items[index], generatedImageUrl: result.url, imageGenStatus: "done" };
+          return { ...prev, items };
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Image generation failed";
+        setPdfImportState((prev) => {
+          if (!prev) return prev;
+          const items = [...prev.items];
+          items[index] = { ...items[index], imageGenStatus: "error", imageGenError: message };
+          return { ...prev, items };
+        });
+      }
+    }
+
+    setPdfImageGenProgress(null);
+    setPdfNotice("Image generation complete.");
+  };
+
+  const handlePdfRegenerateImage = async (index: number) => {
+    if (!pdfImportState) return;
+    const item = pdfImportState.items[index];
+    if (!item) return;
+
+    setPdfImportState((prev) => {
+      if (!prev) return prev;
+      const items = [...prev.items];
+      items[index] = { ...items[index], imageGenStatus: "generating", imageGenError: undefined };
+      return { ...prev, items };
+    });
+
+    try {
+      const result = await generateMenuItemImage({
+        itemName: item.name,
+        imageDescription: item.imageDescription,
+        cuisineContext: "",
+      });
+      setPdfImportState((prev) => {
+        if (!prev) return prev;
+        const items = [...prev.items];
+        items[index] = { ...items[index], generatedImageUrl: result.url, imageGenStatus: "done" };
+        return { ...prev, items };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Image generation failed";
+      setPdfImportState((prev) => {
+        if (!prev) return prev;
+        const items = [...prev.items];
+        items[index] = { ...items[index], imageGenStatus: "error", imageGenError: message };
+        return { ...prev, items };
+      });
+    }
+  };
+
+  const handlePreviewPdf = () => {
+    if (!pubkey || !pdfImportState) return;
+    setPdfError(null);
+    setPdfPreviewLoading(true);
+    try {
+      const { menus, items } = pdfStateToSpreadsheetRows(pdfImportState);
+      const events = buildSpreadsheetPreviewEvents({
+        merchantPubkey: pubkey,
+        menus,
+        items,
+      });
+      setPdfPreviewEvents(events);
+      setPreviewEvents(events);
+      setPreviewPendingCount(events.length);
+      setPreviewTotalEvents(events.length);
+      setPreviewDeletionCount(0);
+      setPreviewOpen(true);
+      setPdfPreviewViewed(true);
+      setPreviewViewed(true);
+      setActiveSource("pdf");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to build preview from PDF data.";
+      setPdfError(message);
+    } finally {
+      setPdfPreviewLoading(false);
+    }
+  };
+
+  const handlePublishPdf = async () => {
+    if (!pubkey) return;
+    if (!pdfPreviewEvents || pdfPreviewEvents.length === 0) {
+      setPdfError("No preview events. Please preview before publishing.");
+      return;
+    }
+    setPdfError(null);
+    setPdfNotice(null);
+    setSynvyaError(null);
+    setPdfPublishBusy(true);
+    try {
+      setPublishStep("nostr");
+      const publishedIds: string[] = [];
+      const ordered = [
+        ...pdfPreviewEvents.filter((e) => e.kind === 30402),
+        ...pdfPreviewEvents.filter((e) => e.kind === 30405),
+      ];
+      const publishedMenuEvents = [...ordered];
+      for (const template of ordered) {
+        const signed = await signEvent(template as any);
+        validateEvent(signed);
+        await publishToRelays(signed, relays);
+        publishedIds.push(signed.id);
+      }
+      setPdfPreviewViewed(false);
+      setPreviewViewed(false);
+      setPdfPreviewEvents(null);
+      setPreviewEvents(null);
+      setPublishSuccess(true);
+      setMenuPublished(true);
+      if (activeSource === "pdf") {
+        setActiveSource(null);
+      }
+
+      setPublishStep("synvya");
+      try {
+        const discoveryResult = await fetchAndPublishDiscovery(pubkey, relays, publishedMenuEvents);
+        setDiscoveryPageUrl(discoveryResult.url);
+        setLastPublishedHtml(discoveryResult.html);
+        setPdfNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} and updated discovery page.`);
+      } catch (synvyaErr) {
+        console.error("Failed to publish to Synvya.com:", synvyaErr);
+        const errorMessage = synvyaErr instanceof Error ? synvyaErr.message : "Failed to publish discovery page";
+        setSynvyaError(errorMessage);
+        setPdfNotice(`Published ${publishedIds.length} event${publishedIds.length === 1 ? "" : "s"} (discovery page update failed).`);
+      }
+      void refreshManagerData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to publish PDF menu.";
+      setPdfError(message);
+    } finally {
+      setPdfPublishBusy(false);
       setPublishStep(null);
     }
   };
@@ -503,6 +793,7 @@ export function MenuPage(): JSX.Element {
       setPreviewEvents(null);
       setActiveSource(null);
       setPublishSuccess(false);
+      await refreshManagerData();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to unpublish menu.";
       setSquareError(message);
@@ -664,6 +955,7 @@ export function MenuPage(): JSX.Element {
           setSquareNotice("No listings required publishing (discovery page update failed).");
         }
       }
+      void refreshManagerData();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to publish catalog to Nostr.";
       setSquareError(message);
@@ -673,6 +965,107 @@ export function MenuPage(): JSX.Element {
     }
   };
 
+  // --- Menu Manager handlers ---
+
+  const refreshManagerData = useCallback(async () => {
+    if (!pubkey) return;
+    setManagerLoading(true);
+    setManagerError(null);
+    try {
+      const data = await fetchLiveMenuData(pubkey, relays);
+      setManagerData(data);
+      setMenuPublished(data.items.length > 0);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load menu from relays.";
+      setManagerError(message);
+    } finally {
+      setManagerLoading(false);
+    }
+  }, [pubkey, relays]);
+
+  // Auto-refresh manager on mount when pubkey is available
+  useEffect(() => {
+    if (pubkey && pageMode === "manager") {
+      void refreshManagerData();
+    }
+  }, [pubkey, pageMode, refreshManagerData]);
+
+  const handleDeleteItems = async (addresses: string[]) => {
+    if (!pubkey) return;
+
+    // Send kind 5 deletion request (relays may or may not honor it)
+    const deletionEvent = buildDeletionEventByAddress(addresses, [30402], "removing menu items");
+    const signed = await signEvent(deletionEvent);
+    validateEvent(signed);
+    await publishToRelays(signed, relays);
+
+    // Republish each item with ["visibility", "<hidden"] so our software ignores it
+    if (managerData) {
+      const addressSet = new Set(addresses);
+      const itemsToHide = managerData.items.filter((item) =>
+        addressSet.has(`30402:${pubkey}:${item.dTag}`)
+      );
+      for (const item of itemsToHide) {
+        const hiddenTags = [
+          ...item.event.tags.filter((t) => t[0] !== "visibility"),
+          ["visibility", "hidden"],
+        ];
+        const hiddenEvent = {
+          kind: 30402 as const,
+          created_at: Math.floor(Date.now() / 1000),
+          content: item.event.content,
+          tags: hiddenTags,
+        };
+        const signedHidden = await signEvent(hiddenEvent as any);
+        validateEvent(signedHidden);
+        await publishToRelays(signedHidden, relays);
+      }
+    }
+
+    await refreshManagerData();
+  };
+
+  const handleEditItem = async (item: LiveMenuItem, patch: MenuItemPatch) => {
+    if (!pubkey) return;
+
+    // Rebuild the 30402 event preserving existing tags except title, price, image
+    const existingTags = item.event.tags.filter(
+      (t) => t[0] !== "title" && t[0] !== "price" && t[0] !== "image"
+    );
+
+    const newTags = [...existingTags];
+    const title = patch.title ?? item.title;
+    const price = patch.price ?? item.price;
+    const currency = patch.currency ?? item.currency;
+    const imageUrl = patch.imageUrl ?? item.imageUrl;
+    const description = patch.description ?? item.description;
+
+    newTags.push(["title", title]);
+    if (!newTags.some((t) => t[0] === "simple")) {
+      newTags.push(["simple", "physical"]);
+    }
+    if (price) {
+      newTags.push(["price", price, currency]);
+    }
+    if (imageUrl) {
+      newTags.push(["image", imageUrl]);
+    }
+
+    const content = `**${title}**\n\n${description}`.trim();
+
+    const template = {
+      kind: 30402 as const,
+      created_at: Math.floor(Date.now() / 1000),
+      content,
+      tags: newTags,
+    };
+
+    const signed = await signEvent(template as any);
+    validateEvent(signed);
+    await publishToRelays(signed, relays);
+    await refreshManagerData();
+  };
+
   const handleChangeSource = () => {
     setSelectedSource(null);
     setActiveSource(null);
@@ -680,20 +1073,16 @@ export function MenuPage(): JSX.Element {
     setSheetPreviewViewed(false);
     setPreviewEvents(null);
     setSheetPreviewEvents(null);
+    setPdfPreviewViewed(false);
+    setPdfPreviewEvents(null);
+    setPdfImportState(null);
+    setPdfError(null);
+    setPdfNotice(null);
     setPublishSuccess(false);
   };
 
   return (
     <div className="container space-y-6 py-10">
-      {/* Progress Indicator */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
-          2
-        </span>
-        <span className="font-medium text-foreground">Step 2 of 2:</span>
-        <span>Add Your Menu</span>
-      </div>
-
       {/* Profile-first guard - Show when profile is not published */}
       {!profilePublished && (
         <section className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-6">
@@ -717,6 +1106,44 @@ export function MenuPage(): JSX.Element {
         </section>
       )}
 
+      {/* Menu Manager View (default mode) */}
+      {profilePublished && pageMode === "manager" && (
+        <MenuManagerView
+          pubkey={pubkey ?? ""}
+          relays={relays}
+          loading={managerLoading}
+          error={managerError}
+          menuData={managerData}
+          onRefresh={() => void refreshManagerData()}
+          onImport={() => {
+            setPageMode("import");
+            setPublishSuccess(false);
+            handleChangeSource();
+          }}
+          onDeleteItems={handleDeleteItems}
+          onEditItem={handleEditItem}
+          onUnpublishAll={handleUnpublishMenu}
+        />
+      )}
+
+      {/* Import mode content */}
+      {profilePublished && pageMode === "import" && (
+        <>
+      {/* Back to Manager button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => {
+          setPageMode("manager");
+          setPublishSuccess(false);
+          handleChangeSource();
+          void refreshManagerData();
+        }}
+      >
+        <ArrowLeft className="mr-2 h-3.5 w-3.5" />
+        Back to Menu Manager
+      </Button>
+
       {/* Success State */}
       {publishSuccess && (
         <section className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-6">
@@ -730,13 +1157,24 @@ export function MenuPage(): JSX.Element {
                 Your restaurant is now discoverable by AI assistants.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  onClick={() => {
+                    setPageMode("manager");
+                    setPublishSuccess(false);
+                    void refreshManagerData();
+                  }}
+                  variant="default"
+                  size="sm"
+                >
+                  View Menu Manager
+                </Button>
                 {lastPublishedHtml && (
                   <Button
                     onClick={() => {
                       const blob = new Blob([lastPublishedHtml], { type: "text/html" });
                       window.open(URL.createObjectURL(blob), "_blank");
                     }}
-                    variant="default"
+                    variant="outline"
                     size="sm"
                   >
                     <ExternalLink className="mr-2 h-4 w-4" />
@@ -746,7 +1184,7 @@ export function MenuPage(): JSX.Element {
                 {discoveryPageUrl && !lastPublishedHtml && (
                   <Button
                     onClick={() => window.open(discoveryPageUrl, "_blank")}
-                    variant="default"
+                    variant="outline"
                     size="sm"
                   >
                     <ExternalLink className="mr-2 h-4 w-4" />
@@ -759,8 +1197,8 @@ export function MenuPage(): JSX.Element {
         </section>
       )}
 
-      {/* Source Selection - Show when no source is selected and profile is published */}
-      {profilePublished && !selectedSource && !publishSuccess && (
+      {/* Source Selection - Show when no source is selected */}
+      {!selectedSource && !publishSuccess && (
         <section className="space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Choose Your Menu Source</h2>
@@ -769,7 +1207,7 @@ export function MenuPage(): JSX.Element {
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             {/* Square Option */}
             <button
               type="button"
@@ -794,6 +1232,22 @@ export function MenuPage(): JSX.Element {
               <span className="text-sm font-medium text-primary">Select</span>
             </button>
 
+            {/* PDF Option */}
+            <button
+              type="button"
+              onClick={() => setSelectedSource("pdf")}
+              className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors hover:border-primary hover:bg-muted/50"
+            >
+              <FileText className="h-10 w-10 text-muted-foreground" />
+              <div>
+                <h3 className="font-medium">PDF / Image Menu</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Upload a PDF or picture of your menu
+                </p>
+              </div>
+              <span className="text-sm font-medium text-primary">Select</span>
+            </button>
+
             {/* Spreadsheet Option */}
             <button
               type="button"
@@ -813,9 +1267,8 @@ export function MenuPage(): JSX.Element {
         </section>
       )}
 
-      {/* Square Workflow - Show when Square is selected */}
-      {/* Square Workflow - Show when Square is selected and profile is published */}
-      {profilePublished && selectedSource === "square" && !publishSuccess && (
+      {/* Square Workflow */}
+      {selectedSource === "square" && !publishSuccess && (
         <section className="space-y-4 rounded-lg border bg-card p-6">
           <header className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1058,8 +1511,12 @@ export function MenuPage(): JSX.Element {
                       await handlePublishSpreadsheet();
                       return;
                     }
+                    if (activeSource === "pdf" || selectedSource === "pdf") {
+                      await handlePublishPdf();
+                      return;
+                    }
                   }}
-                  disabled={resyncBusy || sheetPublishBusy}
+                  disabled={resyncBusy || sheetPublishBusy || pdfPublishBusy}
                 >
                   Publish
                 </Button>
@@ -1069,9 +1526,344 @@ export function MenuPage(): JSX.Element {
         </section>
       )}
 
-      {/* Spreadsheet Workflow - Show when Spreadsheet is selected */}
-      {/* Spreadsheet Workflow - Show when Spreadsheet is selected and profile is published */}
-      {profilePublished && selectedSource === "spreadsheet" && !publishSuccess && (
+      {/* PDF Workflow */}
+      {selectedSource === "pdf" && !publishSuccess && (
+        <section className="space-y-4 rounded-lg border bg-card p-6">
+          <header className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <h2 className="text-lg font-semibold">PDF / Image Menu Import</h2>
+                <p className="text-sm text-muted-foreground">
+                  Upload a PDF or picture of your menu and let AI extract, enrich, and generate images.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleChangeSource}
+              className="shrink-0 gap-1.5"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Change source
+            </Button>
+          </header>
+
+          <WorkflowStepIndicator currentStep={currentStep} source="pdf" />
+
+          {pdfError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {pdfError}
+            </div>
+          ) : null}
+
+          {pdfNotice ? (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-600">
+              {pdfNotice}
+            </div>
+          ) : null}
+
+          {/* Publishing progress indicator */}
+          {pdfPublishBusy && publishStep && (
+            <div className="flex items-center gap-3 rounded-md border bg-muted/50 p-3 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <div className="flex items-center gap-2">
+                <span className={publishStep === "nostr" ? "text-primary font-medium" : "text-emerald-600"}>
+                  {publishStep === "nostr" ? "1. Publishing to Nostr" : "1. Published"}
+                </span>
+                <span className="text-muted-foreground">&rarr;</span>
+                <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
+                  2. Updating discovery page
+                </span>
+              </div>
+            </div>
+          )}
+
+          {synvyaError && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+              <p className="font-medium text-amber-800">Discovery page update failed</p>
+              <p className="mt-1 text-amber-700">{synvyaError}</p>
+              <a
+                href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nPublic Key: ${pubkey}`)}`}
+                className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                Contact support@synvya.com
+              </a>
+            </div>
+          )}
+
+          {/* Step 1: Upload PDF */}
+          {currentStep === 1 && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium">Upload PDF or Image</label>
+                <input
+                  type="file"
+                  accept=".pdf,image/*"
+                  disabled={pdfExtracting}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handlePdfUpload(f);
+                  }}
+                  className="text-sm"
+                />
+              </div>
+              {pdfExtracting && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Extracting menu (this may take 10-20 seconds)...</span>
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Upload a PDF or picture of your menu. AI will extract all items, prices, and descriptions automatically.
+              </p>
+            </div>
+          )}
+
+          {/* Step 2: Review & Enhance */}
+          {currentStep === 2 && pdfImportState && (
+            <div className="space-y-4">
+              {pdfFileName && (
+                <div className="rounded-md border bg-muted/30 p-3 text-sm">
+                  <span className="font-medium">Loaded:</span> {pdfFileName} &mdash;{" "}
+                  {pdfImportState.items.length} item{pdfImportState.items.length === 1 ? "" : "s"},{" "}
+                  {pdfImportState.menus.length} menu{pdfImportState.menus.length === 1 ? "" : "s"}/section{pdfImportState.menus.length === 1 ? "" : "s"}
+                </div>
+              )}
+
+              {/* Extracted items grouped by menu > section */}
+              <div className="max-h-[32rem] space-y-4 overflow-y-auto rounded-md border p-3">
+                {(() => {
+                  // Group items: menu → section → items
+                  const grouped = new Map<string, Map<string, { item: PdfReviewItem; idx: number }[]>>();
+                  pdfImportState.items.forEach((item, idx) => {
+                    const menu = item.partOfMenu || "Menu";
+                    const section = item.partOfMenuSection || "";
+                    if (!grouped.has(menu)) grouped.set(menu, new Map());
+                    const menuMap = grouped.get(menu)!;
+                    if (!menuMap.has(section)) menuMap.set(section, []);
+                    menuMap.get(section)!.push({ item, idx });
+                  });
+                  return Array.from(grouped.entries()).map(([menuName, sections]) => (
+                    <div key={menuName}>
+                      <h4 className="mb-2 text-sm font-semibold">{menuName}</h4>
+                      {Array.from(sections.entries()).map(([sectionName, entries]) => (
+                        <div key={sectionName} className="mb-3 ml-2">
+                          {sectionName && (
+                            <h5 className="mb-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">{sectionName}</h5>
+                          )}
+                          <div className="space-y-1.5">
+                            {entries.map(({ item, idx }) => (
+                              <div key={idx} className="flex items-start gap-3 rounded-md border bg-background px-3 py-2 text-sm">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{item.name}</span>
+                                    {item.price && (
+                                      <span className="text-muted-foreground">${item.price}</span>
+                                    )}
+                                  </div>
+                                  <p className="mt-0.5 text-muted-foreground text-xs">
+                                    {item.enrichedDescription || item.description || "No description"}
+                                  </p>
+                                  {item.enrichedDescription && item.description && (
+                                    <p className="mt-0.5 text-xs text-muted-foreground/70 line-through">
+                                      {item.description}
+                                    </p>
+                                  )}
+                                  {item.ingredients.length > 0 && (
+                                    <p className="mt-0.5 text-xs text-muted-foreground/60">
+                                      {item.ingredients.join(", ")}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {item.imageGenStatus === "generating" && (
+                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                  )}
+                                  {item.imageGenStatus === "done" && item.generatedImageUrl && (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setPdfLightboxUrl(item.generatedImageUrl!);
+                                          setPdfLightboxName(item.name);
+                                        }}
+                                        className="rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                      >
+                                        <img
+                                          src={item.generatedImageUrl}
+                                          alt={item.name}
+                                          className="h-10 w-10 rounded object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                        />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Regenerate image"
+                                        onClick={() => void handlePdfRegenerateImage(idx)}
+                                        className="rounded p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                                      >
+                                        <RefreshCw className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                  {item.imageGenStatus === "error" && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-destructive" title={item.imageGenError}>
+                                        Failed
+                                      </span>
+                                      <button
+                                        type="button"
+                                        title="Retry image generation"
+                                        onClick={() => void handlePdfRegenerateImage(idx)}
+                                        className="rounded p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                                      >
+                                        <RefreshCw className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Enhancement actions */}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={handlePdfEnrich}
+                  disabled={pdfEnriching}
+                  variant="outline"
+                  size="sm"
+                >
+                  {pdfEnriching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enriching descriptions...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Enhance Descriptions
+                    </>
+                  )}
+                </Button>
+                <Button
+                  onClick={handlePdfGenerateImages}
+                  disabled={pdfImageGenProgress !== null}
+                  variant="outline"
+                  size="sm"
+                >
+                  {pdfImageGenProgress ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating images ({pdfImageGenProgress.current}/{pdfImageGenProgress.total})...
+                    </>
+                  ) : (
+                    <>
+                      <ImageIcon className="mr-2 h-4 w-4" />
+                      Generate Photos
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Publish & other actions */}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => {
+                    // Build preview events then open confirm dialog
+                    handlePreviewPdf();
+                    setPublishConfirmOpen(true);
+                  }}
+                  disabled={pdfPreviewLoading || pdfPublishBusy}
+                >
+                  {pdfPublishBusy ? "Publishing..." : "Publish Menu"}
+                </Button>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handlePdfUpload(f);
+                    }}
+                  />
+                  <Button type="button" variant="outline" asChild>
+                    <span>Upload Different File</span>
+                  </Button>
+                </label>
+              </div>
+            </div>
+          )}
+
+          <PublicationPreview
+            open={previewOpen}
+            onOpenChange={setPreviewOpen}
+            events={previewEvents || []}
+            pendingCount={previewPendingCount}
+            totalEvents={previewTotalEvents}
+            deletionCount={previewDeletionCount}
+          />
+
+          <Dialog open={publishConfirmOpen} onOpenChange={setPublishConfirmOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Publish Menu</DialogTitle>
+                <DialogDescription>
+                  This action will make your menu visible to AI assistants.
+                  {pdfPreviewViewed && previewPendingCount > 0 && (
+                    <span className="block mt-2">
+                      You are about to publish {previewPendingCount} listing{previewPendingCount === 1 ? "" : "s"}.
+                    </span>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setPublishConfirmOpen(false)} disabled={pdfPublishBusy}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    setPublishConfirmOpen(false);
+                    await handlePublishPdf();
+                  }}
+                  disabled={pdfPublishBusy}
+                >
+                  Publish
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Image lightbox */}
+          <Dialog open={pdfLightboxUrl !== null} onOpenChange={(open) => { if (!open) setPdfLightboxUrl(null); }}>
+            <DialogContent className="max-w-lg p-2">
+              <DialogHeader className="px-2 pt-2">
+                <DialogTitle className="text-sm">{pdfLightboxName}</DialogTitle>
+              </DialogHeader>
+              {pdfLightboxUrl && (
+                <img
+                  src={pdfLightboxUrl}
+                  alt={pdfLightboxName}
+                  className="w-full rounded object-contain"
+                />
+              )}
+            </DialogContent>
+          </Dialog>
+        </section>
+      )}
+
+      {/* Spreadsheet Workflow */}
+      {selectedSource === "spreadsheet" && !publishSuccess && (
         <section className="space-y-4 rounded-lg border bg-card p-6">
           <header className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1283,6 +2075,8 @@ export function MenuPage(): JSX.Element {
             </DialogContent>
           </Dialog>
         </section>
+      )}
+        </>
       )}
     </div>
   );

@@ -18,8 +18,11 @@ import { publishToRelays } from "@/lib/relayPool";
 import { iso8601ToUnixAndTzid } from "@/lib/reservationTimeUtils";
 import { generateSecretKey, getPublicKey } from "nostr-tools";
 import { nip19 } from "nostr-tools";
-import { AlertCircle, Send, Zap, Users, Calendar } from "lucide-react";
+import { AlertCircle, Send, Zap, Users, Calendar, FileText, Loader2 } from "lucide-react";
 import type { ReservationRequest } from "@/types/reservation";
+import { extractPdfMenu, enrichMenuDescriptions } from "@/services/menuImport";
+import { pdfToImages } from "@/lib/menuImport/pdfToImages";
+import type { PdfExtractionResult } from "@/lib/menuImport/types";
 
 export function TestHarnessPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
@@ -42,6 +45,52 @@ export function TestHarnessPage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  // PDF extraction test state
+  const [pdfTestExtracting, setPdfTestExtracting] = useState(false);
+  const [pdfTestError, setPdfTestError] = useState<string | null>(null);
+  const [pdfTestResult, setPdfTestResult] = useState<PdfExtractionResult | null>(null);
+  const [pdfTestFileName, setPdfTestFileName] = useState<string | null>(null);
+  const [pdfTestEnriching, setPdfTestEnriching] = useState(false);
+  const [pdfTestEnrichedJson, setPdfTestEnrichedJson] = useState<string | null>(null);
+
+  const handlePdfTestExtract = async (file: File) => {
+    setPdfTestError(null);
+    setPdfTestResult(null);
+    setPdfTestEnrichedJson(null);
+    setPdfTestFileName(file.name);
+    setPdfTestExtracting(true);
+    try {
+      const pageImages = await pdfToImages(file);
+      const result = await extractPdfMenu(pageImages, "");
+      setPdfTestResult(result);
+    } catch (err) {
+      setPdfTestError(err instanceof Error ? err.message : "Extraction failed");
+    } finally {
+      setPdfTestExtracting(false);
+    }
+  };
+
+  const handlePdfTestEnrich = async () => {
+    if (!pdfTestResult) return;
+    setPdfTestEnriching(true);
+    setPdfTestError(null);
+    try {
+      const result = await enrichMenuDescriptions(
+        pdfTestResult.items.map((i) => ({
+          name: i.name,
+          description: i.description,
+          ingredients: i.ingredients,
+        })),
+        { name: "", cuisine: "", about: "" },
+      );
+      setPdfTestEnrichedJson(JSON.stringify(result, null, 2));
+    } catch (err) {
+      setPdfTestError(err instanceof Error ? err.message : "Enrichment failed");
+    } finally {
+      setPdfTestEnriching(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!pubkey || !relays.length || !datetime) {
@@ -302,6 +351,143 @@ export function TestHarnessPage(): JSX.Element {
             <li>Test the Accept, Decline, or Suggest flows</li>
             <li>Repeat with different scenarios to test edge cases</li>
           </ol>
+        </div>
+
+        {/* PDF Menu Extraction Test */}
+        <div className="mt-8 space-y-4">
+          <div>
+            <h2 className="text-xl font-bold flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              PDF Menu Extraction
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Test PDF extraction accuracy. No publish capability — purely for inspection.
+            </p>
+          </div>
+
+          <div className="rounded-lg border bg-card p-6 space-y-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-2">
+                <Label>Upload PDF</Label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  disabled={pdfTestExtracting}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handlePdfTestExtract(f);
+                  }}
+                  className="text-sm"
+                />
+              </div>
+              {pdfTestResult && (
+                <Button
+                  onClick={handlePdfTestEnrich}
+                  disabled={pdfTestEnriching}
+                  variant="outline"
+                  size="sm"
+                >
+                  {pdfTestEnriching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Enriching...
+                    </>
+                  ) : (
+                    "Enrich Descriptions"
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {pdfTestExtracting && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Extracting menu from {pdfTestFileName}...
+              </div>
+            )}
+
+            {pdfTestError && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                {pdfTestError}
+              </div>
+            )}
+
+            {pdfTestResult && (
+              <div className="space-y-4">
+                {/* Summary stats */}
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="rounded-md bg-muted px-3 py-1.5">
+                    Items: <span className="font-medium">{pdfTestResult.items.length}</span>
+                  </div>
+                  <div className="rounded-md bg-muted px-3 py-1.5">
+                    With prices: <span className="font-medium">{pdfTestResult.items.filter((i) => i.price).length}</span>
+                  </div>
+                  <div className="rounded-md bg-muted px-3 py-1.5">
+                    With ingredients: <span className="font-medium">{pdfTestResult.items.filter((i) => i.ingredients?.length).length}</span>
+                  </div>
+                  <div className="rounded-md bg-muted px-3 py-1.5">
+                    Menus/sections: <span className="font-medium">{pdfTestResult.menus.length}</span>
+                  </div>
+                </div>
+
+                {/* Side by side: JSON and preview cards */}
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {/* Raw JSON */}
+                  <div className="space-y-2">
+                    <Label>Raw JSON</Label>
+                    <pre className="max-h-96 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">
+                      {JSON.stringify(pdfTestResult, null, 2)}
+                    </pre>
+                  </div>
+
+                  {/* Preview cards */}
+                  <div className="space-y-2">
+                    <Label>Preview Cards</Label>
+                    <div className="max-h-96 space-y-2 overflow-auto rounded-md border p-3">
+                      {pdfTestResult.items.map((item, idx) => (
+                        <div key={idx} className="rounded-md border bg-background p-3 text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{item.name}</span>
+                            {item.price && <span className="text-muted-foreground">${item.price}</span>}
+                          </div>
+                          {item.description && (
+                            <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+                          )}
+                          {item.ingredients?.length > 0 && (
+                            <p className="mt-1 text-xs text-muted-foreground/70">
+                              {item.ingredients.join(", ")}
+                            </p>
+                          )}
+                          {item.suitableForDiets?.length > 0 && (
+                            <div className="mt-1 flex gap-1">
+                              {item.suitableForDiets.map((d) => (
+                                <span key={d} className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700">
+                                  {d}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="mt-1 text-xs text-muted-foreground/50">
+                            {item.partOfMenu}{item.partOfMenuSection ? ` > ${item.partOfMenuSection}` : ""}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Enriched descriptions */}
+                {pdfTestEnrichedJson && (
+                  <div className="space-y-2">
+                    <Label>Enriched Descriptions</Label>
+                    <pre className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-3 text-xs">
+                      {pdfTestEnrichedJson}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
