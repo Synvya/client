@@ -2122,7 +2122,7 @@ async function performPreview(record, options) {
     deletionCount = removedDTags.length;
   }
 
-  // Process current events (new/updated items and collections)
+  // Count changed events for informational pendingCount
   for (const event of events) {
     const dTag = event.tags.find((tag) => Array.isArray(tag) && tag[0] === "d")?.[1];
     if (!dTag) continue;
@@ -2130,22 +2130,16 @@ async function performPreview(record, options) {
     if (previous[dTag] && previous[dTag] === fingerprint) {
       continue;
     }
-    toPublish.push({
-      kind: event.kind,
-      created_at: event.created_at,
-      content: event.content,
-      tags: event.tags
-    });
+    toPublish.push(event);
   }
 
-  // Combine update events and deletion events for preview
-  const allPreviewEvents = [...toPublish, ...deletionEvents];
-
+  // Return ALL events for client review (not just changed ones)
+  // The client needs the complete catalog to build the review UI
   return {
     totalEvents: events.length,
     pendingCount: toPublish.length + deletionCount,
     deletionCount,
-    events: allPreviewEvents
+    events: [...events, ...deletionEvents]
   };
 }
 

@@ -86,14 +86,29 @@ describe("squareEventsToReviewState", () => {
       makeProduct({
         dTag: "salad",
         title: "Green Salad",
-        tTags: ["ingredients:romaine", "ingredients:tomato", "vegan", "gluten free"],
+        tTags: ["ingredients:romaine", "ingredients:tomato", "VeganDiet", "GlutenFreeDiet"],
       }),
     ];
 
     const result = squareEventsToReviewState(events);
     const item = result.items[0];
     expect(item.ingredients).toEqual(["romaine", "tomato"]);
-    expect(item.suitableForDiets).toEqual(["vegan", "gluten free"]);
+    expect(item.suitableForDiets).toEqual(["VeganDiet", "GlutenFreeDiet"]);
+  });
+
+  it("classifies NutFreeDiet and PescatarianDiet as diets", () => {
+    const events: SquareEventTemplate[] = [
+      makeProduct({
+        dTag: "fish",
+        title: "Grilled Salmon",
+        tTags: ["NutFreeDiet", "PescatarianDiet", "popular"],
+      }),
+    ];
+
+    const result = squareEventsToReviewState(events);
+    const item = result.items[0];
+    expect(item.suitableForDiets).toEqual(["NutFreeDiet", "PescatarianDiet"]);
+    expect(item.tags).toEqual(["popular"]);
   });
 
   it("detects menu vs section from collection title suffix", () => {

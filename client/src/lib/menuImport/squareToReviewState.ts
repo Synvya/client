@@ -104,14 +104,7 @@ export function squareEventsToReviewState(
       const val = tag[1];
       if (val.startsWith("ingredients:")) {
         ingredients.push(val.replace("ingredients:", ""));
-      } else if (
-        val.toLowerCase().includes("vegan") ||
-        val.toLowerCase().includes("vegetarian") ||
-        val.toLowerCase().includes("gluten") ||
-        val.toLowerCase().includes("halal") ||
-        val.toLowerCase().includes("kosher") ||
-        val.toLowerCase().includes("dairy")
-      ) {
+      } else if (val.endsWith("Diet") || val.endsWith("FreeDiet")) {
         diets.push(val);
       } else {
         tags.push(val);
