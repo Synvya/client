@@ -1,7 +1,7 @@
 import type { MenuRow, MenuItemRow } from "@/lib/spreadsheet/menuSpreadsheet";
-import type { PdfImportState } from "./types";
+import type { MenuReviewState } from "./types";
 
-export function pdfStateToSpreadsheetRows(state: PdfImportState): {
+export function reviewStateToSpreadsheetRows(state: MenuReviewState): {
   menus: MenuRow[];
   items: MenuItemRow[];
 } {

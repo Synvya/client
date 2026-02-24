@@ -1,4 +1,4 @@
-export interface PdfExtractedItem {
+export interface MenuExtractedItem {
   name: string;
   description: string;
   price: string;
@@ -11,19 +11,19 @@ export interface PdfExtractedItem {
   imageDescription: string;
 }
 
-export interface PdfExtractedMenu {
+export interface MenuExtractedMenu {
   name: string;
   description: string;
   menuType: string;
   parentMenu: string;
 }
 
-export interface PdfExtractionResult {
-  menus: PdfExtractedMenu[];
-  items: PdfExtractedItem[];
+export interface MenuExtractionResult {
+  menus: MenuExtractedMenu[];
+  items: MenuExtractedItem[];
 }
 
-export interface PdfReviewItem extends PdfExtractedItem {
+export interface MenuReviewItem extends MenuExtractedItem {
   enrichedDescription?: string;
   generatedImageUrl?: string;
   imageGenEnabled: boolean;
@@ -31,8 +31,8 @@ export interface PdfReviewItem extends PdfExtractedItem {
   imageGenError?: string;
 }
 
-export interface PdfImportState {
+export interface MenuReviewState {
   fileName: string;
-  menus: PdfExtractedMenu[];
-  items: PdfReviewItem[];
+  menus: MenuExtractedMenu[];
+  items: MenuReviewItem[];
 }

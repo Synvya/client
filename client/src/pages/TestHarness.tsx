@@ -22,7 +22,7 @@ import { AlertCircle, Send, Zap, Users, Calendar, FileText, Loader2 } from "luci
 import type { ReservationRequest } from "@/types/reservation";
 import { extractPdfMenu, enrichMenuDescriptions } from "@/services/menuImport";
 import { pdfToImages } from "@/lib/menuImport/pdfToImages";
-import type { PdfExtractionResult } from "@/lib/menuImport/types";
+import type { MenuExtractionResult } from "@/lib/menuImport/types";
 
 export function TestHarnessPage(): JSX.Element {
   const pubkey = useAuth((state) => state.pubkey);
@@ -49,7 +49,7 @@ export function TestHarnessPage(): JSX.Element {
   // PDF extraction test state
   const [pdfTestExtracting, setPdfTestExtracting] = useState(false);
   const [pdfTestError, setPdfTestError] = useState<string | null>(null);
-  const [pdfTestResult, setPdfTestResult] = useState<PdfExtractionResult | null>(null);
+  const [pdfTestResult, setPdfTestResult] = useState<MenuExtractionResult | null>(null);
   const [pdfTestFileName, setPdfTestFileName] = useState<string | null>(null);
   const [pdfTestEnriching, setPdfTestEnriching] = useState(false);
   const [pdfTestEnrichedJson, setPdfTestEnrichedJson] = useState<string | null>(null);

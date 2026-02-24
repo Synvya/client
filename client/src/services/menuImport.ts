@@ -1,4 +1,4 @@
-import type { PdfExtractionResult, PdfExtractedItem } from "@/lib/menuImport/types";
+import type { MenuExtractionResult, MenuExtractedItem } from "@/lib/menuImport/types";
 
 function getMenuImportBaseUrl(): string {
   const base = import.meta.env.VITE_MENU_IMPORT_URL as string | undefined;
@@ -40,7 +40,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 export async function extractPdfMenu(
   pageImages: string[],
   restaurantName: string,
-): Promise<PdfExtractionResult> {
+): Promise<MenuExtractionResult> {
   const base = getMenuImportBaseUrl();
   const response = await fetch(`${base}/menu-import/extract`, {
     method: "POST",
@@ -50,11 +50,11 @@ export async function extractPdfMenu(
     },
     body: JSON.stringify({ pageImages, restaurantName }),
   });
-  return handleResponse<PdfExtractionResult>(response);
+  return handleResponse<MenuExtractionResult>(response);
 }
 
 export async function enrichMenuDescriptions(
-  items: Pick<PdfExtractedItem, "name" | "description" | "ingredients">[],
+  items: Pick<MenuExtractedItem, "name" | "description" | "ingredients">[],
   restaurantContext: { name: string; cuisine: string; about: string },
 ): Promise<{ items: { name: string; enrichedDescription: string }[] }> {
   const base = getMenuImportBaseUrl();

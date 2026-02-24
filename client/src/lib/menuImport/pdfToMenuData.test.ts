@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { pdfStateToSpreadsheetRows } from "./pdfToMenuData";
-import type { PdfImportState } from "./types";
+import { reviewStateToSpreadsheetRows } from "./pdfToMenuData";
+import type { MenuReviewState } from "./types";
 
-describe("pdfStateToSpreadsheetRows", () => {
+describe("reviewStateToSpreadsheetRows", () => {
   it("converts PDF import state to spreadsheet rows", () => {
-    const state: PdfImportState = {
+    const state: MenuReviewState = {
       fileName: "test.pdf",
       menus: [
         { name: "Dinner", description: "Evening menu", menuType: "food", parentMenu: "" },
@@ -28,7 +28,7 @@ describe("pdfStateToSpreadsheetRows", () => {
       ],
     };
 
-    const { menus, items } = pdfStateToSpreadsheetRows(state);
+    const { menus, items } = reviewStateToSpreadsheetRows(state);
 
     expect(menus).toHaveLength(2);
     expect(menus[0]).toEqual({
@@ -60,7 +60,7 @@ describe("pdfStateToSpreadsheetRows", () => {
   });
 
   it("prefers enriched description over original", () => {
-    const state: PdfImportState = {
+    const state: MenuReviewState = {
       fileName: "test.pdf",
       menus: [{ name: "Menu", description: "", menuType: "food", parentMenu: "" }],
       items: [
@@ -82,12 +82,12 @@ describe("pdfStateToSpreadsheetRows", () => {
       ],
     };
 
-    const { items } = pdfStateToSpreadsheetRows(state);
+    const { items } = reviewStateToSpreadsheetRows(state);
     expect(items[0].Description).toBe("A juicy gourmet burger with aged cheddar.");
   });
 
   it("includes generated image URL in Pictures", () => {
-    const state: PdfImportState = {
+    const state: MenuReviewState = {
       fileName: "test.pdf",
       menus: [{ name: "Menu", description: "", menuType: "food", parentMenu: "" }],
       items: [
@@ -109,12 +109,12 @@ describe("pdfStateToSpreadsheetRows", () => {
       ],
     };
 
-    const { items } = pdfStateToSpreadsheetRows(state);
+    const { items } = reviewStateToSpreadsheetRows(state);
     expect(items[0].Pictures).toBe("https://nostr.build/abc123.jpg");
   });
 
   it("defaults currency to USD when empty", () => {
-    const state: PdfImportState = {
+    const state: MenuReviewState = {
       fileName: "test.pdf",
       menus: [{ name: "Menu", description: "", menuType: "food", parentMenu: "" }],
       items: [
@@ -135,7 +135,7 @@ describe("pdfStateToSpreadsheetRows", () => {
       ],
     };
 
-    const { items } = pdfStateToSpreadsheetRows(state);
+    const { items } = reviewStateToSpreadsheetRows(state);
     expect(items[0].Currency).toBe("USD");
   });
 });
