@@ -10,6 +10,7 @@ import { LandingPage } from "@/pages/Landing";
 import { SquareCallbackPage } from "@/pages/SquareCallback";
 import { MenuPage } from "@/pages/Menu";
 import { AnalyticsPage } from "@/pages/Dashboard";
+import { ChatGptMerchantPage } from "@/pages/ChatGptMerchant";
 
 function ProtectedApp(): JSX.Element {
   return (
@@ -36,6 +37,7 @@ export function App(): JSX.Element {
         <Route path="menu" element={<MenuPage />} />
         <Route path="reservations" element={<ReservationsPage />} />
         <Route path="dashboard" element={<AnalyticsPage />} />
+        <Route path="chatgpt-merchant" element={<ChatGptMerchantPage />} />
         {/* WebsiteData page merged into Account - redirect for bookmarks */}
         <Route path="website" element={<Navigate to="/app/settings" replace />} />
         <Route path="website-data" element={<Navigate to="/app/settings" replace />} />
