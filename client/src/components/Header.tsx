@@ -80,6 +80,17 @@ export function Header(): JSX.Element {
             >
               Dashboard
             </NavLink>
+            <NavLink
+              to="/app/chatgpt-merchant"
+              className={({ isActive }) =>
+                cn(
+                  "transition-colors hover:text-primary",
+                  isActive ? "text-primary" : "text-muted-foreground"
+                )
+              }
+            >
+              ChatGPT
+            </NavLink>
             {/* TODO: Re-enable when Reservations feature is ready */}
             {false && (
               <NavLink
