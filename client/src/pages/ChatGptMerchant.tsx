@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Copy, Check, ExternalLink, Loader2 } from "lucide-react";
+import { Copy, Check, ExternalLink, Loader2, Square, CheckSquare } from "lucide-react";
 
 const PRESET_FIELDS = {
   headquarterCountry: "United States",
@@ -18,9 +18,10 @@ const PRESET_FIELDS = {
     "Integrating my product feed so my products show up in search results on ChatGPT",
   productFeedReady: "Yes",
   feedSize: "0-1M",
-  checkoutIntegration: "No",
+  checkoutIntegration:
+    "We have built or are committed to building our Checkout API according to the Agentic Commerce Protocol.",
   freeText:
-    "We have partnered with Synvya Inc. to produce our OpenAI compliant product fee. We are committed to building our Checkout API according to the Agentic Commerce Protocol in partnership with Synvya Inc.",
+    "We have partnered with Synvya Inc. to produce our OpenAI compliant product feed. We are committed to building our Checkout API according to the Agentic Commerce Protocol in partnership with Synvya Inc.",
 };
 
 interface EditableFields {
@@ -58,20 +59,68 @@ function CopyButton({ value }: { value: string }): JSX.Element {
   );
 }
 
-function SummaryRow({
-  label,
-  value,
+type ChecklistStepDef =
+  | { type: "copy"; label: string; value: string }
+  | { type: "instruction"; label: string; instruction: string };
+
+function ChecklistStep({
+  step,
+  def,
+  checked,
+  onToggle,
 }: {
-  label: string;
-  value: string;
+  step: number;
+  def: ChecklistStepDef;
+  checked: boolean;
+  onToggle: () => void;
 }): JSX.Element {
   return (
-    <div className="flex items-start justify-between gap-4 py-2">
+    <div
+      className={`flex items-start gap-3 rounded-lg border p-4 transition-colors ${
+        checked ? "border-muted bg-muted/40" : "border-border bg-card"
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="mt-0.5 text-muted-foreground hover:text-foreground"
+        aria-label={checked ? "Mark as incomplete" : "Mark as complete"}
+      >
+        {checked ? (
+          <CheckSquare className="h-5 w-5 text-emerald-500" />
+        ) : (
+          <Square className="h-5 w-5" />
+        )}
+      </button>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className="mt-0.5 break-words text-sm">{value}</p>
+        <p
+          className={`text-sm font-medium ${
+            checked ? "text-muted-foreground line-through" : ""
+          }`}
+        >
+          <span className="mr-2 text-muted-foreground">{step}.</span>
+          {def.label}
+        </p>
+        {def.type === "copy" ? (
+          <div className="mt-1 flex items-center">
+            <code
+              className={`rounded bg-muted px-2 py-0.5 text-sm ${
+                checked ? "text-muted-foreground" : ""
+              }`}
+            >
+              {def.value}
+            </code>
+            <CopyButton value={def.value} />
+          </div>
+        ) : (
+          <p
+            className={`mt-1 text-sm ${
+              checked ? "text-muted-foreground" : "text-muted-foreground"
+            }`}
+            dangerouslySetInnerHTML={{ __html: def.instruction }}
+          />
+        )}
       </div>
-      <CopyButton value={value} />
     </div>
   );
 }
@@ -81,10 +130,13 @@ export function ChatGptMerchantPage(): JSX.Element {
   const authStatus = useAuth((s) => s.status);
   const relays = useRelays((s) => s.relays);
   const discoveryPageUrl = useOnboardingProgress((s) => s.discoveryPageUrl);
-  const setChatgptSubmitted = useOnboardingProgress((s) => s.setChatgptSubmitted);
+  const setChatgptSubmitted = useOnboardingProgress(
+    (s) => s.setChatgptSubmitted
+  );
 
   const [loading, setLoading] = useState(true);
-  const [showSummary, setShowSummary] = useState(false);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [checkedSteps, setCheckedSteps] = useState<Set<number>>(new Set());
   const [fields, setFields] = useState<EditableFields>({
     firstName: "",
     lastName: "",
@@ -118,10 +170,14 @@ export function ChatGptMerchantPage(): JSX.Element {
           ...prev,
           workEmail: profile.email || prev.workEmail,
           company: profile.displayName || profile.name || prev.company,
-          merchantWebsite: profile.website || discoveryPageUrl || prev.merchantWebsite,
+          merchantWebsite:
+            profile.website || discoveryPageUrl || prev.merchantWebsite,
         }));
       } catch (error) {
-        console.warn("Failed to load profile for ChatGPT Merchant page", error);
+        console.warn(
+          "Failed to load profile for ChatGPT Merchant page",
+          error
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -135,6 +191,14 @@ export function ChatGptMerchantPage(): JSX.Element {
   const updateField = (key: keyof EditableFields, value: string) =>
     setFields((prev) => ({ ...prev, [key]: value }));
 
+  const toggleStep = (step: number) =>
+    setCheckedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(step)) next.delete(step);
+      else next.add(step);
+      return next;
+    });
+
   if (loading) {
     return (
       <div className="container flex items-center justify-center py-20">
@@ -143,101 +207,94 @@ export function ChatGptMerchantPage(): JSX.Element {
     );
   }
 
-  if (showSummary) {
+  const steps: ChecklistStepDef[] = [
+    { type: "copy", label: "First name", value: fields.firstName },
+    { type: "copy", label: "Last name", value: fields.lastName },
+    { type: "copy", label: "Work title", value: fields.workTitle },
+    { type: "copy", label: "LinkedIn", value: fields.linkedIn },
+    { type: "copy", label: "Work email", value: fields.workEmail },
+    { type: "copy", label: "Company", value: fields.company },
+    {
+      type: "instruction",
+      label: "Headquarter country",
+      instruction: 'Select <strong>United States</strong> from the dropdown.',
+    },
+    {
+      type: "copy",
+      label: "Link to your merchant website",
+      value: fields.merchantWebsite,
+    },
+    {
+      type: "instruction",
+      label: "Primary Product Categories",
+      instruction:
+        'Check <strong>Food &amp; Beverage</strong>. Leave all others unchecked.',
+    },
+    {
+      type: "instruction",
+      label: "We are interested in",
+      instruction:
+        'Check <strong>Integrating my product feed so my products show up in search results on ChatGPT</strong>. Leave <strong>Integrating Instant Checkout via the Agentic Commerce Protocol&hellip;</strong> unchecked.',
+    },
+    {
+      type: "instruction",
+      label: "Product Feed",
+      instruction:
+        "Check <strong>Our product feed is ready to go and meets OpenAI's specifications&hellip;</strong>",
+    },
+    {
+      type: "instruction",
+      label: "Feed Size - Unique SKU Count",
+      instruction: 'Select <strong>0-1M</strong> from the dropdown.',
+    },
+    {
+      type: "instruction",
+      label: "Checkout Integration",
+      instruction:
+        'Check <strong>We have built or are committed to building our Checkout API according to the Agentic Commerce Protocol.</strong>',
+    },
+    {
+      type: "copy",
+      label: "Anything else you'd like us to know?",
+      value: PRESET_FIELDS.freeText,
+    },
+  ];
+
+  if (showWalkthrough) {
     return (
       <div className="container max-w-2xl py-10">
         <h1 className="text-2xl font-bold">ChatGPT Merchant Application</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Copy each field below and paste it into the corresponding field in
-          the ChatGPT Merchant application.
-        </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Once you submit the application, OpenAI will reach out to you via
-          e-mail as they onboard merchants on a rolling basis.
+          Open the ChatGPT Application, then follow the steps below in order. Check off
+          each step as you go.
         </p>
 
         <div className="mt-4 flex justify-center gap-3">
-          <Button variant="outline" onClick={() => setShowSummary(false)}>
+          <Button variant="outline" onClick={() => setShowWalkthrough(false)}>
             Back to Edit
           </Button>
           <Button
             onClick={() => {
               setChatgptSubmitted(true);
-              window.open("https://chatgpt.com/merchants/", "_blank");
+              window.open("https://chatgpt.com/merchants/#form", "_blank");
             }}
           >
             <ExternalLink className="mr-2 h-4 w-4" />
-            Open ChatGPT Merchant Form
+            Open ChatGPT Merchant Application
           </Button>
         </div>
 
-        <Card className="mt-6 p-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SummaryRow label="First name" value={fields.firstName} />
-            <SummaryRow label="Last name" value={fields.lastName} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SummaryRow label="Work title" value={fields.workTitle} />
-            <SummaryRow label="LinkedIn" value={fields.linkedIn} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SummaryRow label="Work email" value={fields.workEmail} />
-            <SummaryRow label="Company" value={fields.company} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <SummaryRow
-              label="Headquarter country"
-              value={PRESET_FIELDS.headquarterCountry}
+        <Card className="mt-6 space-y-3 p-4">
+          {steps.map((def, i) => (
+            <ChecklistStep
+              key={i}
+              step={i + 1}
+              def={def}
+              checked={checkedSteps.has(i)}
+              onToggle={() => toggleStep(i)}
             />
-            <SummaryRow
-              label="Link to your merchant website"
-              value={fields.merchantWebsite}
-            />
-          </div>
-
-          <div className="mt-2 border-t pt-4">
-            <SummaryRow
-              label="Primary Product Categories"
-              value={PRESET_FIELDS.primaryProductCategories}
-            />
-          </div>
-
-          <div className="mt-2 border-t pt-4">
-            <SummaryRow
-              label="We are interested in"
-              value={PRESET_FIELDS.interestedIn}
-            />
-          </div>
-
-          <div className="mt-2 border-t pt-4">
-            <SummaryRow
-              label="Product Feed"
-              value="Our product feed is ready to go and meets OpenAI's specifications"
-            />
-          </div>
-
-          <div className="mt-2 border-t pt-4">
-            <SummaryRow
-              label="Feed Size - Unique SKU Count"
-              value={PRESET_FIELDS.feedSize}
-            />
-          </div>
-
-          <div className="mt-2 border-t pt-4">
-            <SummaryRow
-              label="Checkout Integration"
-              value={PRESET_FIELDS.checkoutIntegration}
-            />
-          </div>
-
-          <div className="mt-2 border-t pt-4">
-            <SummaryRow
-              label="Anything else you'd like us to know?"
-              value={PRESET_FIELDS.freeText}
-            />
-          </div>
+          ))}
         </Card>
-
       </div>
     );
   }
@@ -245,19 +302,10 @@ export function ChatGptMerchantPage(): JSX.Element {
   return (
     <div className="container max-w-2xl py-10">
       <h1 className="text-2xl font-bold">ChatGPT Merchant Application</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Your menu is published online with rich details for restaurant and menu
-        discovery.
-      </p>
       <p className="mt-2 text-sm text-muted-foreground">
-        The ChatGPT Merchant application submits your menu as a product feed so
-        each dish is understood as a distinct item in ChatGPT Product search,
-        showing up as a product-style card (name, price, description, image)
-        instead of a menu listing.
-      </p>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Complete this once now to be ready for Synvya takeout ordering at
-        launch.
+        This page helps you apply to the ChatGPT Merchant Program. Synvya has
+        pre-filled most of the application — you just need to provide your
+        personal details below.
       </p>
 
       <div className="mt-6 space-y-4">
@@ -331,7 +379,7 @@ export function ChatGptMerchantPage(): JSX.Element {
       </div>
 
       <div className="mt-8">
-        <Button onClick={() => setShowSummary(true)}>
+        <Button onClick={() => setShowWalkthrough(true)}>
           Prepare Application
         </Button>
       </div>
