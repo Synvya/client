@@ -1107,7 +1107,7 @@ export function BusinessProfileForm(): JSX.Element {
 
           <div className="grid gap-2">
             <Label htmlFor="banner">Cover Photo</Label>
-            <p className="text-xs text-muted-foreground">A wide image shown at the top of your profile — like a hero shot of your space, food, or storefront.</p>
+            <p className="text-xs text-muted-foreground">A wide image shown at the top of your profile — like a hero shot of your space, food, or storefront. Best at 16:9 ratio (e.g. 1200×675px).</p>
             <div className="flex items-center gap-3">
               <Input
                 id="banner"
@@ -1149,7 +1149,7 @@ export function BusinessProfileForm(): JSX.Element {
 
           <div className="grid gap-2">
             <Label htmlFor="picture">Profile Picture</Label>
-            <p className="text-xs text-muted-foreground">Your logo or a photo of your restaurant. Displayed as a small square image next to your name.</p>
+            <p className="text-xs text-muted-foreground">Your logo or a photo of your restaurant. Displayed as a small square image next to your name. Best at 1:1 ratio (e.g. 400×400px).</p>
             <div className="flex items-center gap-3">
               <Input
                 id="picture"
@@ -1198,8 +1198,8 @@ export function BusinessProfileForm(): JSX.Element {
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               {publishStep === "uploading" && "Uploading images…"}
-              {publishStep === "nostr" && "Publishing to Nostr…"}
-              {publishStep === "synvya" && "Updating discovery page…"}
+              {publishStep === "nostr" && "Publishing profile…"}
+              {publishStep === "synvya" && "Going live…"}
               {!publishStep && "Publishing…"}
             </span>
           ) : (
@@ -1220,17 +1220,17 @@ export function BusinessProfileForm(): JSX.Element {
               </span>
               <span className="text-muted-foreground">→</span>
               <span className={
-                publishStep === "nostr" 
-                  ? "text-primary font-medium" 
-                  : publishStep === "synvya" 
-                    ? "text-emerald-600" 
+                publishStep === "nostr"
+                  ? "text-primary font-medium"
+                  : publishStep === "synvya"
+                    ? "text-emerald-600"
                     : ""
               }>
-                {publishStep === "synvya" ? "2. Published" : "2. Nostr"}
+                {publishStep === "synvya" ? "2. Published" : "2. Publishing"}
               </span>
               <span className="text-muted-foreground">→</span>
               <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
-                3. Discovery
+                {publishStep === "synvya" ? "3. Going live" : "3. Going live"}
               </span>
             </div>
           </div>
@@ -1299,7 +1299,7 @@ export function BusinessProfileForm(): JSX.Element {
         {/* Synvya.com error with contact support option */}
         {synvyaError && (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-            <p className="font-medium text-amber-800">Discovery page update failed</p>
+            <p className="font-medium text-amber-800">Going live failed</p>
             <p className="mt-1 text-amber-700">{synvyaError}</p>
             <a
               href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nRestaurant: ${profile.displayName || profile.name}\nPublic Key: ${pubkey}`)}`}

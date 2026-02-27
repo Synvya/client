@@ -133,6 +133,7 @@ export function MenuPage(): JSX.Element {
 
   // Multi-step publish progress and Synvya.com error handling
   const [publishStep, setPublishStep] = useState<"nostr" | "synvya" | null>(null);
+  const [publishProgress, setPublishProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [synvyaError, setSynvyaError] = useState<string | null>(null);
   const [lastPublishedHtml, setLastPublishedHtml] = useState<string | null>(null);
 
@@ -383,11 +384,13 @@ export function MenuPage(): JSX.Element {
         ...previewEvents.filter((e) => e.kind === 30405),
       ];
       const publishedMenuEvents = [...ordered];
+      setPublishProgress({ current: 0, total: ordered.length });
       for (const template of ordered) {
         const signed = await signEvent(template as any);
         validateEvent(signed);
         await publishToRelays(signed, relays);
         publishedIds.push(signed.id);
+        setPublishProgress({ current: publishedIds.length, total: ordered.length });
       }
       setReviewState(null);
       setPublishSuccess(true);
@@ -848,11 +851,11 @@ export function MenuPage(): JSX.Element {
                     ? "text-primary font-medium"
                     : "text-emerald-600"
                 }>
-                  {publishStep === "nostr" ? "1. Publishing to Nostr" : "1. Published"}
+                  {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
                 </span>
                 <span className="text-muted-foreground">&rarr;</span>
                 <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
-                  2. Updating discovery page
+                  2. Going live
                 </span>
               </div>
             </div>
@@ -860,7 +863,7 @@ export function MenuPage(): JSX.Element {
 
           {synvyaError && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              <p className="font-medium text-amber-800">Discovery page update failed</p>
+              <p className="font-medium text-amber-800">Going live failed</p>
               <p className="mt-1 text-amber-700">{synvyaError}</p>
               <a
                 href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nPublic Key: ${pubkey}`)}`}
@@ -1017,11 +1020,11 @@ export function MenuPage(): JSX.Element {
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <div className="flex items-center gap-2">
                 <span className={publishStep === "nostr" ? "text-primary font-medium" : "text-emerald-600"}>
-                  {publishStep === "nostr" ? "1. Publishing to Nostr" : "1. Published"}
+                  {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
                 </span>
                 <span className="text-muted-foreground">&rarr;</span>
                 <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
-                  2. Updating discovery page
+                  2. Going live
                 </span>
               </div>
             </div>
@@ -1029,7 +1032,7 @@ export function MenuPage(): JSX.Element {
 
           {synvyaError && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              <p className="font-medium text-amber-800">Discovery page update failed</p>
+              <p className="font-medium text-amber-800">Going live failed</p>
               <p className="mt-1 text-amber-700">{synvyaError}</p>
               <a
                 href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nPublic Key: ${pubkey}`)}`}
@@ -1177,11 +1180,11 @@ export function MenuPage(): JSX.Element {
                     ? "text-primary font-medium"
                     : "text-emerald-600"
                 }>
-                  {publishStep === "nostr" ? "1. Publishing to Nostr" : "1. Published"}
+                  {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
                 </span>
                 <span className="text-muted-foreground">&rarr;</span>
                 <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
-                  2. Updating discovery page
+                  2. Going live
                 </span>
               </div>
             </div>
@@ -1189,7 +1192,7 @@ export function MenuPage(): JSX.Element {
 
           {synvyaError && (
             <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
-              <p className="font-medium text-amber-800">Discovery page update failed</p>
+              <p className="font-medium text-amber-800">Going live failed</p>
               <p className="mt-1 text-amber-700">{synvyaError}</p>
               <a
                 href={`mailto:support@synvya.com?subject=Discovery%20Page%20Error&body=${encodeURIComponent(`Error: ${synvyaError}\n\nPublic Key: ${pubkey}`)}`}
