@@ -41,6 +41,7 @@ function NavItem({ to, label, isComplete }: NavItemProps): JSX.Element {
 export function Header(): JSX.Element {
   const profilePublished = useOnboardingProgress((state) => state.profilePublished);
   const menuPublished = useOnboardingProgress((state) => state.menuPublished);
+  const chatgptSubmitted = useOnboardingProgress((state) => state.chatgptSubmitted);
   const restaurantName = useOnboardingProgress((state) => state.restaurantName);
 
   return (
@@ -69,17 +70,11 @@ export function Header(): JSX.Element {
               label="Menu"
               isComplete={menuPublished}
             />
-            <NavLink
+            <NavItem
               to="/app/chatgpt-merchant"
-              className={({ isActive }) =>
-                cn(
-                  "transition-colors hover:text-primary",
-                  isActive ? "text-primary" : "text-muted-foreground"
-                )
-              }
-            >
-              ChatGPT
-            </NavLink>
+              label="ChatGPT"
+              isComplete={chatgptSubmitted}
+            />
             <NavLink
               to="/app/dashboard"
               className={({ isActive }) =>

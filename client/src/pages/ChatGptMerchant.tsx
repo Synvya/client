@@ -81,6 +81,7 @@ export function ChatGptMerchantPage(): JSX.Element {
   const authStatus = useAuth((s) => s.status);
   const relays = useRelays((s) => s.relays);
   const discoveryPageUrl = useOnboardingProgress((s) => s.discoveryPageUrl);
+  const setChatgptSubmitted = useOnboardingProgress((s) => s.setChatgptSubmitted);
 
   const [loading, setLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
@@ -160,9 +161,10 @@ export function ChatGptMerchantPage(): JSX.Element {
             Back to Edit
           </Button>
           <Button
-            onClick={() =>
-              window.open("https://chatgpt.com/merchants/", "_blank")
-            }
+            onClick={() => {
+              setChatgptSubmitted(true);
+              window.open("https://chatgpt.com/merchants/", "_blank");
+            }}
           >
             <ExternalLink className="mr-2 h-4 w-4" />
             Open ChatGPT Merchant Form
