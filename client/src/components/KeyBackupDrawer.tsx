@@ -18,6 +18,7 @@ interface KeyBackupDrawerProps {
 
 export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation = false, onConfirm }: KeyBackupDrawerProps): JSX.Element {
   const [copied, setCopied] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [encrypting, setEncrypting] = useState(false);
@@ -25,12 +26,13 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const backupCompleted = downloaded || copied;
+
   const handleCopy = async () => {
     if (!nsec) return;
     try {
       await navigator.clipboard.writeText(nsec);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy private key", error);
     }
@@ -38,6 +40,7 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
 
   useEffect(() => {
     setCopied(false);
+    setDownloaded(false);
     setPassword("");
     setConfirmPassword("");
     setEncryptError(null);
@@ -85,6 +88,7 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
+      setDownloaded(true);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to encrypt key";
       setEncryptError(message);
@@ -98,7 +102,7 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
         <Dialog.Content
-          className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-background p-6 shadow-lg"
+          className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border bg-background p-6 shadow-lg max-h-[90vh] overflow-y-auto"
           onInteractOutside={(event) => {
             if (requireConfirmation) {
               event.preventDefault();
@@ -117,41 +121,27 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
             <div>
               <Dialog.Title className="text-lg font-semibold">Back up your restaurant key</Dialog.Title>
               <Dialog.Description className="text-sm text-muted-foreground">
-                Copy your private key and store it in a safe place. This key gives you full control over your restaurant profile and should be kept secure.
+                If you lose access to this device, you'll need this backup to recover your restaurant profile.
               </Dialog.Description>
             </div>
           </div>
 
-          <div className="mt-5 rounded-md border bg-muted/20 p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">Private Key</span>
-              <button
-                type="button"
-                onClick={handleCopy}
-                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "Copied" : "Copy"}
-              </button>
+          {/* Step 1 — Download encrypted backup (Required) */}
+          <div className="mt-5 space-y-3 rounded-md border bg-muted/20 p-4">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
+                downloaded ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+              )}>
+                {downloaded ? <Check className="h-3.5 w-3.5" /> : "1"}
+              </span>
+              <div>
+                <h4 className="text-sm font-medium">Download your encrypted backup</h4>
+              </div>
             </div>
-            <div
-              className={cn(
-                "mt-2 rounded-md bg-background px-3 py-2 font-mono text-sm",
-                !nsec && "text-destructive",
-                "break-all"
-              )}
-            >
-              {nsec ?? "Private key unavailable"}
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-3 rounded-md border bg-muted/20 p-4">
-            <div>
-              <h4 className="text-sm font-medium">Password-protected backup</h4>
-              <p className="text-xs text-muted-foreground">
-                Create a password-protected backup file that you can safely store. This encrypted file can be used to restore your restaurant profile if needed.
-              </p>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              You'll need this password to restore your account — we cannot recover it for you.
+            </p>
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="grid gap-1.5">
@@ -202,21 +192,66 @@ export function KeyBackupDrawer({ open, onOpenChange, nsec, requireConfirmation 
 
             <Button
               type="button"
-              variant="outline"
               className="flex items-center gap-2"
               onClick={() => void handleDownloadEncrypted()}
               disabled={encrypting || !nsec}
             >
               <Download className="h-4 w-4" />
-              {encrypting ? "Creating backup…" : "Download password-protected backup"}
+              {encrypting ? "Creating backup…" : downloaded ? "Downloaded" : "Download encrypted backup"}
             </Button>
           </div>
 
-          <div className="mt-6 flex items-center justify-end gap-2">
+          {/* Step 2 — Copy raw private key (Optional) */}
+          <div className="mt-4 space-y-3 rounded-md border bg-muted/10 p-4">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold",
+                copied ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              )}>
+                {copied ? <Check className="h-3.5 w-3.5" /> : "2"}
+              </span>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-medium">Copy your raw private key</h4>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Optional</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Advanced: save your raw key to a password manager or other secure location.
+            </p>
+            <div
+              className={cn(
+                "rounded-md bg-background px-3 py-2 font-mono text-sm",
+                !nsec && "text-destructive",
+                "break-all"
+              )}
+            >
+              {nsec ?? "Private key unavailable"}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-1"
+              onClick={() => void handleCopy()}
+              disabled={!nsec}
+            >
+              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              {copied ? "Copied" : "Copy to clipboard"}
+            </Button>
+          </div>
+
+          <div className="mt-6 flex flex-col items-end gap-1.5">
             {requireConfirmation ? (
-              <Button type="button" variant="secondary" onClick={handleConfirm} disabled={!nsec}>
-                I stored it safely
-              </Button>
+              <>
+                <Button type="button" variant="secondary" onClick={handleConfirm} disabled={!nsec || !backupCompleted}>
+                  I stored it safely
+                </Button>
+                {!backupCompleted && (
+                  <p className="text-xs text-muted-foreground">
+                    Complete at least one backup method above to continue
+                  </p>
+                )}
+              </>
             ) : (
               <Dialog.Close asChild>
                 <Button type="button" variant="secondary">
