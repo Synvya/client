@@ -1105,88 +1105,88 @@ export function BusinessProfileForm(): JSX.Element {
             <span>Images help your restaurant stand out in AI recommendations.</span>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="picture">Profile Picture</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  id="picture"
-                  readOnly
-                  value={pendingFiles.picture ? pendingFiles.picture.name : profile.picture}
-                  placeholder="Select an image…"
-                />
-                <input
-                  ref={pictureInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      handleFileSelect(file, "picture");
-                      event.target.value = "";
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={publishing}
-                  onClick={() => pictureInputRef.current?.click()}
-                >
-                  <UploadCloud className="mr-2 h-4 w-4" />
-                  {pendingFiles.picture ? "Change" : "Upload"}
-                </Button>
-              </div>
-              {(pendingFiles.picture ? previewUrls.picture : profile.picture) && (
-                <img
-                  src={(pendingFiles.picture ? previewUrls.picture : profile.picture) ?? undefined}
-                  alt="Profile preview"
-                  className="h-32 w-32 rounded-md object-cover"
-                />
-              )}
+          <div className="grid gap-2">
+            <Label htmlFor="banner">Cover Photo</Label>
+            <p className="text-xs text-muted-foreground">A wide image shown at the top of your profile — like a hero shot of your space, food, or storefront.</p>
+            <div className="flex items-center gap-3">
+              <Input
+                id="banner"
+                readOnly
+                value={pendingFiles.banner ? pendingFiles.banner.name : profile.banner}
+                placeholder="Select an image…"
+              />
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    handleFileSelect(file, "banner");
+                    event.target.value = "";
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={publishing}
+                onClick={() => bannerInputRef.current?.click()}
+              >
+                <UploadCloud className="mr-2 h-4 w-4" />
+                {pendingFiles.banner ? "Change" : "Upload"}
+              </Button>
             </div>
+            {(pendingFiles.banner ? previewUrls.banner : profile.banner) && (
+              <img
+                src={(pendingFiles.banner ? previewUrls.banner : profile.banner) ?? undefined}
+                alt="Banner preview"
+                className="aspect-video w-full rounded-md object-cover"
+              />
+            )}
+          </div>
 
-            <div className="grid gap-2">
-              <Label htmlFor="banner">Profile Banner</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  id="banner"
-                  readOnly
-                  value={pendingFiles.banner ? pendingFiles.banner.name : profile.banner}
-                  placeholder="Select an image…"
-                />
-                <input
-                  ref={bannerInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      handleFileSelect(file, "banner");
-                      event.target.value = "";
-                    }
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={publishing}
-                  onClick={() => bannerInputRef.current?.click()}
-                >
-                  <UploadCloud className="mr-2 h-4 w-4" />
-                  {pendingFiles.banner ? "Change" : "Upload"}
-                </Button>
-              </div>
-              {(pendingFiles.banner ? previewUrls.banner : profile.banner) && (
-                <img
-                  src={(pendingFiles.banner ? previewUrls.banner : profile.banner) ?? undefined}
-                  alt="Banner preview"
-                  className="h-32 w-full rounded-md object-cover"
-                />
-              )}
+          <div className="grid gap-2">
+            <Label htmlFor="picture">Profile Picture</Label>
+            <p className="text-xs text-muted-foreground">Your logo or a photo of your restaurant. Displayed as a small square image next to your name.</p>
+            <div className="flex items-center gap-3">
+              <Input
+                id="picture"
+                readOnly
+                value={pendingFiles.picture ? pendingFiles.picture.name : profile.picture}
+                placeholder="Select an image…"
+              />
+              <input
+                ref={pictureInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    handleFileSelect(file, "picture");
+                    event.target.value = "";
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={publishing}
+                onClick={() => pictureInputRef.current?.click()}
+              >
+                <UploadCloud className="mr-2 h-4 w-4" />
+                {pendingFiles.picture ? "Change" : "Upload"}
+              </Button>
             </div>
+            {(pendingFiles.picture ? previewUrls.picture : profile.picture) && (
+              <img
+                src={(pendingFiles.picture ? previewUrls.picture : profile.picture) ?? undefined}
+                alt="Profile preview"
+                className="h-32 w-32 rounded-md object-cover"
+              />
+            )}
           </div>
         </div>
       </CollapsibleSection>
