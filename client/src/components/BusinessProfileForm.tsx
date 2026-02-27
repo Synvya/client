@@ -1021,7 +1021,7 @@ export function BusinessProfileForm(): JSX.Element {
       {/* Hours & Details Section - Recommended */}
       <CollapsibleSection
         title="Hours & Details"
-        description="Operating hours and food categories"
+        description="Operating hours, cuisine, and discovery keywords"
         badge="recommended"
         isComplete={isHoursComplete}
         defaultOpen={!isHoursComplete && isLocationComplete}
@@ -1066,14 +1066,14 @@ export function BusinessProfileForm(): JSX.Element {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="categories">Categories</Label>
+            <Label htmlFor="categories">Keywords</Label>
             <Input
               id="categories"
-              placeholder="bakery, local, sweets"
+              placeholder="outdoor patio, vegan, family-friendly, brunch"
               value={categoriesInput}
               onChange={(event) => setCategoriesInput(event.target.value)}
             />
-            <p className="text-xs text-muted-foreground">Comma separated values.</p>
+            <p className="text-xs text-muted-foreground">Comma-separated keywords that help customers find you (e.g. outdoor patio, vegan, late-night).</p>
           </div>
 
           <div className="flex items-center gap-2">
