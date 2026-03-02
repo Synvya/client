@@ -767,7 +767,7 @@ export function BusinessProfileForm(): JSX.Element {
 
         // Restore discovery page URL if lost (e.g. after backup restore)
         if (!useOnboardingProgress.getState().discoveryPageUrl && patch.name) {
-          const candidateUrl = buildDiscoveryUrl({
+          setDiscoveryPageUrl(buildDiscoveryUrl({
             ...patch,
             name: patch.name || "",
             displayName: patch.displayName || patch.name || "",
@@ -778,12 +778,7 @@ export function BusinessProfileForm(): JSX.Element {
             banner: patch.banner || "",
             businessType: patch.businessType || "restaurant",
             categories: patch.categories || [],
-          });
-          fetch(candidateUrl, { method: "HEAD" })
-            .then((res) => {
-              if (res.ok) setDiscoveryPageUrl(candidateUrl);
-            })
-            .catch(() => {});
+          }));
         }
 
         if (cancelled) {
