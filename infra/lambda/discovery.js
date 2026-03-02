@@ -4,9 +4,13 @@
  */
 import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 
 const secretsClient = new SecretsManagerClient({});
 const s3Client = new S3Client({});
+const dynamo = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const customersTable = process.env.CUSTOMERS_TABLE || "synvya-customers";
 
 const GITHUB_REPO_OWNER = "Synvya";
 const GITHUB_REPO_NAME = "website";
@@ -89,6 +93,38 @@ function buildCorsHeaders(originOverride) {
     "Access-Control-Allow-Methods": "OPTIONS,POST",
     "Access-Control-Allow-Headers": "Content-Type,Authorization"
   };
+}
+
+/**
+ * Checks whether a customer's AI pages are active (trialing or subscribed).
+ * Returns true if active, false if not. Returns true if no npub provided
+ * or customer not found (fail open to avoid blocking legitimate publishes
+ * during migration).
+ */
+async function isAiPagesActive(npub) {
+  if (!npub) return true;
+  try {
+    const result = await dynamo.send(
+      new GetCommand({ TableName: customersTable, Key: { npub } })
+    );
+    if (!result.Item) return true; // Customer not in DB yet — allow
+
+    const item = result.Item;
+
+    // Check trial_end for "forever" accounts
+    if (item.trial_end === "forever") return true;
+
+    // Check if still in trial
+    if (item.subscription_status === "trialing" && item.trial_end) {
+      return new Date(item.trial_end) > new Date();
+    }
+
+    // Check subscription status
+    return item.subscription_status === "active";
+  } catch (err) {
+    console.warn("Failed to check subscription status, allowing publish:", err.message);
+    return true; // Fail open
+  }
 }
 
 /**
@@ -220,6 +256,22 @@ export const handler = async (event) => {
       headers: corsHeaders,
       body: JSON.stringify({ error: "html must be a non-empty string" })
     };
+  }
+
+  // Check subscription status if npub is provided
+  const { npub } = body;
+  if (npub) {
+    const active = await isAiPagesActive(npub);
+    if (!active) {
+      return {
+        statusCode: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "Subscription required",
+          message: "Your AI discovery pages are inactive. Please subscribe to publish."
+        })
+      };
+    }
   }
 
   try {

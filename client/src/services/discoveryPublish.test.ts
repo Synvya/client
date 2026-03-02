@@ -34,6 +34,7 @@ vi.mock("@/state/useWebsiteData", () => ({
   }
 }));
 
+
 import { getPool } from "@/lib/relayPool";
 import { parseKind0ProfileEvent } from "@/components/BusinessProfileForm";
 import { deduplicateEvents } from "@/lib/nostrEventProcessing";
@@ -42,7 +43,8 @@ import { publishDiscoveryPage } from "@/services/discovery";
 import { useWebsiteData } from "@/state/useWebsiteData";
 
 describe("discoveryPublish", () => {
-  const mockPubkey = "abc123pubkey";
+  // Must be a valid 32-byte hex key for nip19.npubEncode
+  const mockPubkey = "a".repeat(64);
   const mockRelays = ["wss://relay1.example.com", "wss://relay2.example.com"];
 
   const mockProfile: BusinessProfile = {
@@ -252,7 +254,8 @@ describe("discoveryPublish", () => {
       expect(publishDiscoveryPage).toHaveBeenCalledWith(
         "restaurant",
         "testrestaurant",
-        "<html>Test</html>"
+        "<html>Test</html>",
+        "npub1424242424242424242424242424242424242424242424242424qamrcaj"
       );
       expect(result.url).toBe("https://synvya.com/restaurant/testrestaurant/");
       expect(result.profile).toBe(mockProfile);

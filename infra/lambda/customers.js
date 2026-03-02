@@ -115,13 +115,25 @@ async function handleRegister(event, requestOrigin = null) {
     // Continue to create new record
   }
 
+  // Calculate trial period (14 days from signup)
+  const trialStartDate = new Date(signup_timestamp * 1000);
+  const trialEndDate = new Date(trialStartDate);
+  trialEndDate.setDate(trialEndDate.getDate() + 14);
+
   // Create new customer record
   const item = {
     npub,
     signup_date: signupDate,
     signup_timestamp,
     reservations_by_month: {},
-    last_updated: lastUpdated
+    last_updated: lastUpdated,
+    subscription_status: "trialing",
+    trial_start: trialStartDate.toISOString(),
+    trial_end: trialEndDate.toISOString(),
+    ai_pages_active: true,
+    stripe_customer_id: null,
+    stripe_subscription_id: null,
+    current_period_end: null
   };
 
   try {
@@ -181,6 +193,9 @@ async function handleReservation(event, requestOrigin = null) {
       // Customer doesn't exist, create it with current timestamp as signup
       const now = Math.floor(Date.now() / 1000);
       const signupDate = new Date().toISOString().split("T")[0];
+      const trialStart = new Date();
+      const trialEnd = new Date(trialStart);
+      trialEnd.setDate(trialEnd.getDate() + 14);
       await dynamo.send(
         new PutCommand({
           TableName: customersTable,
@@ -191,7 +206,14 @@ async function handleReservation(event, requestOrigin = null) {
             reservations_by_month: {
               [monthKey]: { confirmed: 1 }
             },
-            last_updated: new Date().toISOString()
+            last_updated: new Date().toISOString(),
+            subscription_status: "trialing",
+            trial_start: trialStart.toISOString(),
+            trial_end: trialEnd.toISOString(),
+            ai_pages_active: true,
+            stripe_customer_id: null,
+            stripe_subscription_id: null,
+            current_period_end: null
           }
         })
       );
@@ -262,6 +284,61 @@ async function handleReservation(event, requestOrigin = null) {
   }
 }
 
+async function handleStatus(event, requestOrigin = null) {
+  if (event.requestContext?.http?.method !== "GET") {
+    return jsonResponse(405, { error: "Method not allowed" }, {}, requestOrigin);
+  }
+
+  const path = event.requestContext?.http?.path || "";
+  const npub = path.split("/").pop();
+
+  if (!npub || !npub.startsWith("npub")) {
+    return jsonResponse(400, { error: "Valid npub is required in path" }, {}, requestOrigin);
+  }
+
+  try {
+    const result = await dynamo.send(
+      new GetCommand({
+        TableName: customersTable,
+        Key: { npub }
+      })
+    );
+
+    if (!result.Item) {
+      return jsonResponse(404, { error: "Customer not found" }, {}, requestOrigin);
+    }
+
+    const item = result.Item;
+
+    // Determine effective status based on trial_end
+    let effectiveStatus = item.subscription_status || "none";
+    let aiPagesActive = item.ai_pages_active || false;
+
+    if (effectiveStatus === "trialing" && item.trial_end !== "forever") {
+      const now = new Date();
+      const trialEnd = new Date(item.trial_end);
+      if (now > trialEnd) {
+        effectiveStatus = "trial_expired";
+        aiPagesActive = false;
+      }
+    }
+
+    return jsonResponse(200, {
+      npub: item.npub,
+      subscription_status: effectiveStatus,
+      trial_start: item.trial_start || null,
+      trial_end: item.trial_end || null,
+      ai_pages_active: aiPagesActive,
+      stripe_customer_id: item.stripe_customer_id || null,
+      stripe_subscription_id: item.stripe_subscription_id || null,
+      current_period_end: item.current_period_end || null
+    }, {}, requestOrigin);
+  } catch (error) {
+    console.error("Error fetching customer status:", error);
+    throw error;
+  }
+}
+
 export const handler = withErrorHandling(async (event) => {
   console.log("=== Customer Registry API handler called ===", JSON.stringify({
     path: event.requestContext?.http?.path,
@@ -283,6 +360,10 @@ export const handler = withErrorHandling(async (event) => {
 
   if (path.endsWith("/api/customers/reservations")) {
     return handleReservation(event, requestOrigin);
+  }
+
+  if (path.includes("/api/customers/status/")) {
+    return handleStatus(event, requestOrigin);
   }
 
   return jsonResponse(404, { error: "Not found" }, {}, requestOrigin);
