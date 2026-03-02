@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { uploadMedia } from "@/services/upload";
-import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
+import { fetchAndPublishDiscovery, buildDiscoveryUrl } from "@/services/discoveryPublish";
 import type { Event } from "nostr-tools";
 import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail, Check, ExternalLink } from "lucide-react";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
@@ -764,6 +764,27 @@ export function BusinessProfileForm(): JSX.Element {
         // Update onboarding progress if profile exists
         setProfilePublished(true);
         setRestaurantName(patch.displayName || patch.name || null);
+
+        // Restore discovery page URL if lost (e.g. after backup restore)
+        if (!useOnboardingProgress.getState().discoveryPageUrl && patch.name) {
+          const candidateUrl = buildDiscoveryUrl({
+            ...patch,
+            name: patch.name || "",
+            displayName: patch.displayName || patch.name || "",
+            about: patch.about || "",
+            website: patch.website || "",
+            nip05: patch.nip05 || "",
+            picture: patch.picture || "",
+            banner: patch.banner || "",
+            businessType: patch.businessType || "restaurant",
+            categories: patch.categories || [],
+          });
+          fetch(candidateUrl, { method: "HEAD" })
+            .then((res) => {
+              if (res.ok) setDiscoveryPageUrl(candidateUrl);
+            })
+            .catch(() => {});
+        }
 
         if (cancelled) {
           return;
