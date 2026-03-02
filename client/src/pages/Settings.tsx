@@ -12,6 +12,7 @@ import { KeyBackupDrawer } from "@/components/KeyBackupDrawer";
 import { ChevronDown, ChevronUp, Copy, KeyRound, RadioTower, Check, Circle, AlertTriangle, ChevronRight, ExternalLink, Globe, Download, HelpCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchDiscoveryData } from "@/services/discoveryPublish";
+import { BillingSection } from "@/components/BillingSection";
 
 interface ChecklistItemProps {
   label: string;
@@ -262,6 +263,9 @@ export function SettingsPage(): JSX.Element {
         </div>
       </section>
 
+      {/* Billing Section */}
+      <BillingSection npub={npub} />
+
       {/* Backup Warning - Show if key not backed up */}
       {!keyBackedUp && (
         <section className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-6">
@@ -337,15 +341,12 @@ export function SettingsPage(): JSX.Element {
 
       {/* Identity Section */}
       <section className="space-y-4 rounded-lg border bg-card p-6">
-        <header className="flex items-center gap-3">
-          <KeyRound className="h-5 w-5 text-muted-foreground" />
-          <div>
-            <h2 className="text-lg font-semibold">Identity</h2>
-            <p className="text-sm text-muted-foreground">
-              Your restaurant's unique identity on the Nostr network.
-            </p>
-          </div>
-        </header>
+        <div>
+          <h2 className="text-lg font-semibold">Identity</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your restaurant's unique identity on the Nostr network.
+          </p>
+        </div>
 
         <div className="grid gap-3 text-sm">
           <div>
@@ -465,11 +466,8 @@ export function SettingsPage(): JSX.Element {
           onClick={() => setAdvancedSettingsOpen(!advancedSettingsOpen)}
           className="flex w-full items-center justify-between gap-3 text-left"
         >
-          <div className="flex items-center gap-3">
-            <RadioTower className="h-5 w-5 text-muted-foreground" />
-            <div>
-              <h2 className="text-lg font-semibold">Advanced Settings</h2>
-            </div>
+          <div>
+            <h2 className="text-lg font-semibold">Advanced Settings</h2>
           </div>
           {advancedSettingsOpen ? (
             <ChevronUp className="h-5 w-5 text-muted-foreground" />

@@ -109,9 +109,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: npub
           AttributeType: S
+        - AttributeName: stripe_customer_id
+          AttributeType: S
       KeySchema:
         - AttributeName: npub
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: stripe-customer-id-index
+          KeySchema:
+            - AttributeName: stripe_customer_id
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   SquareIntegrationFunction:
     Type: AWS::Serverless::Function
@@ -190,6 +199,13 @@ Resources:
             Method: POST
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi
+        Status:
+          Type: HttpApi
+          Properties:
+            Path: /api/customers/status/{npub}
+            Method: GET
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
 
   BotAnalyticsTable:
     Type: AWS::DynamoDB::Table
@@ -242,14 +258,57 @@ Resources:
           CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
           GITHUB_TOKEN_SECRET_ARN: !Ref GitHubTokenSecretArn
           GITHUB_TOKEN_SECRET_KEY: !Ref GitHubTokenSecretKey
+          CUSTOMERS_TABLE: !Ref CustomersTable
       Policies:
         - AWSSecretsManagerGetSecretValuePolicy:
             SecretArn: !Ref GitHubTokenSecretArn
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CustomersTable
       Events:
         Publish:
           Type: HttpApi
           Properties:
             Path: /discovery/publish
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+
+  BillingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: synvya-billing
+      CodeUri: lambda/
+      Handler: billing.handler
+      Description: Handles Stripe billing - checkout sessions, portal sessions, and webhooks.
+      Environment:
+        Variables:
+          CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+          CUSTOMERS_TABLE: !Ref CustomersTable
+          STRIPE_SECRET_KEY: "{{resolve:secretsmanager:synvya-stripe:SecretString:secret_key}}"
+          STRIPE_WEBHOOK_SECRET: "{{resolve:secretsmanager:synvya-stripe:SecretString:webhook_secret}}"
+          STRIPE_PRICE_ID: "{{resolve:secretsmanager:synvya-stripe:SecretString:price_id}}"
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CustomersTable
+      Events:
+        CreateCheckoutSession:
+          Type: HttpApi
+          Properties:
+            Path: /billing/create-checkout-session
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+        CreatePortalSession:
+          Type: HttpApi
+          Properties:
+            Path: /billing/create-portal-session
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+        StripeWebhook:
+          Type: HttpApi
+          Properties:
+            Path: /webhooks/stripe
             Method: POST
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi

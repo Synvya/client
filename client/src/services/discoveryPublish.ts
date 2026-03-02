@@ -12,6 +12,7 @@ import { slugify } from "@/lib/siteExport/slug";
 import { buildStaticSiteFiles } from "@/lib/siteExport/buildSite";
 import { publishDiscoveryPage } from "@/services/discovery";
 import { useWebsiteData } from "@/state/useWebsiteData";
+import { nip19 } from "nostr-tools";
 import type { BusinessProfile } from "@/types/profile";
 import type { SquareEventTemplate } from "@/services/square";
 
@@ -143,7 +144,8 @@ export async function publishDiscoveryToSynvya(
     nameSlug
   });
 
-  const url = await publishDiscoveryPage(typeSlug, nameSlug, html);
+  const npub = nip19.npubEncode(pubkey);
+  const url = await publishDiscoveryPage(typeSlug, nameSlug, html, npub);
 
   return {
     url,

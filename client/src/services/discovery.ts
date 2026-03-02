@@ -6,6 +6,7 @@ export interface DiscoveryPublishRequest {
   typeSlug: string;
   nameSlug: string;
   html: string;
+  npub?: string;
 }
 
 export interface DiscoveryPublishResponse {
@@ -33,10 +34,14 @@ function getApiBaseUrl(): string {
 export async function publishDiscoveryPage(
   typeSlug: string,
   nameSlug: string,
-  html: string
+  html: string,
+  npub?: string
 ): Promise<string> {
   const baseUrl = getApiBaseUrl();
   const endpoint = `${baseUrl}/discovery/publish`;
+
+  const payload: DiscoveryPublishRequest = { typeSlug, nameSlug, html };
+  if (npub) payload.npub = npub;
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -44,11 +49,7 @@ export async function publishDiscoveryPage(
       "Content-Type": "application/json",
       Accept: "application/json"
     },
-    body: JSON.stringify({
-      typeSlug,
-      nameSlug,
-      html
-    } satisfies DiscoveryPublishRequest)
+    body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
