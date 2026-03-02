@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/state/useAuth";
+import { useRelays } from "@/state/useRelays";
+import { useOnboardingProgress } from "@/state/useOnboardingProgress";
+import { fetchLiveMenuData } from "@/lib/menu/menuFetch";
 import { KeyBackupDrawer } from "@/components/KeyBackupDrawer";
 import { Button } from "@/components/ui/button";
 
@@ -10,19 +13,41 @@ interface OnboardingGateProps {
 
 export function OnboardingGate({ children }: OnboardingGateProps): JSX.Element {
   const status = useAuth((state) => state.status);
+  const pubkey = useAuth((state) => state.pubkey);
   const initialize = useAuth((state) => state.initialize);
   const error = useAuth((state) => state.error);
   const needsBackup = useAuth((state) => state.needsBackup);
   const lastGeneratedNsec = useAuth((state) => state.lastGeneratedNsec);
   const markBackedUp = useAuth((state) => state.markBackedUp);
   const revealSecret = useAuth((state) => state.revealSecret);
+  const relays = useRelays((state) => state.relays);
+  const menuPublished = useOnboardingProgress((state) => state.menuPublished);
+  const setMenuPublished = useOnboardingProgress((state) => state.setMenuPublished);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const menuCheckDone = useRef(false);
 
   useEffect(() => {
     if (status === "idle" || status === "error" || status === "needs-setup") {
       void initialize();
     }
   }, [status, initialize]);
+
+  // Check menu published status on app load (e.g. after restoring from backup)
+  useEffect(() => {
+    if (menuPublished || menuCheckDone.current) return;
+    if (status !== "ready" || !pubkey || !relays.length) return;
+
+    menuCheckDone.current = true;
+
+    (async () => {
+      try {
+        const data = await fetchLiveMenuData(pubkey, relays);
+        setMenuPublished(data.items.length > 0);
+      } catch {
+        // Non-critical — menu checkmark just won't show until they visit Menu
+      }
+    })();
+  }, [status, pubkey, relays, menuPublished, setMenuPublished]);
 
   useEffect(() => {
     if (needsBackup && lastGeneratedNsec) {
