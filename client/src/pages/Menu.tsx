@@ -118,6 +118,7 @@ export function MenuPage(): JSX.Element {
   const [importNotice, setImportNotice] = useState<string | null>(null);
   const [publishBusy, setPublishBusy] = useState(false);
   const [pdfExtracting, setPdfExtracting] = useState(false);
+  const [extractElapsed, setExtractElapsed] = useState(0);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [unpublishBusy, setUnpublishBusy] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
@@ -154,6 +155,16 @@ export function MenuPage(): JSX.Element {
     setError: setImportError,
     setNotice: setImportNotice,
   });
+
+  // Elapsed-time ticker for PDF extraction
+  useEffect(() => {
+    if (!pdfExtracting) {
+      setExtractElapsed(0);
+      return;
+    }
+    const id = setInterval(() => setExtractElapsed((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [pdfExtracting]);
 
   // Compute current workflow step
   const currentStep: WorkflowStep = useMemo(() => {
@@ -1069,9 +1080,23 @@ export function MenuPage(): JSX.Element {
                 />
               </div>
               {pdfExtracting && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Extracting menu (this may take 10-20 seconds)...</span>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>
+                      {extractElapsed < 10
+                        ? "Reading menu pages…"
+                        : extractElapsed < 60
+                          ? "Extracting items, prices, and descriptions…"
+                          : extractElapsed < 120
+                            ? "Still working — large menus take a bit longer…"
+                            : "Almost there — finalizing extraction…"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/70 pl-6">
+                    Elapsed: {Math.floor(extractElapsed / 60)}:{String(extractElapsed % 60).padStart(2, "0")}
+                    {" · "}Typically takes 2–3 minutes
+                  </p>
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
