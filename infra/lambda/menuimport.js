@@ -159,9 +159,13 @@ async function handleExtract(event) {
 
   let extracted;
   try {
-    const raw = textBlock.text.trim();
-    const fenceMatch = raw.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
-    extracted = JSON.parse(fenceMatch ? fenceMatch[1].trim() : raw);
+    const raw = textBlock.text;
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error("No JSON object found in response");
+    }
+    extracted = JSON.parse(raw.slice(start, end + 1));
   } catch (parseErr) {
     console.error("Failed to parse Claude response:", textBlock.text.slice(0, 500));
     throw new Error("Failed to parse extraction result as JSON");
@@ -261,9 +265,13 @@ Return ONLY the JSON, no markdown code fences or explanations.`;
 
   let parsed;
   try {
-    const raw = textBlock.text.trim();
-    const fenceMatch = raw.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
-    parsed = JSON.parse(fenceMatch ? fenceMatch[1].trim() : raw);
+    const raw = textBlock.text;
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error("No JSON object found in response");
+    }
+    parsed = JSON.parse(raw.slice(start, end + 1));
   } catch {
     console.error("Failed to parse enrich response:", textBlock.text.slice(0, 500));
     throw new Error("Failed to parse enrichment result as JSON");
