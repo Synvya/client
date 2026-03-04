@@ -159,9 +159,9 @@ async function handleExtract(event) {
 
   let extracted;
   try {
-    // Strip markdown fences if Claude adds them despite instructions
-    const cleaned = textBlock.text.replace(/^```(?:json)?\s*/m, "").replace(/\s*```\s*$/m, "");
-    extracted = JSON.parse(cleaned);
+    const raw = textBlock.text.trim();
+    const fenceMatch = raw.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
+    extracted = JSON.parse(fenceMatch ? fenceMatch[1].trim() : raw);
   } catch (parseErr) {
     console.error("Failed to parse Claude response:", textBlock.text.slice(0, 500));
     throw new Error("Failed to parse extraction result as JSON");
@@ -261,8 +261,9 @@ Return ONLY the JSON, no markdown code fences or explanations.`;
 
   let parsed;
   try {
-    const cleaned = textBlock.text.replace(/^```(?:json)?\s*/m, "").replace(/\s*```\s*$/m, "");
-    parsed = JSON.parse(cleaned);
+    const raw = textBlock.text.trim();
+    const fenceMatch = raw.match(/^```(?:json)?\n?([\s\S]*?)\n?```$/);
+    parsed = JSON.parse(fenceMatch ? fenceMatch[1].trim() : raw);
   } catch {
     console.error("Failed to parse enrich response:", textBlock.text.slice(0, 500));
     throw new Error("Failed to parse enrichment result as JSON");
