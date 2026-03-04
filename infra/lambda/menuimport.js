@@ -135,7 +135,7 @@ async function handleExtract(event) {
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-5-20250929",
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [
         {
           role: "user",
@@ -152,6 +152,12 @@ async function handleExtract(event) {
   }
 
   const result = await response.json();
+
+  if (result.stop_reason === "max_tokens") {
+    console.error("Claude response truncated — output exceeded max_tokens");
+    throw new Error("Menu too large: Claude response was cut off. Try uploading fewer pages.");
+  }
+
   const textBlock = result.content?.find((b) => b.type === "text");
   if (!textBlock?.text) {
     throw new Error("No text response from Claude");
