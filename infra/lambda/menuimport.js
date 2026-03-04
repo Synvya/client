@@ -22,6 +22,18 @@ async function getMenuImportSecret() {
 }
 
 
+// Retry helper for transient API errors (502, 503, 429)
+async function fetchWithRetry(url, options, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.ok || attempt === maxRetries) return response;
+    if (![429, 502, 503].includes(response.status)) return response;
+    const delay = Math.pow(2, attempt) * 2000; // 2s, 4s
+    console.warn(`Retrying after ${response.status} (attempt ${attempt + 1}/${maxRetries}, wait ${delay}ms)`);
+    await new Promise((r) => setTimeout(r, delay));
+  }
+}
+
 // CORS is handled by the Lambda Function URL configuration.
 // Do NOT set CORS headers here — duplicates cause browsers to reject the response.
 
@@ -126,7 +138,7 @@ async function handleExtract(event) {
     },
   ];
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -243,7 +255,7 @@ Return a JSON object:
 
 Return ONLY the JSON, no markdown code fences or explanations.`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
