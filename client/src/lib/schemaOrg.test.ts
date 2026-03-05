@@ -31,8 +31,8 @@ describe("schemaOrg", () => {
       expect(schema.name).toBe("Test Restaurant");
       expect(schema.alternateName).toBe("testrestaurant");
       expect(schema.description).toBe("A great place to eat");
-      expect(schema.telephone).toBe("tel:2065551234");
-      expect(schema.email).toBe("mailto:info@test.com");
+      expect(schema.telephone).toBe("(206) 555-1234");
+      expect(schema.email).toBe("info@test.com");
       expect(schema.url).toBe("https://synvya.com/restaurant/testrestaurant/");
       expect(schema.brand).toEqual({ "@type": "Brand", "name": "Test Restaurant" });
       expect(schema.areaServed).toBe("US");
@@ -610,7 +610,8 @@ describe("schemaOrg", () => {
 
       expect(script).toContain('"@type": "Bakery"');
       expect(script).not.toContain('"@type": "Menu"');
-      expect(script).not.toContain('"hasMenu"');
+      // hasMenu is present in the reference script (pointing to synvya discovery page)
+      expect(script).toContain('"hasMenu"');
       expect(script).not.toContain('"@graph"'); // Should be single entity
     });
 
@@ -649,8 +650,8 @@ describe("schemaOrg", () => {
 
       const script = generateLDJsonScript(profile);
 
-      // Extract JSON from script tag
-      const jsonMatch = script.match(/<script type="application\/ld\+json">\n([\s\S]*)\n<\/script>/);
+      // Extract JSON from first script tag (non-greedy to avoid matching the reference script)
+      const jsonMatch = script.match(/<script type="application\/ld\+json">\n([\s\S]*?)\n<\/script>/);
       expect(jsonMatch).toBeTruthy();
 
       if (jsonMatch) {

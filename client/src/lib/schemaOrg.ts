@@ -426,12 +426,12 @@ export function buildFoodEstablishmentSchema(
   if (kind0Tags) {
     const telephoneTag = extractTagValue(kind0Tags, "telephone");
     if (telephoneTag) {
-      telephone = telephoneTag.startsWith("tel:") ? telephoneTag : `tel:${telephoneTag}`;
+      telephone = telephoneTag.startsWith("tel:") ? telephoneTag.slice(4) : telephoneTag;
     }
   }
   if (!telephone && profile.phone) {
     const raw = profile.phone.trim();
-    telephone = raw.toLowerCase().startsWith("tel:") ? raw : `tel:${raw.replace(/[^\d+]/g, "") || raw}`;
+    telephone = raw.toLowerCase().startsWith("tel:") ? raw.slice(4) : raw;
   }
   if (telephone) {
     schema.telephone = telephone;
@@ -441,12 +441,12 @@ export function buildFoodEstablishmentSchema(
   if (kind0Tags) {
     const emailTag = extractTagValue(kind0Tags, "email");
     if (emailTag) {
-      email = emailTag.startsWith("mailto:") ? emailTag : `mailto:${emailTag}`;
+      email = emailTag.startsWith("mailto:") ? emailTag.slice(7) : emailTag;
     }
   }
   if (!email && profile.email) {
     const raw = profile.email.trim();
-    email = raw.toLowerCase().startsWith("mailto:") ? raw : `mailto:${raw}`;
+    email = raw.toLowerCase().startsWith("mailto:") ? raw.slice(7) : raw;
   }
   if (email) {
     schema.email = email;
@@ -967,13 +967,46 @@ export function generateLDJsonScript(
   };
 
   const jsonString = JSON.stringify(schemaOrg, null, 2);
-  
-  // Escape for HTML embedding
-  const escapedJson = jsonString
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026");
 
-  return `<script type="application/ld+json">\n${escapedJson}\n</script>`;
+  // Escape for HTML embedding
+  const escapeForHtml = (s: string) =>
+    s.replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+
+  const mainScript = `<script type="application/ld+json">\n${escapeForHtml(jsonString)}\n</script>`;
+
+  // Second script: lightweight reference block linking the business's own site to Synvya
+  const typeLabel = mapBusinessTypeToSchemaOrg(profile.businessType);
+  const synvyaDiscoveryUrl = `https://synvya.com/${typeSlug}/${nameSlug}/`;
+  const businessWebsite = profile.website && !profile.website.startsWith("https://synvya.com")
+    ? profile.website
+    : undefined;
+
+  const referenceSchema: Record<string, string> = {
+    "@context": "https://schema.org",
+    "@type": typeLabel,
+  };
+
+  if (merchantPubkey) {
+    try {
+      const npub = nip19.npubEncode(merchantPubkey);
+      referenceSchema["@id"] = `nostr:${npub}`;
+    } catch {
+      // skip @id if pubkey is invalid
+    }
+  }
+
+  referenceSchema["name"] = profile.displayName || profile.name || "";
+
+  if (businessWebsite) {
+    referenceSchema["url"] = businessWebsite;
+    referenceSchema["mainEntityOfPage"] = businessWebsite;
+  }
+
+  referenceSchema["hasMenu"] = synvyaDiscoveryUrl;
+
+  const referenceJsonString = JSON.stringify(referenceSchema, null, 2);
+  const referenceScript = `<script type="application/ld+json">\n${escapeForHtml(referenceJsonString)}\n</script>`;
+
+  return `${referenceScript}\n\n${mainScript}`;
 }
 
