@@ -202,7 +202,7 @@ export function SettingsPage(): JSX.Element {
   const handleCopyMenuLink = async () => {
     if (!discoveryPageUrl) return;
     try {
-      await navigator.clipboard.writeText(discoveryPageUrl);
+      await navigator.clipboard.writeText(`<a href="${discoveryPageUrl}">View full menu on Synvya</a>`);
       setMenuLinkCopied(true);
     } catch (error) {
       console.error("Failed to copy menu link to clipboard:", error);
@@ -448,19 +448,19 @@ export function SettingsPage(): JSX.Element {
                         <h3 className="font-semibold text-sm">Add a link to your full menu</h3>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Add this link to your website — on your menu page, footer, or sidebar.
+                        Paste this HTML on your website — on your menu page, footer, or sidebar.
                         This lets visitors browse your full menu and helps search engines find it.
                       </p>
 
                       <div className="flex items-center gap-2">
                         <div className="flex-1 rounded-lg border bg-muted/30 px-3 py-2">
                           <code className="text-sm break-all" style={{ fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace" }}>
-                            {discoveryPageUrl}
+                            {`<a href="${discoveryPageUrl}">View full menu on Synvya</a>`}
                           </code>
                         </div>
                         <Button variant="default" size="sm" onClick={handleCopyMenuLink} disabled={menuLinkCopied} className="shrink-0">
                           <Copy className="mr-2 h-4 w-4" />
-                          {menuLinkCopied ? "Copied!" : "Copy Link"}
+                          {menuLinkCopied ? "Copied!" : "Copy"}
                         </Button>
                       </div>
                     </div>
