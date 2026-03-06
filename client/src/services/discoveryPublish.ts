@@ -87,7 +87,12 @@ export async function fetchDiscoveryData(
     country: patch.country,
     cuisine: patch.cuisine,
     openingHours: patch.openingHours,
-    acceptsReservations: patch.acceptsReservations
+    acceptsReservations: patch.acceptsReservations,
+    facebook: patch.facebook,
+    instagram: patch.instagram,
+    twitter: patch.twitter,
+    googleMapsUrl: patch.googleMapsUrl,
+    googlePlaceId: patch.googlePlaceId
   };
 
   // Extract geohash from profile event tags

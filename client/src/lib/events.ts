@@ -27,6 +27,53 @@ function getChamberUrl(domain: string): string {
 }
 
 /**
+ * Normalizes a social media handle/URL to just the handle or ID.
+ * Strips URL prefixes and leading @ symbols.
+ * Examples:
+ *   "https://www.instagram.com/southfork" → "southfork"
+ *   "https://instagram.com/southfork/" → "southfork"
+ *   "@southfork" → "southfork"
+ *   "southfork" → "southfork"
+ *   "https://www.facebook.com/southforknorthbend" → "southforknorthbend"
+ *   "https://x.com/myhandle" → "myhandle"
+ *   "https://twitter.com/myhandle" → "myhandle"
+ */
+function normalizeSocialHandle(input: string, platform: "facebook" | "instagram" | "twitter"): string {
+  let value = input.trim();
+  if (!value) return "";
+
+  // Strip known URL prefixes for each platform
+  const urlPatterns: Record<string, RegExp[]> = {
+    facebook: [
+      /^https?:\/\/(?:www\.)?facebook\.com\//i,
+      /^https?:\/\/(?:www\.)?fb\.com\//i
+    ],
+    instagram: [
+      /^https?:\/\/(?:www\.)?instagram\.com\//i
+    ],
+    twitter: [
+      /^https?:\/\/(?:www\.)?x\.com\//i,
+      /^https?:\/\/(?:www\.)?twitter\.com\//i
+    ]
+  };
+
+  for (const pattern of urlPatterns[platform] || []) {
+    if (pattern.test(value)) {
+      value = value.replace(pattern, "");
+      break;
+    }
+  }
+
+  // Strip trailing slash
+  value = value.replace(/\/+$/, "");
+
+  // Strip leading @ for all platforms
+  value = value.replace(/^@/, "");
+
+  return value;
+}
+
+/**
  * Maps ISO 3166-1 alpha-2 country code to telephone country code
  * e.g., "US" → "+1"
  */
@@ -273,6 +320,28 @@ export function buildProfileEvent(profile: BusinessProfile, options: BuildOption
   if (profile.memberOf) {
     const memberOfUrl = getChamberUrl(profile.memberOf);
     tags.push(["schema.org:FoodEstablishment:memberOf", memberOfUrl, "https://schema.org/memberOf"]);
+  }
+
+  // Add social media identity tags
+  if (profile.facebook) {
+    const normalized = normalizeSocialHandle(profile.facebook, "facebook");
+    if (normalized) tags.push(["i", "facebook", normalized]);
+  }
+  if (profile.instagram) {
+    const normalized = normalizeSocialHandle(profile.instagram, "instagram");
+    if (normalized) tags.push(["i", "instagram", normalized]);
+  }
+  if (profile.twitter) {
+    const normalized = normalizeSocialHandle(profile.twitter, "twitter");
+    if (normalized) tags.push(["i", "twitter", normalized]);
+  }
+
+  // Add Google Maps identity tags
+  if (profile.googleMapsUrl) {
+    tags.push(["i", "google_maps", profile.googleMapsUrl]);
+  }
+  if (profile.googlePlaceId) {
+    tags.push(["i", "google_place_id", profile.googlePlaceId]);
   }
 
   const event: EventTemplate = {

@@ -196,6 +196,25 @@ jobs:
             fi
           fi
 
+      - name: Check for googlemaps.js changes
+        id: googlemaps-changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          # Check if the before commit exists
+          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            if git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- "infra/lambda/googlemaps.js" | grep -q "^infra/lambda/googlemaps.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            if git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -q "^infra/lambda/googlemaps.js"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+            fi
+          fi
+
       - name: Package Square Lambda function
         if: steps.square-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}/infra/lambda
@@ -328,3 +347,22 @@ jobs:
             --region "$AWS_REGION" \
             --function-name synvya-menu-import \
             --zip-file fileb://infra/synvya-menu-import.zip
+
+      - name: Package Google Maps Lambda function
+        if: steps.googlemaps-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}/infra/lambda
+        run: |
+          npm ci --production
+          zip -qr ../synvya-google-maps.zip \
+            googlemaps.js package.json package-lock.json node_modules
+
+      - name: Deploy Google Maps Lambda function
+        if: steps.googlemaps-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws lambda update-function-code \
+            --region "$AWS_REGION" \
+            --function-name synvya-google-maps \
+            --zip-file fileb://infra/synvya-google-maps.zip

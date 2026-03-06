@@ -253,6 +253,210 @@ describe("schemaOrg", () => {
       expect(schema.telephone).toBeUndefined();
       expect(schema.geo).toBeUndefined();
     });
+
+    // === hasMap and sameAs tests ===
+
+    it("should include hasMap from google_maps kind0 tag", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: []
+      };
+
+      const kind0Tags: string[][] = [
+        ["t", "foodEstablishment:Restaurant"],
+        ["i", "google_maps", "https://maps.google.com/?cid=12345"]
+      ];
+
+      const schema = buildFoodEstablishmentSchema(profile, { kind0Tags });
+      expect(schema.hasMap).toBe("https://maps.google.com/?cid=12345");
+    });
+
+    it("should include hasMap from profile googleMapsUrl", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: [],
+        googleMapsUrl: "https://maps.google.com/?cid=67890"
+      };
+
+      const schema = buildFoodEstablishmentSchema(profile);
+      expect(schema.hasMap).toBe("https://maps.google.com/?cid=67890");
+    });
+
+    it("should not include hasMap when no Google Maps data", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: []
+      };
+
+      const schema = buildFoodEstablishmentSchema(profile);
+      expect(schema.hasMap).toBeUndefined();
+    });
+
+    it("should build sameAs array from all social media and Google Maps URLs", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: []
+      };
+
+      const kind0Tags: string[][] = [
+        ["t", "foodEstablishment:Restaurant"],
+        ["i", "facebook", "southforknorthbend"],
+        ["i", "instagram", "southfork"],
+        ["i", "twitter", "southfork"],
+        ["i", "google_maps", "https://maps.google.com/?cid=12345"]
+      ];
+
+      const schema = buildFoodEstablishmentSchema(profile, { kind0Tags });
+      expect(schema.sameAs).toBeDefined();
+      expect(schema.sameAs).toContain("https://www.facebook.com/southforknorthbend");
+      expect(schema.sameAs).toContain("https://www.instagram.com/southfork");
+      expect(schema.sameAs).toContain("https://x.com/southfork");
+      expect(schema.sameAs).toContain("https://maps.google.com/?cid=12345");
+    });
+
+    it("should build sameAs from profile social media fields", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: [],
+        facebook: "myfbpage",
+        instagram: "myinsta",
+        twitter: "mytwitter",
+        googleMapsUrl: "https://maps.google.com/?cid=99999"
+      };
+
+      const schema = buildFoodEstablishmentSchema(profile);
+      expect(schema.sameAs).toBeDefined();
+      expect(schema.sameAs).toContain("https://www.facebook.com/myfbpage");
+      expect(schema.sameAs).toContain("https://www.instagram.com/myinsta");
+      expect(schema.sameAs).toContain("https://x.com/mytwitter");
+      expect(schema.sameAs).toContain("https://maps.google.com/?cid=99999");
+    });
+
+    it("should handle sameAs when only some social media fields are set", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: [],
+        instagram: "southfork"
+      };
+
+      const schema = buildFoodEstablishmentSchema(profile);
+      expect(schema.sameAs).toBeDefined();
+      expect(schema.sameAs).toHaveLength(1);
+      expect(schema.sameAs).toContain("https://www.instagram.com/southfork");
+    });
+
+    it("should not include sameAs when no social media or Google Maps data", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: []
+      };
+
+      const schema = buildFoodEstablishmentSchema(profile);
+      expect(schema.sameAs).toBeUndefined();
+    });
+
+    it("should handle full URLs in social media tags for sameAs", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: []
+      };
+
+      const kind0Tags: string[][] = [
+        ["t", "foodEstablishment:Restaurant"],
+        ["i", "facebook", "southforknorthbend"],
+        ["i", "instagram", "southfork"]
+      ];
+
+      const schema = buildFoodEstablishmentSchema(profile, { kind0Tags });
+      // Handles should be converted to full URLs
+      expect(schema.sameAs).toContain("https://www.facebook.com/southforknorthbend");
+      expect(schema.sameAs).toContain("https://www.instagram.com/southfork");
+    });
+
+    it("should prefer kind0Tags social data over profile fields for sameAs", () => {
+      const profile: BusinessProfile = {
+        name: "test",
+        displayName: "Test",
+        about: "",
+        website: "",
+        nip05: "",
+        picture: "",
+        banner: "",
+        businessType: "restaurant",
+        categories: [],
+        facebook: "profile-fb",
+        instagram: "profile-insta"
+      };
+
+      const kind0Tags: string[][] = [
+        ["t", "foodEstablishment:Restaurant"],
+        ["i", "facebook", "tag-fb"],
+        ["i", "instagram", "tag-insta"]
+      ];
+
+      const schema = buildFoodEstablishmentSchema(profile, { kind0Tags });
+      expect(schema.sameAs).toContain("https://www.facebook.com/tag-fb");
+      expect(schema.sameAs).toContain("https://www.instagram.com/tag-insta");
+      // Should NOT contain profile values when tags are present
+      expect(schema.sameAs).not.toContain("https://www.facebook.com/profile-fb");
+      expect(schema.sameAs).not.toContain("https://www.instagram.com/profile-insta");
+    });
   });
 
   describe("buildMenuSchema", () => {

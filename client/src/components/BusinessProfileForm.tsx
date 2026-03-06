@@ -17,7 +17,9 @@ import { CollapsibleSection } from "@/components/ui/collapsible-section";
 import { uploadMedia } from "@/services/upload";
 import { fetchAndPublishDiscovery, buildDiscoveryUrl } from "@/services/discoveryPublish";
 import type { Event } from "nostr-tools";
-import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail, Check, ExternalLink } from "lucide-react";
+import { Image as ImageIcon, UploadCloud, Clock, ArrowRight, Sparkles, Loader2, Mail, Check, ExternalLink, MapPin, Search } from "lucide-react";
+import { searchGooglePlaces } from "@/services/googleMaps";
+import type { GooglePlaceCandidate } from "@/services/googleMaps";
 import { useBusinessProfile } from "@/state/useBusinessProfile";
 import { OpeningHoursDialog } from "@/components/OpeningHoursDialog";
 import type { OpeningHoursSpec } from "@/types/profile";
@@ -417,6 +419,19 @@ export function parseKind0ProfileEvent(event: Event): { patch: Partial<BusinessP
         // Fallback to old format for backward compatibility
         locationValue = tag[1].slice("location:".length);
       }
+      // New 3-element "i" tags for social media and Google Maps
+      // Format: ["i", "facebook", "page-id"], ["i", "instagram", "handle"], etc.
+      else if (tag[1] === "facebook" && typeof tag[2] === "string" && tag[2]) {
+        patch.facebook = tag[2];
+      } else if (tag[1] === "instagram" && typeof tag[2] === "string" && tag[2]) {
+        patch.instagram = tag[2];
+      } else if (tag[1] === "twitter" && typeof tag[2] === "string" && tag[2]) {
+        patch.twitter = tag[2];
+      } else if (tag[1] === "google_maps" && typeof tag[2] === "string" && tag[2]) {
+        patch.googleMapsUrl = tag[2];
+      } else if (tag[1] === "google_place_id" && typeof tag[2] === "string" && tag[2]) {
+        patch.googlePlaceId = tag[2];
+      }
     }
   }
 
@@ -519,6 +534,11 @@ export function BusinessProfileForm(): JSX.Element {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasExistingProfile, setHasExistingProfile] = useState(false);
   const [openingHoursDialogOpen, setOpeningHoursDialogOpen] = useState(false);
+  const [googleSearching, setGoogleSearching] = useState(false);
+  const [googleCandidates, setGoogleCandidates] = useState<GooglePlaceCandidate[]>([]);
+  const [googleSearchError, setGoogleSearchError] = useState<string | null>(null);
+  const [googleSyncFields, setGoogleSyncFields] = useState<Record<string, { old: string; new: string; checked: boolean }>>({});
+  const [showGoogleSync, setShowGoogleSync] = useState(false);
   const pictureInputRef = useRef<HTMLInputElement | null>(null);
   const bannerInputRef = useRef<HTMLInputElement | null>(null);
   const loadingProfileRef = useRef(false);
@@ -546,6 +566,11 @@ export function BusinessProfileForm(): JSX.Element {
   const isHoursComplete = useMemo(() => {
     return Boolean(profile.openingHours && profile.openingHours.length > 0);
   }, [profile.openingHours]);
+
+  // Check if Google Maps search is ready (name + phone + street + city)
+  const isGoogleSearchReady = useMemo(() => {
+    return Boolean(profile.displayName && profile.phone && profile.street && profile.city);
+  }, [profile.displayName, profile.phone, profile.street, profile.city]);
 
   // Check if media is complete
   const isMediaComplete = useMemo(() => {
@@ -710,6 +735,73 @@ export function BusinessProfileForm(): JSX.Element {
       name: value,
       nip05: value ? `${value}@synvya.com` : ""
     }));
+  };
+
+  const handleGoogleSearch = async () => {
+    setGoogleSearching(true);
+    setGoogleSearchError(null);
+    setGoogleCandidates([]);
+    setShowGoogleSync(false);
+    try {
+      const address = [profile.street, profile.city, profile.state, profile.zip]
+        .filter(Boolean)
+        .join(", ");
+      const candidates = await searchGooglePlaces(profile.displayName || profile.name, address);
+      setGoogleCandidates(candidates);
+      if (candidates.length === 0) {
+        setGoogleSearchError("No matching businesses found on Google Maps. You can paste a Google Maps URL manually below.");
+      }
+    } catch (err) {
+      setGoogleSearchError(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setGoogleSearching(false);
+    }
+  };
+
+  const handleGoogleConfirm = (candidate: GooglePlaceCandidate) => {
+    updateField("googleMapsUrl", candidate.googleMapsUrl);
+    updateField("googlePlaceId", candidate.placeId);
+    setGoogleCandidates([]);
+
+    // Check for differences and offer sync
+    const diffs: Record<string, { old: string; new: string; checked: boolean }> = {};
+    if (candidate.name && candidate.name !== (profile.displayName || profile.name)) {
+      diffs.displayName = { old: profile.displayName || profile.name, new: candidate.name, checked: true };
+    }
+    if (candidate.phone && candidate.phone !== profile.phone) {
+      diffs.phone = { old: profile.phone || "", new: candidate.phone, checked: true };
+    }
+    if (candidate.streetAddress && candidate.streetAddress !== profile.street) {
+      diffs.street = { old: profile.street || "", new: candidate.streetAddress, checked: true };
+    }
+    if (candidate.city && candidate.city !== profile.city) {
+      diffs.city = { old: profile.city || "", new: candidate.city, checked: true };
+    }
+    if (candidate.state && candidate.state !== profile.state) {
+      diffs.state = { old: profile.state || "", new: candidate.state, checked: true };
+    }
+    if (candidate.zip && candidate.zip !== profile.zip) {
+      diffs.zip = { old: profile.zip || "", new: candidate.zip, checked: true };
+    }
+
+    if (Object.keys(diffs).length > 0) {
+      setGoogleSyncFields(diffs);
+      setShowGoogleSync(true);
+    }
+  };
+
+  const handleGoogleSyncApply = () => {
+    setProfile((prev) => {
+      const updated = { ...prev };
+      for (const [field, diff] of Object.entries(googleSyncFields)) {
+        if (diff.checked) {
+          (updated as Record<string, unknown>)[field] = diff.new;
+        }
+      }
+      return updated;
+    });
+    setShowGoogleSync(false);
+    setGoogleSyncFields({});
   };
 
   const handleFileSelect = (file: File, kind: keyof typeof pendingFiles) => {
@@ -1029,6 +1121,211 @@ export function BusinessProfileForm(): JSX.Element {
                 className="bg-muted cursor-not-allowed"
               />
               <p className="text-xs text-muted-foreground">Organization membership (read-only).</p>
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Social Media & Google Section - Optional */}
+      <CollapsibleSection
+        title="Social Media & Google"
+        description="Link your social profiles and Google Business"
+        badge="optional"
+        defaultOpen={false}
+      >
+        <div className="grid gap-4">
+          {/* Social Media Fields */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-2">
+              <Label htmlFor="facebook">Facebook</Label>
+              <Input
+                id="facebook"
+                placeholder="facebook.com/yourpage or page ID"
+                value={profile.facebook ?? ""}
+                onChange={(event) => updateField("facebook", event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="instagram">Instagram</Label>
+              <Input
+                id="instagram"
+                placeholder="@yourhandle or instagram.com/yourhandle"
+                value={profile.instagram ?? ""}
+                onChange={(event) => updateField("instagram", event.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="twitter">X (Twitter)</Label>
+              <Input
+                id="twitter"
+                placeholder="@yourhandle or x.com/yourhandle"
+                value={profile.twitter ?? ""}
+                onChange={(event) => updateField("twitter", event.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border my-1" />
+
+          {/* Google Maps Section */}
+          <div className="grid gap-3">
+            <Label className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Google Maps
+            </Label>
+
+            {profile.googleMapsUrl ? (
+              <div className="flex items-center gap-2 text-sm">
+                <Check className="h-4 w-4 text-green-600" />
+                <a
+                  href={profile.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline truncate flex-1"
+                >
+                  {profile.googleMapsUrl}
+                </a>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    updateField("googleMapsUrl", "");
+                    updateField("googlePlaceId", "");
+                    setGoogleCandidates([]);
+                    setShowGoogleSync(false);
+                  }}
+                >
+                  Change
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!isGoogleSearchReady || googleSearching}
+                    onClick={handleGoogleSearch}
+                  >
+                    {googleSearching ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4 mr-2" />
+                    )}
+                    Find on Google Maps
+                  </Button>
+                  {!isGoogleSearchReady && (
+                    <p className="text-xs text-muted-foreground self-center">
+                      Fill in name, phone, and address first
+                    </p>
+                  )}
+                </div>
+
+                {/* Search Results */}
+                {googleCandidates.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">Select your business:</p>
+                    {googleCandidates.map((candidate) => (
+                      <div
+                        key={candidate.placeId}
+                        className="border rounded-lg p-3 flex items-start justify-between gap-3 hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm">{candidate.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{candidate.address}</p>
+                          {candidate.phone && (
+                            <p className="text-xs text-muted-foreground">{candidate.phone}</p>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          onClick={() => handleGoogleConfirm(candidate)}
+                        >
+                          This is my business
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Error */}
+                {googleSearchError && (
+                  <p className="text-sm text-amber-600">{googleSearchError}</p>
+                )}
+
+                {/* Manual URL fallback */}
+                <div className="grid gap-2">
+                  <Label htmlFor="googleMapsUrl" className="text-xs text-muted-foreground">
+                    Or paste your Google Maps URL manually
+                  </Label>
+                  <Input
+                    id="googleMapsUrl"
+                    placeholder="https://maps.google.com/?cid=..."
+                    value={profile.googleMapsUrl ?? ""}
+                    onChange={(event) => updateField("googleMapsUrl", event.target.value)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Google Sync Dialog */}
+          {showGoogleSync && Object.keys(googleSyncFields).length > 0 && (
+            <div className="border rounded-lg p-4 bg-accent/30 space-y-3">
+              <p className="text-sm font-medium">
+                Google has different info for your business. Update to match?
+              </p>
+              {Object.entries(googleSyncFields).map(([field, diff]) => {
+                const labels: Record<string, string> = {
+                  displayName: "Display Name",
+                  phone: "Phone",
+                  street: "Street",
+                  city: "City",
+                  state: "State",
+                  zip: "ZIP"
+                };
+                return (
+                  <label key={field} className="flex items-start gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={diff.checked}
+                      onChange={(e) =>
+                        setGoogleSyncFields((prev) => ({
+                          ...prev,
+                          [field]: { ...prev[field], checked: e.target.checked }
+                        }))
+                      }
+                    />
+                    <span>
+                      <span className="font-medium">{labels[field] || field}:</span>{" "}
+                      <span className="text-muted-foreground line-through">{diff.old || "(empty)"}</span>{" "}
+                      <span className="text-green-700">{diff.new}</span>
+                    </span>
+                  </label>
+                );
+              })}
+              <div className="flex gap-2">
+                <Button type="button" size="sm" onClick={handleGoogleSyncApply}>
+                  Apply Selected
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowGoogleSync(false);
+                    setGoogleSyncFields({});
+                  }}
+                >
+                  Skip
+                </Button>
+              </div>
             </div>
           )}
         </div>

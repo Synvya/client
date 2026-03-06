@@ -552,5 +552,260 @@ describe("buildProfileEvent", () => {
     expect(event.tags).toContainEqual(["t", "VegetarianDiet"]);
     expect(event.tags).toContainEqual(["t", "GlutenFreeDiet"]);
   });
+
+  // === Social Media Tags ===
+
+  it("should emit facebook tag when facebook is provided", () => {
+    const profileWithFacebook: BusinessProfile = {
+      ...baseProfile,
+      facebook: "southforknorthbend"
+    };
+
+    const event = buildProfileEvent(profileWithFacebook);
+
+    expect(event.tags).toContainEqual(["i", "facebook", "southforknorthbend"]);
+  });
+
+  it("should emit instagram tag when instagram is provided", () => {
+    const profileWithInstagram: BusinessProfile = {
+      ...baseProfile,
+      instagram: "southfork"
+    };
+
+    const event = buildProfileEvent(profileWithInstagram);
+
+    expect(event.tags).toContainEqual(["i", "instagram", "southfork"]);
+  });
+
+  it("should emit twitter tag when twitter is provided", () => {
+    const profileWithTwitter: BusinessProfile = {
+      ...baseProfile,
+      twitter: "southfork"
+    };
+
+    const event = buildProfileEvent(profileWithTwitter);
+
+    expect(event.tags).toContainEqual(["i", "twitter", "southfork"]);
+  });
+
+  it("should emit all social media tags when all are provided", () => {
+    const profileWithSocials: BusinessProfile = {
+      ...baseProfile,
+      facebook: "myfbpage",
+      instagram: "myinsta",
+      twitter: "mytwitter"
+    };
+
+    const event = buildProfileEvent(profileWithSocials);
+
+    expect(event.tags).toContainEqual(["i", "facebook", "myfbpage"]);
+    expect(event.tags).toContainEqual(["i", "instagram", "myinsta"]);
+    expect(event.tags).toContainEqual(["i", "twitter", "mytwitter"]);
+  });
+
+  it("should not emit social media tags when fields are empty", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "facebook")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "instagram")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "twitter")).toBe(false);
+  });
+
+  it("should not emit social media tags when fields are empty strings", () => {
+    const profileWithEmptySocials: BusinessProfile = {
+      ...baseProfile,
+      facebook: "",
+      instagram: "",
+      twitter: ""
+    };
+
+    const event = buildProfileEvent(profileWithEmptySocials);
+
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "facebook")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "instagram")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "twitter")).toBe(false);
+  });
+
+  // Handle normalization tests
+
+  it("should normalize Instagram URL to handle", () => {
+    const profileWithUrl: BusinessProfile = {
+      ...baseProfile,
+      instagram: "https://www.instagram.com/southfork"
+    };
+
+    const event = buildProfileEvent(profileWithUrl);
+
+    expect(event.tags).toContainEqual(["i", "instagram", "southfork"]);
+  });
+
+  it("should normalize Instagram handle with @ prefix", () => {
+    const profileWithAt: BusinessProfile = {
+      ...baseProfile,
+      instagram: "@southfork"
+    };
+
+    const event = buildProfileEvent(profileWithAt);
+
+    expect(event.tags).toContainEqual(["i", "instagram", "southfork"]);
+  });
+
+  it("should normalize Facebook URL to ID", () => {
+    const profileWithUrl: BusinessProfile = {
+      ...baseProfile,
+      facebook: "https://www.facebook.com/southforknorthbend"
+    };
+
+    const event = buildProfileEvent(profileWithUrl);
+
+    expect(event.tags).toContainEqual(["i", "facebook", "southforknorthbend"]);
+  });
+
+  it("should normalize Twitter/X URL to handle", () => {
+    const profileWithUrl: BusinessProfile = {
+      ...baseProfile,
+      twitter: "https://x.com/southfork"
+    };
+
+    const event = buildProfileEvent(profileWithUrl);
+
+    expect(event.tags).toContainEqual(["i", "twitter", "southfork"]);
+  });
+
+  it("should normalize Twitter handle with @ prefix", () => {
+    const profileWithAt: BusinessProfile = {
+      ...baseProfile,
+      twitter: "@southfork"
+    };
+
+    const event = buildProfileEvent(profileWithAt);
+
+    expect(event.tags).toContainEqual(["i", "twitter", "southfork"]);
+  });
+
+  it("should normalize twitter.com URL to handle", () => {
+    const profileWithUrl: BusinessProfile = {
+      ...baseProfile,
+      twitter: "https://twitter.com/southfork"
+    };
+
+    const event = buildProfileEvent(profileWithUrl);
+
+    expect(event.tags).toContainEqual(["i", "twitter", "southfork"]);
+  });
+
+  it("should handle Instagram URL with trailing slash", () => {
+    const profileWithUrl: BusinessProfile = {
+      ...baseProfile,
+      instagram: "https://instagram.com/southfork/"
+    };
+
+    const event = buildProfileEvent(profileWithUrl);
+
+    expect(event.tags).toContainEqual(["i", "instagram", "southfork"]);
+  });
+
+  // === Google Maps Tags ===
+
+  it("should emit google_maps tag when googleMapsUrl is provided", () => {
+    const profileWithMaps: BusinessProfile = {
+      ...baseProfile,
+      googleMapsUrl: "https://maps.google.com/?cid=12345"
+    };
+
+    const event = buildProfileEvent(profileWithMaps);
+
+    expect(event.tags).toContainEqual(["i", "google_maps", "https://maps.google.com/?cid=12345"]);
+  });
+
+  it("should emit google_place_id tag when googlePlaceId is provided", () => {
+    const profileWithPlaceId: BusinessProfile = {
+      ...baseProfile,
+      googlePlaceId: "ChIJ1234567890"
+    };
+
+    const event = buildProfileEvent(profileWithPlaceId);
+
+    expect(event.tags).toContainEqual(["i", "google_place_id", "ChIJ1234567890"]);
+  });
+
+  it("should emit both Google Maps tags when both are provided", () => {
+    const profileWithGoogle: BusinessProfile = {
+      ...baseProfile,
+      googleMapsUrl: "https://maps.google.com/?cid=12345",
+      googlePlaceId: "ChIJ1234567890"
+    };
+
+    const event = buildProfileEvent(profileWithGoogle);
+
+    expect(event.tags).toContainEqual(["i", "google_maps", "https://maps.google.com/?cid=12345"]);
+    expect(event.tags).toContainEqual(["i", "google_place_id", "ChIJ1234567890"]);
+  });
+
+  it("should not emit Google Maps tags when fields are empty", () => {
+    const event = buildProfileEvent(baseProfile);
+
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "google_maps")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "google_place_id")).toBe(false);
+  });
+
+  it("should not emit Google Maps tags when fields are empty strings", () => {
+    const profileWithEmptyGoogle: BusinessProfile = {
+      ...baseProfile,
+      googleMapsUrl: "",
+      googlePlaceId: ""
+    };
+
+    const event = buildProfileEvent(profileWithEmptyGoogle);
+
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "google_maps")).toBe(false);
+    expect(event.tags.some(tag => tag[0] === "i" && tag[1] === "google_place_id")).toBe(false);
+  });
+
+  it("should place social media and Google tags after memberOf tag", () => {
+    const profileWithAll: BusinessProfile = {
+      ...baseProfile,
+      memberOf: "snovalley.org",
+      facebook: "myfb",
+      instagram: "myinsta",
+      twitter: "mytwitter",
+      googleMapsUrl: "https://maps.google.com/?cid=12345",
+      googlePlaceId: "ChIJ1234567890"
+    };
+
+    const event = buildProfileEvent(profileWithAll);
+
+    const memberOfIndex = event.tags.findIndex(
+      (tag: string[]) => tag[0] === "schema.org:FoodEstablishment:memberOf"
+    );
+    const facebookIndex = event.tags.findIndex(
+      (tag: string[]) => tag[0] === "i" && tag[1] === "facebook"
+    );
+
+    expect(memberOfIndex).toBeGreaterThan(-1);
+    expect(facebookIndex).toBeGreaterThan(-1);
+    expect(facebookIndex).toBeGreaterThan(memberOfIndex);
+  });
+
+  it("should not conflict social media i tags with reservation protocol i tags", () => {
+    const profileWithAll: BusinessProfile = {
+      ...baseProfile,
+      acceptsReservations: true,
+      facebook: "myfb",
+      instagram: "myinsta"
+    };
+
+    const event = buildProfileEvent(profileWithAll);
+
+    // Reservation protocol i tag
+    expect(event.tags).toContainEqual(["i", "rp", "https://github.com/Synvya/reservation-protocol/blob/main/nostr-protocols/nips/rp.md"]);
+    // Social media i tags
+    expect(event.tags).toContainEqual(["i", "facebook", "myfb"]);
+    expect(event.tags).toContainEqual(["i", "instagram", "myinsta"]);
+
+    // Count i tags - should have exactly 3 (rp + facebook + instagram)
+    const iTags = event.tags.filter(tag => tag[0] === "i");
+    expect(iTags).toHaveLength(3);
+  });
 });
 

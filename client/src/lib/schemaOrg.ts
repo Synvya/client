@@ -114,6 +114,8 @@ interface SchemaOrgFoodEstablishment extends SchemaOrgThing {
   acceptsReservations?: boolean;
   potentialAction?: SchemaOrgReserveAction;
   hasMenu?: SchemaOrgMenu | SchemaOrgMenu[];
+  hasMap?: string;
+  sameAs?: string[];
 }
 
 interface SchemaOrgGraph {
@@ -595,6 +597,62 @@ export function buildFoodEstablishmentSchema(
     };
   } else if (acceptsReservations === false) {
     schema.acceptsReservations = false;
+  }
+
+  // Google Maps URL (hasMap) - extract from "i" tags or profile
+  let googleMapsUrl: string | undefined;
+  if (kind0Tags) {
+    const googleMapsTag = kind0Tags.find(
+      (t) => Array.isArray(t) && t[0] === "i" && t[1] === "google_maps" && t[2]
+    );
+    if (googleMapsTag) {
+      googleMapsUrl = googleMapsTag[2];
+    }
+  }
+  if (!googleMapsUrl && profile.googleMapsUrl) {
+    googleMapsUrl = profile.googleMapsUrl;
+  }
+  if (googleMapsUrl) {
+    schema.hasMap = googleMapsUrl;
+  }
+
+  // Social media and sameAs - extract from "i" tags or profile
+  let facebook: string | undefined;
+  let instagram: string | undefined;
+  let twitter: string | undefined;
+  if (kind0Tags) {
+    const fbTag = kind0Tags.find((t) => Array.isArray(t) && t[0] === "i" && t[1] === "facebook" && t[2]);
+    if (fbTag) facebook = fbTag[2];
+    const igTag = kind0Tags.find((t) => Array.isArray(t) && t[0] === "i" && t[1] === "instagram" && t[2]);
+    if (igTag) instagram = igTag[2];
+    const twTag = kind0Tags.find((t) => Array.isArray(t) && t[0] === "i" && t[1] === "twitter" && t[2]);
+    if (twTag) twitter = twTag[2];
+  }
+  if (!facebook && profile.facebook) facebook = profile.facebook;
+  if (!instagram && profile.instagram) instagram = profile.instagram;
+  if (!twitter && profile.twitter) twitter = profile.twitter;
+
+  const sameAsUrls: string[] = [];
+  if (facebook) {
+    sameAsUrls.push(
+      facebook.startsWith("http") ? facebook : `https://www.facebook.com/${facebook}`
+    );
+  }
+  if (instagram) {
+    sameAsUrls.push(
+      instagram.startsWith("http") ? instagram : `https://www.instagram.com/${instagram}`
+    );
+  }
+  if (twitter) {
+    sameAsUrls.push(
+      twitter.startsWith("http") ? twitter : `https://x.com/${twitter}`
+    );
+  }
+  if (googleMapsUrl) {
+    sameAsUrls.push(googleMapsUrl);
+  }
+  if (sameAsUrls.length > 0) {
+    schema.sameAs = sameAsUrls;
   }
 
   return schema;

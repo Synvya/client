@@ -37,6 +37,11 @@ export interface BusinessProfile {
   memberOf?: string;
   acceptsReservations?: boolean;
   openingHours?: OpeningHoursSpec[];
+  facebook?: string;       // Facebook page URL or ID
+  instagram?: string;      // Instagram handle or URL
+  twitter?: string;        // X/Twitter handle or URL
+  googleMapsUrl?: string;  // Google Maps share URL
+  googlePlaceId?: string;  // Google Place ID for future API use
 }
 
 export interface PublishResult {
