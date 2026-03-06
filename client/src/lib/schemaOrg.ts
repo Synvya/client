@@ -1007,10 +1007,6 @@ export function generateLDJsonScript(
   const referenceJsonString = JSON.stringify(referenceSchema, null, 2);
   const referenceScript = `<script type="application/ld+json">\n${escapeForHtml(referenceJsonString)}\n</script>`;
 
-  // Visible link to the Synvya menu page (SEO backlink + user navigation)
-  const displayName = profile.displayName || profile.name || "our";
-  const menuLink = `<a href="${synvyaDiscoveryUrl}" target="_blank" rel="noopener noreferrer">View ${displayName} menu on Synvya</a>`;
-
-  return `${referenceScript}\n\n${mainScript}\n\n<!-- Link to your full menu on Synvya -->\n${menuLink}`;
+  return `${referenceScript}\n\n${mainScript}`;
 }
 

@@ -77,6 +77,7 @@ export function SettingsPage(): JSX.Element {
   const [copied, setCopied] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
   const [schemaCopied, setSchemaCopied] = useState(false);
+  const [menuLinkCopied, setMenuLinkCopied] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
   const [newRelay, setNewRelay] = useState("");
   const [busy, setBusy] = useState(false);
@@ -99,6 +100,14 @@ export function SettingsPage(): JSX.Element {
       return () => clearTimeout(timer);
     }
   }, [schemaCopied]);
+
+  // Reset menu link copied state after 2 seconds
+  useEffect(() => {
+    if (menuLinkCopied) {
+      const timer = setTimeout(() => setMenuLinkCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [menuLinkCopied]);
 
   // Reset download status after 2 seconds
   useEffect(() => {
@@ -187,6 +196,16 @@ export function SettingsPage(): JSX.Element {
       setSchemaCopied(true);
     } catch (error) {
       console.error("Failed to copy schema to clipboard:", error);
+    }
+  };
+
+  const handleCopyMenuLink = async () => {
+    if (!discoveryPageUrl) return;
+    try {
+      await navigator.clipboard.writeText(discoveryPageUrl);
+      setMenuLinkCopied(true);
+    } catch (error) {
+      console.error("Failed to copy menu link to clipboard:", error);
     }
   };
 
@@ -383,68 +402,69 @@ export function SettingsPage(): JSX.Element {
             isComplete={false}
             defaultOpen={!!schema}
           >
-            <div className="space-y-4">
+            <div className="space-y-6">
               {schema ? (
                 <>
-                  <p className="text-sm text-muted-foreground">
-                    Have your own website? Copy/paste this code into your website. Place the two{" "}
-                    <code className="rounded bg-muted px-1 py-0.5">&lt;script&gt;</code> tags in your{" "}
-                    <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section and the link wherever you'd like it to appear on your page (e.g. your menu or footer).
-                  </p>
+                  {/* Step 1: Schema code for <head> */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
+                      <h3 className="font-semibold text-sm">Add schema code to your website</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Paste this code into your website's{" "}
+                      <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section.
+                      This makes your business discoverable by AI assistants and search engines.
+                    </p>
 
-                  <div className="flex flex-wrap gap-2">
-                    <Button variant="default" size="sm" onClick={handleCopySchema} disabled={schemaCopied}>
-                      <Copy className="mr-2 h-4 w-4" />
-                      {schemaCopied ? "Copied!" : "Copy Code"}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={handleDownloadSchema} disabled={downloadStatus === "success"}>
-                      <Download className="mr-2 h-4 w-4" />
-                      {downloadStatus === "success" ? "Downloaded!" : "Download"}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="default" size="sm" onClick={handleCopySchema} disabled={schemaCopied}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        {schemaCopied ? "Copied!" : "Copy Code"}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleDownloadSchema} disabled={downloadStatus === "success"}>
+                        <Download className="mr-2 h-4 w-4" />
+                        {downloadStatus === "success" ? "Downloaded!" : "Download"}
+                      </Button>
+                    </div>
+
+                    <div className="rounded-lg border bg-muted/30">
+                      <Textarea
+                        value={schema}
+                        readOnly
+                        className="min-h-[200px] resize-none rounded-lg border-0 bg-transparent font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
+                        style={{
+                          fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
+                        }}
+                      />
+                    </div>
                   </div>
 
-                  <div className="rounded-lg border bg-muted/30">
-                    <Textarea
-                      value={schema}
-                      readOnly
-                      className="min-h-[200px] resize-none rounded-lg border-0 bg-transparent font-mono text-xs leading-relaxed shadow-none focus-visible:ring-0"
-                      style={{
-                        fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace"
-                      }}
-                    />
-                  </div>
+                  {/* Step 2: Menu link */}
+                  {discoveryPageUrl && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
+                        <h3 className="font-semibold text-sm">Add a link to your full menu</h3>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Add this link to your website — on your menu page, footer, or sidebar.
+                        This lets visitors browse your full menu and helps search engines find it.
+                      </p>
 
-                  <div className="rounded-lg border bg-muted/30 p-4">
-                    <h3 className="mb-3 font-semibold flex items-center gap-2 text-sm">
-                      <HelpCircle className="h-4 w-4 text-primary" />
-                      How to use this code
-                    </h3>
-                    <ol className="space-y-2 text-sm text-muted-foreground">
-                      <li className="flex gap-3">
-                        <span className="font-semibold text-foreground shrink-0">1.</span>
-                        <span>Copy the code above by clicking the "Copy Code" button</span>
-                      </li>
-                      <li className="flex gap-3">
-                        <span className="font-semibold text-foreground shrink-0">2.</span>
-                        <span>
-                          Paste the two{" "}
-                          <code className="rounded bg-muted px-1 py-0.5">&lt;script&gt;</code> blocks inside your page's{" "}
-                          <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section
-                        </span>
-                      </li>
-                      <li className="flex gap-3">
-                        <span className="font-semibold text-foreground shrink-0">3.</span>
-                        <span>
-                          Place the{" "}
-                          <code className="rounded bg-muted px-1 py-0.5">&lt;a&gt;</code> link wherever you'd like it visible — your menu page, footer, or sidebar
-                        </span>
-                      </li>
-                      <li className="flex gap-3">
-                        <span className="font-semibold text-foreground shrink-0">4.</span>
-                        <span>Save and publish your website</span>
-                      </li>
-                    </ol>
-                  </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 rounded-lg border bg-muted/30 px-3 py-2">
+                          <code className="text-sm break-all" style={{ fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace" }}>
+                            {discoveryPageUrl}
+                          </code>
+                        </div>
+                        <Button variant="default" size="sm" onClick={handleCopyMenuLink} disabled={menuLinkCopied} className="shrink-0">
+                          <Copy className="mr-2 h-4 w-4" />
+                          {menuLinkCopied ? "Copied!" : "Copy Link"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : schemaBackfillLoading ? (
                 <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
