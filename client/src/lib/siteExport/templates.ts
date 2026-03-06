@@ -46,6 +46,24 @@ export type ExportSiteModel = {
   merchantPubkey: string;
 };
 
+const DIET_LABELS: Record<string, string> = {
+  GlutenFreeDiet: "Gluten Free",
+  VegetarianDiet: "Vegetarian",
+  VeganDiet: "Vegan",
+  HalalDiet: "Halal",
+  KosherDiet: "Kosher",
+  LowCalorieDiet: "Low Calorie",
+  LowFatDiet: "Low Fat",
+  LowLactoseDiet: "Low Lactose",
+  LowSaltDiet: "Low Salt",
+  DiabeticDiet: "Diabetic",
+};
+
+function friendlyDietLabel(raw: string): string {
+  const key = raw.split("/").pop() || raw;
+  return DIET_LABELS[key] ?? key;
+}
+
 function extractTag(tags: string[][], key: string): string | undefined {
   return tags.find((t) => t[0] === key)?.[1];
 }
@@ -143,7 +161,7 @@ export function buildExportSiteModel(params: {
             slug: mi["@id"] ? `items/${mi["@id"]}.html` : `${slugify(mi.name)}.html`,
             dTag: mi["@id"] || slugify(mi.name),
             description: mi.description,
-            dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map((u) => u.split("/").pop() || u) : [],
+            dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
             contains: [],
             price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
             image: mi.image,
@@ -157,7 +175,7 @@ export function buildExportSiteModel(params: {
         slug: mi["@id"] ? `items/${mi["@id"]}.html` : `${slugify(mi.name)}.html`,
         dTag: mi["@id"] || slugify(mi.name),
         description: mi.description,
-        dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map((u) => u.split("/").pop() || u) : [],
+        dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
         contains: [],
         price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
         image: mi.image,
@@ -187,7 +205,7 @@ export function buildExportSiteModel(params: {
   };
 }
 
-function baseHtml(title: string, schemaTag: string, body: string, options?: { omitFloatingCta?: boolean }): string {
+function baseHtml(title: string, schemaTag: string, body: string, options?: { omitFloatingCta?: boolean; extraHead?: string }): string {
   const omitFloatingCta = options?.omitFloatingCta ?? false;
   const bookButtonCss = omitFloatingCta
     ? ""
@@ -214,6 +232,7 @@ function baseHtml(title: string, schemaTag: string, body: string, options?: { om
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>${title}</title>
+${options?.extraHead ?? ""}
 <style>
 *{box-sizing:border-box}
 body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;max-width:1100px;margin:0 auto;padding:0;line-height:1.6;color:#1f2937;background:#fff}
@@ -224,10 +243,11 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica
 .small{color:#6b7280;font-size:14px;line-height:1.5}
 a{color:#2563eb;text-decoration:none;transition:color 0.2s}
 a:hover{color:#1d4ed8;text-decoration:underline}
-h1,h2,h3{margin:0 0 16px 0;font-weight:600;line-height:1.2}
+h1,h2,h3,h4{margin:0 0 16px 0;font-weight:600;line-height:1.2}
 h1{font-size:32px;color:#111827}
 h2{font-size:24px;color:#1f2937;margin-top:32px;margin-bottom:20px}
 h3{font-size:20px;color:#374151}
+h4{font-size:18px;color:#374151}
 .footer{margin-top:64px;padding:32px 0;border-top:1px solid #e5e7eb;text-align:center;color:#6b7280;font-size:14px}
 .footer a{color:#2563eb}
 .description{margin:24px 0;color:#4b5563;font-size:16px;line-height:1.7}
@@ -274,6 +294,28 @@ ${bookButtonHtml}${body}
 export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema: unknown): string {
   const schemaTag = jsonLdScriptTag(consolidatedSchema);
 
+  // SEO: title, meta description, OG tags, canonical
+  const city = model.addressLines[1] || "";
+  const pageTitle = city
+    ? `${model.displayName} — Full Menu | ${city}`
+    : `${model.displayName} — Full Menu`;
+  const menuNames = model.menus.map((m) => m.name).join(", ");
+  const metaDescription = city
+    ? `Full menu for ${model.displayName} in ${city}. ${menuNames}.`
+    : `Full menu for ${model.displayName}. ${menuNames}.`;
+  const canonicalUrl = `${model.baseUrl}/`;
+  const extraHead = [
+    `<meta name="description" content="${escapeHtml(metaDescription)}">`,
+    `<link rel="canonical" href="${escapeHtml(canonicalUrl)}">`,
+    `<meta property="og:title" content="${escapeHtml(pageTitle)}">`,
+    `<meta property="og:description" content="${escapeHtml(metaDescription)}">`,
+    model.bannerUrl ? `<meta property="og:image" content="${escapeHtml(model.bannerUrl)}">` : "",
+    `<meta property="og:url" content="${escapeHtml(canonicalUrl)}">`,
+    `<meta property="og:type" content="website">`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
   // Generate anchor slugs (without .html extension)
   const menuAnchorSlug = (menuName: string) => `menu-${slugify(menuName)}`;
 
@@ -304,7 +346,7 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
                 <div class="itemCardContent">
                   <div class="itemCardRow">
                     <div style="flex:1">
-                      <h3 class="itemCardTitle" style="margin:0 0 6px 0">${escapeHtml(item.name)}</h3>
+                      <h4 class="itemCardTitle" style="margin:0 0 6px 0">${escapeHtml(item.name)}</h4>
                       ${item.description ? `<div class="small" style="margin-top:4px">${markdownToHtml(item.description)}</div>` : ""}
                       ${badges}
                       ${contains}
@@ -342,7 +384,7 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
                 <div class="itemCardContent">
                   <div class="itemCardRow">
                     <div style="flex:1">
-                      <h3 class="itemCardTitle" style="margin:0 0 6px 0">${escapeHtml(item.name)}</h3>
+                      <h4 class="itemCardTitle" style="margin:0 0 6px 0">${escapeHtml(item.name)}</h4>
                       ${item.description ? `<div class="small" style="margin-top:4px">${markdownToHtml(item.description)}</div>` : ""}
                       ${badges}
                       ${contains}
@@ -401,7 +443,7 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
   </footer>
 </div>
 `;
-  return baseHtml(model.displayName, schemaTag, body, { omitFloatingCta: true });
+  return baseHtml(pageTitle, schemaTag, body, { omitFloatingCta: true, extraHead });
 }
 
 
