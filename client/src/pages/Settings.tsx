@@ -387,8 +387,9 @@ export function SettingsPage(): JSX.Element {
               {schema ? (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Have your own website? Copy/paste this code into your website's{" "}
-                    <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section to make it discoverable by AI assistants.
+                    Have your own website? Copy/paste this code into your website. Place the two{" "}
+                    <code className="rounded bg-muted px-1 py-0.5">&lt;script&gt;</code> tags in your{" "}
+                    <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section and the link wherever you'd like it to appear on your page (e.g. your menu or footer).
                   </p>
 
                   <div className="flex flex-wrap gap-2">
@@ -426,15 +427,16 @@ export function SettingsPage(): JSX.Element {
                       <li className="flex gap-3">
                         <span className="font-semibold text-foreground shrink-0">2.</span>
                         <span>
-                          Find your website's main page file (usually{" "}
-                          <code className="rounded bg-muted px-1 py-0.5">index.html</code>)
+                          Paste the two{" "}
+                          <code className="rounded bg-muted px-1 py-0.5">&lt;script&gt;</code> blocks inside your page's{" "}
+                          <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section
                         </span>
                       </li>
                       <li className="flex gap-3">
                         <span className="font-semibold text-foreground shrink-0">3.</span>
                         <span>
-                          Paste the code inside the{" "}
-                          <code className="rounded bg-muted px-1 py-0.5">&lt;head&gt;</code> section
+                          Place the{" "}
+                          <code className="rounded bg-muted px-1 py-0.5">&lt;a&gt;</code> link wherever you'd like it visible — your menu page, footer, or sidebar
                         </span>
                       </li>
                       <li className="flex gap-3">
