@@ -45,6 +45,13 @@ Parameters:
   MenuImportSecretArn:
     Type: String
     Description: ARN of the Secrets Manager secret containing Anthropic and OpenAI API keys for PDF menu import.
+  GoogleMapsSecretArn:
+    Type: String
+    Description: ARN of the Secrets Manager secret containing the Google Maps API key.
+  GoogleMapsSecretKey:
+    Type: String
+    Default: google-maps-api-key
+    Description: Optional key within the secret JSON that stores the Google Maps API key.
 
 Globals:
   Function:
@@ -269,6 +276,32 @@ Resources:
           Type: HttpApi
           Properties:
             Path: /discovery/publish
+            Method: POST
+            PayloadFormatVersion: "2.0"
+            ApiId: !Ref UploadApi
+
+  GoogleMapsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: synvya-google-maps
+      CodeUri: lambda/
+      Handler: googlemaps.handler
+      Description: Proxies Google Places API requests for business search.
+      Architectures:
+        - arm64
+      Environment:
+        Variables:
+          CORS_ALLOW_ORIGIN: !Join [",", !Ref AllowedOrigins]
+          GOOGLE_MAPS_SECRET_ARN: !Ref GoogleMapsSecretArn
+          GOOGLE_MAPS_SECRET_KEY: !Ref GoogleMapsSecretKey
+      Policies:
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref GoogleMapsSecretArn
+      Events:
+        Search:
+          Type: HttpApi
+          Properties:
+            Path: /google-maps/search
             Method: POST
             PayloadFormatVersion: "2.0"
             ApiId: !Ref UploadApi

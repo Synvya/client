@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 interface CollapsibleSectionProps {
   title: string;
   description?: string;
-  badge?: "required" | "recommended";
+  badge?: "required" | "recommended" | "optional";
   isComplete?: boolean;
   defaultOpen?: boolean;
   children: React.ReactNode;
@@ -64,7 +64,7 @@ export function CollapsibleSection({
                       : "bg-muted text-muted-foreground"
                   )}
                 >
-                  {badge === "required" ? "Required" : "Recommended"}
+                  {badge === "required" ? "Required" : badge === "optional" ? "Optional" : "Recommended"}
                 </span>
               )}
             </div>
