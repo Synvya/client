@@ -78,6 +78,7 @@ export function SettingsPage(): JSX.Element {
   const [urlCopied, setUrlCopied] = useState(false);
   const [schemaCopied, setSchemaCopied] = useState(false);
   const [menuLinkCopied, setMenuLinkCopied] = useState(false);
+  const [googleLinkCopied, setGoogleLinkCopied] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState<"idle" | "success">("idle");
   const [newRelay, setNewRelay] = useState("");
   const [busy, setBusy] = useState(false);
@@ -108,6 +109,14 @@ export function SettingsPage(): JSX.Element {
       return () => clearTimeout(timer);
     }
   }, [menuLinkCopied]);
+
+  // Reset google link copied state after 2 seconds
+  useEffect(() => {
+    if (googleLinkCopied) {
+      const timer = setTimeout(() => setGoogleLinkCopied(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [googleLinkCopied]);
 
   // Reset download status after 2 seconds
   useEffect(() => {
@@ -206,6 +215,16 @@ export function SettingsPage(): JSX.Element {
       setMenuLinkCopied(true);
     } catch (error) {
       console.error("Failed to copy menu link to clipboard:", error);
+    }
+  };
+
+  const handleCopyGoogleLink = async () => {
+    if (!discoveryPageUrl) return;
+    try {
+      await navigator.clipboard.writeText(discoveryPageUrl);
+      setGoogleLinkCopied(true);
+    } catch (error) {
+      console.error("Failed to copy Google link to clipboard:", error);
     }
   };
 
@@ -476,6 +495,83 @@ export function SettingsPage(): JSX.Element {
                   Unable to load embed code. Try publishing your profile again or refresh the page.
                 </p>
               )}
+            </div>
+          </CollapsibleSection>
+        </section>
+      )}
+
+      {/* Google Business Profile Section */}
+      {discoveryPageUrl && (
+        <section className="rounded-lg border bg-card shadow-sm">
+          <CollapsibleSection
+            title="Add to Google Business Profile"
+            description="Help customers find your menu directly from Google Search and Maps"
+            badge={undefined}
+            isComplete={false}
+            defaultOpen={false}
+          >
+            <div className="space-y-6">
+              {/* Step 1: Menu link */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
+                  <h3 className="font-semibold text-sm">Copy your menu link</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  You'll paste this link into your Google Business Profile in the next step.
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 rounded-lg border bg-muted/30 px-3 py-2">
+                    <code className="text-sm break-all" style={{ fontFamily: "'Fira Code', 'Consolas', 'Monaco', monospace" }}>
+                      {discoveryPageUrl}
+                    </code>
+                  </div>
+                  <Button variant="default" size="sm" onClick={handleCopyGoogleLink} disabled={googleLinkCopied} className="shrink-0">
+                    <Copy className="mr-2 h-4 w-4" />
+                    {googleLinkCopied ? "Copied!" : "Copy"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Step 2: Instructions */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
+                  <h3 className="font-semibold text-sm">Update your Google Business Profile</h3>
+                </div>
+
+                <ol className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">a.</span>
+                    <span>
+                      Search for your business name on Google while signed in to the account that manages your business
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">b.</span>
+                    <span>
+                      Click <strong>Edit profile</strong> &rarr; <strong>Contact</strong>
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">c.</span>
+                    <span>
+                      Paste the link in the <strong>Menu or services link</strong> field
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">d.</span>
+                    <span>
+                      <em>(Optional)</em> If you don't have your own website, paste the same link in the <strong>Website</strong> field
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="font-semibold text-foreground shrink-0">e.</span>
+                    <span>Click <strong>Save</strong></span>
+                  </li>
+                </ol>
+              </div>
             </div>
           </CollapsibleSection>
         </section>
