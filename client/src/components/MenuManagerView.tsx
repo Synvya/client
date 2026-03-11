@@ -94,7 +94,6 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
   const sections: LiveCollection[] = [];
   const other: LiveCollection[] = [];
   for (const c of data.collections) {
-    if (c.itemDTags.length === 0) continue; // skip empty collections
     if (c.menuType === "section") sections.push(c);
     else if (c.menuType === "menu") menus.push(c);
     else other.push(c);
@@ -108,7 +107,10 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
       continue;
     }
     // Fallback: a section belongs to a menu if every section item also appears in the menu.
+    // Guard: skip empty sections — an empty set satisfies every() trivially and would match
+    // the first menu, which is wrong.
     const sectionItems = collectionItemSet.get(section.dTag)!;
+    if (sectionItems.size === 0) continue;
     for (const menu of menus) {
       const menuItems = collectionItemSet.get(menu.dTag)!;
       if ([...sectionItems].every((d) => menuItems.has(d))) {
@@ -132,7 +134,6 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
       const sectionItems = section.itemDTags
         .map((d) => itemByDTag.get(d))
         .filter((i): i is LiveMenuItem => i !== undefined);
-      if (sectionItems.length === 0) continue;
       childSections.push({
         collection: section,
         label: displayTitle(section),
@@ -151,14 +152,12 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
       .filter((i): i is LiveMenuItem => i !== undefined);
     for (const item of directItems) assignedItems.add(item.dTag);
 
-    if (childSections.length > 0 || directItems.length > 0) {
-      groups.push({
-        menu,
-        label: displayTitle(menu),
-        sections: childSections,
-        directItems,
-      });
-    }
+    groups.push({
+      menu,
+      label: displayTitle(menu),
+      sections: childSections,
+      directItems,
+    });
   }
 
   // Orphan sections (not matched to any menu)
@@ -167,7 +166,6 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
     const sectionItems = section.itemDTags
       .map((d) => itemByDTag.get(d))
       .filter((i): i is LiveMenuItem => i !== undefined && !assignedItems.has(i.dTag));
-    if (sectionItems.length === 0) continue;
     for (const item of sectionItems) assignedItems.add(item.dTag);
     groups.push({
       menu: null,
@@ -182,7 +180,6 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
     const items = c.itemDTags
       .map((d) => itemByDTag.get(d))
       .filter((i): i is LiveMenuItem => i !== undefined && !assignedItems.has(i.dTag));
-    if (items.length === 0) continue;
     for (const item of items) assignedItems.add(item.dTag);
     groups.push({
       menu: null,
@@ -557,7 +554,7 @@ export function MenuManagerView({
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            title="Move to collection"
+            title="Move to menu or section"
           >
             <ArrowRightLeft className="h-3.5 w-3.5" />
           </Button>
@@ -685,6 +682,13 @@ export function MenuManagerView({
               </div>
             </Collapsible.Trigger>
             <Collapsible.Content className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+              {/* Empty state: no direct items and no sections */}
+              {group.directItems.length === 0 && group.sections.length === 0 && (
+                <div className="border-t px-4 py-3">
+                  <p className="text-xs italic text-muted-foreground">No menu items</p>
+                </div>
+              )}
+
               {/* Direct items (in menu but not in any section) */}
               {group.directItems.length > 0 && (
                 <div className="divide-y border-t">
@@ -714,7 +718,11 @@ export function MenuManagerView({
                     )}
                   </div>
                   <div className="divide-y">
-                    {section.items.map(renderItemRow)}
+                    {section.items.length === 0 ? (
+                      <p className="px-4 py-3 text-xs italic text-muted-foreground">No menu items</p>
+                    ) : (
+                      section.items.map(renderItemRow)
+                    )}
                   </div>
                 </div>
               ))}
