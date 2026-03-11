@@ -64,10 +64,10 @@ Return a JSON object with this exact structure:
 {
   "menus": [
     {
-      "name": "Menu name (e.g. 'Lunch', 'Dinner', 'Drinks')",
+      "name": "Menu name",
       "description": "Brief description of this menu",
       "menuType": "food or drink",
-      "parentMenu": "parent menu name if this is a sub-menu/section, empty string otherwise"
+      "parentMenu": "parent menu name if this is a section; empty string if this is a top-level menu"
     }
   ],
   "items": [
@@ -79,19 +79,30 @@ Return a JSON object with this exact structure:
       "ingredients": ["ingredient1", "ingredient2"],
       "suitableForDiets": ["vegan", "gluten-free"],
       "tags": ["appetizer", "spicy"],
-      "partOfMenu": "Which menu this item belongs to",
-      "partOfMenuSection": "Which section within the menu (e.g. 'Appetizers', 'Entrees')",
+      "partOfMenu": "Which top-level menu this item belongs to",
+      "partOfMenuSection": "Which section within the menu (e.g. 'Appetizers', 'Entrees'), or empty string if none",
       "imageDescription": "A vivid 1-2 sentence description of how this dish would look as professional food photography. Focus on plating, colors, textures, and garnishes."
     }
   ]
 }
 
-Guidelines:
-- Extract ALL items, do not skip any
+STEP 1 — Identify top-level menus:
+Look for explicit high-level separations such as "Lunch Menu", "Dinner Menu", "Brunch", "Drinks Menu", "Wine List", etc. These become top-level entries with parentMenu set to empty string.
+If the PDF has NO such top-level distinction (i.e. the restaurant has a single combined food menu and only section/category headers are visible), create exactly ONE top-level entry: { "name": "Menu", "description": "Full menu", "menuType": "food", "parentMenu": "" }. Do NOT promote section headers to be top-level menus in this case.
+
+STEP 2 — Identify sections:
+Section headers are bold, uppercase, or visually prominent titles within a menu that group items together (e.g. "STARTERS", "KABOBS", "DESSERTS", "TANDOORI TEMPTATIONS"). Each section becomes a menus entry with parentMenu set to its parent top-level menu name, and menuType "food" or "drink" as appropriate.
+Multi-column layouts: many printed menus use two or more columns where the same section header appears at the top of each column. Treat repeated identical headers as ONE section — do not create duplicate menus entries.
+
+STEP 3 — Consistency check (critical):
+Before finalising output, scan every item's "partOfMenuSection" value and confirm it exactly matches a "name" in the menus array. If any partOfMenuSection value has no matching menus entry, add the missing section to the menus array (with the appropriate parentMenu). This check is mandatory — every section referenced by items must exist in menus.
+
+Additional guidelines:
+- Extract ALL items; do not skip any
+- Normalize section names: strip leading/trailing asterisks or symbols, normalise whitespace, use consistent Title Case
 - If an item has no description on the menu, write a brief one based on the name and ingredients
 - For suitableForDiets, only include diets you can confidently identify (vegan, vegetarian, gluten-free, etc.)
 - Ingredients: list what you can identify from the description. If none listed, use empty array.
-- Sections in the PDF (like "Appetizers", "Mains") become menu sections. The overall category (like "Dinner Menu") is the menu.
 - imageDescription should be vivid enough for an AI image generator to create appetizing food photography
 - Return ONLY the JSON, no markdown code fences or explanations`;
 
