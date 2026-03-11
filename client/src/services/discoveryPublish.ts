@@ -104,13 +104,19 @@ export async function fetchDiscoveryData(
     authors: [pubkey]
   });
 
-  // Deduplicate events
-  const menuEvents = deduplicateEvents(allMenuEvents, pubkey);
+  // Deduplicate events, then strip any that were marked hidden during a replace.
+  // (hideAllCurrentMenu publishes visibility:hidden versions before deletion events,
+  // so relays may still serve hidden items until deletions propagate.)
+  const menuEvents = deduplicateEvents(allMenuEvents, pubkey).filter(
+    (e) => !e.tags.some((t) => t[0] === "visibility" && (t[1] === "hidden" || t[1] === "<hidden"))
+  );
 
-  // If relay returned no menu events but we have local events (just published),
-  // use them to avoid the relay propagation race condition
+  // Always prefer locally-provided events (just published) over relay events.
+  // Relays may still serve stale data during the propagation window after a replace,
+  // so if the caller supplies fresh events we use those unconditionally.
+  // Fall back to relay events only when no local events are provided.
   const effectiveMenuEvents =
-    menuEvents.length === 0 && localMenuEvents && localMenuEvents.length > 0
+    localMenuEvents && localMenuEvents.length > 0
       ? localMenuEvents
       : menuEvents;
 

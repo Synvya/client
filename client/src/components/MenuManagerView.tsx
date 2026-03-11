@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -23,9 +23,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import * as Collapsible from "@radix-ui/react-collapsible";
-import { RefreshCw, Loader2, Trash2, Pencil, Plus, ImageIcon, ChevronDown } from "lucide-react";
+import { RefreshCw, Loader2, Trash2, Pencil, Plus, ImageIcon, ChevronDown, Upload, ArrowRightLeft, FolderPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LiveMenuData, LiveMenuItem, LiveCollection } from "@/lib/menu/menuFetch";
+import { uploadMedia } from "@/services/upload";
 
 export interface MenuItemPatch {
   title?: string;
@@ -46,6 +47,9 @@ interface MenuManagerViewProps {
   onDeleteItems: (addresses: string[]) => Promise<void>;
   onEditItem: (item: LiveMenuItem, patch: MenuItemPatch) => Promise<void>;
   onUnpublishAll: () => Promise<void>;
+  onMoveItem?: (item: LiveMenuItem, targetCollection: LiveCollection) => Promise<void>;
+  onCreateCollection?: (name: string, type: "menu" | "section", parentMenuDTag?: string) => Promise<void>;
+  onRenameCollection?: (collection: LiveCollection, newName: string) => Promise<void>;
 }
 
 interface MenuSection {
@@ -62,12 +66,16 @@ interface MenuGroup {
   directItems: LiveMenuItem[];
 }
 
-function isMenuTitle(title: string): boolean {
-  return title.endsWith(" Menu") || title === "Menu";
-}
-
-function isSectionTitle(title: string): boolean {
-  return title.endsWith(" Menu Section");
+/**
+ * Returns the clean display title for a collection.
+ * New events have clean titles (no suffix); legacy events have suffixes like
+ * " Menu" or " Menu Section" that should be stripped for display only.
+ */
+function displayTitle(c: LiveCollection): string {
+  return c.title
+    .replace(/ Menu Section$/, "")
+    .replace(/ Menu$/, "")
+    .trim() || c.dTag;
 }
 
 function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
@@ -81,21 +89,25 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
   const itemByDTag = new Map<string, LiveMenuItem>();
   for (const item of data.items) itemByDTag.set(item.dTag, item);
 
-  // Classify collections into menus and sections by title convention
+  // Classify collections by menuType field (populated from explicit tag or title-suffix fallback).
   const menus: LiveCollection[] = [];
   const sections: LiveCollection[] = [];
   const other: LiveCollection[] = [];
   for (const c of data.collections) {
     if (c.itemDTags.length === 0) continue; // skip empty collections
-    if (isSectionTitle(c.title)) sections.push(c);
-    else if (isMenuTitle(c.title)) menus.push(c);
+    if (c.menuType === "section") sections.push(c);
+    else if (c.menuType === "menu") menus.push(c);
     else other.push(c);
   }
 
-  // Match sections to their parent menu: a section belongs to a menu if
-  // every item in the section also appears in the menu.
+  // Match sections to their parent menu: explicit parentDTag first, then item-overlap fallback.
   const sectionToMenu = new Map<string, string>(); // section dTag -> menu dTag
   for (const section of sections) {
+    if (section.parentDTag && collectionByDTag.has(section.parentDTag)) {
+      sectionToMenu.set(section.dTag, section.parentDTag);
+      continue;
+    }
+    // Fallback: a section belongs to a menu if every section item also appears in the menu.
     const sectionItems = collectionItemSet.get(section.dTag)!;
     for (const menu of menus) {
       const menuItems = collectionItemSet.get(menu.dTag)!;
@@ -123,7 +135,7 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
       if (sectionItems.length === 0) continue;
       childSections.push({
         collection: section,
-        label: section.title || section.dTag,
+        label: displayTitle(section),
         items: sectionItems,
       });
       for (const item of sectionItems) {
@@ -142,7 +154,7 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
     if (childSections.length > 0 || directItems.length > 0) {
       groups.push({
         menu,
-        label: menu.title || menu.dTag,
+        label: displayTitle(menu),
         sections: childSections,
         directItems,
       });
@@ -159,7 +171,7 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
     for (const item of sectionItems) assignedItems.add(item.dTag);
     groups.push({
       menu: null,
-      label: section.title || section.dTag,
+      label: displayTitle(section),
       sections: [],
       directItems: sectionItems,
     });
@@ -174,7 +186,7 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
     for (const item of items) assignedItems.add(item.dTag);
     groups.push({
       menu: null,
-      label: c.title || c.dTag,
+      label: displayTitle(c),
       sections: [],
       directItems: items,
     });
@@ -194,6 +206,63 @@ function buildMenuHierarchy(data: LiveMenuData): MenuGroup[] {
   return groups;
 }
 
+/** Build a destination list for the Move dialog from all collections (including empty ones). */
+function buildMoveDestinations(
+  data: LiveMenuData
+): { label: string; collection: LiveCollection; indent: boolean }[] {
+  const menus = data.collections.filter((c) => c.menuType === "menu");
+  const sections = data.collections.filter((c) => c.menuType === "section");
+  const other = data.collections.filter((c) => c.menuType === "other");
+
+  // sectionToMenu: explicit parentDTag first, then item-overlap fallback.
+  const collectionByDTag = new Map(data.collections.map((c) => [c.dTag, c]));
+  const collectionItemSet = new Map<string, Set<string>>();
+  for (const c of data.collections) {
+    collectionItemSet.set(c.dTag, new Set(c.itemDTags));
+  }
+  const sectionToMenu = new Map<string, string>();
+  for (const section of sections) {
+    if (section.parentDTag && collectionByDTag.has(section.parentDTag)) {
+      sectionToMenu.set(section.dTag, section.parentDTag);
+      continue;
+    }
+    const sectionItems = collectionItemSet.get(section.dTag)!;
+    for (const menu of menus) {
+      const menuItems = collectionItemSet.get(menu.dTag)!;
+      if ([...sectionItems].every((d) => menuItems.has(d))) {
+        sectionToMenu.set(section.dTag, menu.dTag);
+        break;
+      }
+    }
+  }
+
+  const destinations: { label: string; collection: LiveCollection; indent: boolean }[] = [];
+
+  for (const menu of menus) {
+    destinations.push({ label: displayTitle(menu), collection: menu, indent: false });
+    // Sections that belong to this menu
+    for (const section of sections) {
+      if (sectionToMenu.get(section.dTag) === menu.dTag) {
+        destinations.push({ label: displayTitle(section), collection: section, indent: true });
+      }
+    }
+  }
+
+  // Orphan sections (no parent menu found)
+  for (const section of sections) {
+    if (!sectionToMenu.has(section.dTag)) {
+      destinations.push({ label: displayTitle(section), collection: section, indent: false });
+    }
+  }
+
+  // Other collections
+  for (const c of other) {
+    destinations.push({ label: displayTitle(c), collection: c, indent: false });
+  }
+
+  return destinations;
+}
+
 export function MenuManagerView({
   pubkey,
   loading,
@@ -204,6 +273,9 @@ export function MenuManagerView({
   onDeleteItems,
   onEditItem,
   onUnpublishAll,
+  onMoveItem,
+  onCreateCollection,
+  onRenameCollection,
 }: MenuManagerViewProps): JSX.Element {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -218,6 +290,26 @@ export function MenuManagerView({
   const [editDescription, setEditDescription] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
   const [editBusy, setEditBusy] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Move item dialog state
+  const [moveItem, setMoveItem] = useState<LiveMenuItem | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
+
+  // Rename collection dialog state
+  const [renameCollection, setRenameCollection] = useState<LiveCollection | null>(null);
+  const [renameInput, setRenameInput] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+
+  // Create collection dialog state
+  const [createCollectionOpen, setCreateCollectionOpen] = useState(false);
+  const [createCollectionName, setCreateCollectionName] = useState("");
+  const [createCollectionType, setCreateCollectionType] = useState<"menu" | "section">("menu");
+  const [createCollectionParentDTag, setCreateCollectionParentDTag] = useState<string>("");
+  const [createCollectionBusy, setCreateCollectionBusy] = useState(false);
+  const [createCollectionError, setCreateCollectionError] = useState<string | null>(null);
 
   const totalItems = menuData?.items.length ?? 0;
 
@@ -276,6 +368,20 @@ export function MenuManagerView({
     setEditCurrency(item.currency);
     setEditDescription(item.description);
     setEditImageUrl(item.imageUrl);
+    setImageUploadError(null);
+  };
+
+  const handleImageFile = async (file: File) => {
+    setImageUploadError(null);
+    setImageUploading(true);
+    try {
+      const url = await uploadMedia(file, "picture");
+      setEditImageUrl(url);
+    } catch (err) {
+      setImageUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   const handleEditSave = async () => {
@@ -292,6 +398,51 @@ export function MenuManagerView({
       setEditItem(null);
     } finally {
       setEditBusy(false);
+    }
+  };
+
+  const handleMoveDialogSelect = async (targetCollection: LiveCollection) => {
+    if (!moveItem || !onMoveItem) return;
+    setMoveBusy(true);
+    try {
+      await onMoveItem(moveItem, targetCollection);
+      setMoveItem(null);
+    } finally {
+      setMoveBusy(false);
+    }
+  };
+
+  const handleRenameSubmit = async () => {
+    if (!renameCollection || !onRenameCollection) return;
+    const name = renameInput.trim();
+    if (!name || name === renameCollection.title) { setRenameCollection(null); return; }
+    setRenameBusy(true);
+    try {
+      await onRenameCollection(renameCollection, name);
+      setRenameCollection(null);
+    } finally {
+      setRenameBusy(false);
+    }
+  };
+
+  const handleCreateCollectionSubmit = async () => {
+    if (!onCreateCollection) return;
+    const name = createCollectionName.trim();
+    if (!name) return;
+    setCreateCollectionBusy(true);
+    setCreateCollectionError(null);
+    try {
+      const parentDTag = createCollectionType === "section" && createCollectionParentDTag
+        ? createCollectionParentDTag
+        : undefined;
+      await onCreateCollection(name, createCollectionType, parentDTag);
+      setCreateCollectionOpen(false);
+      setCreateCollectionName("");
+      setCreateCollectionParentDTag("");
+    } catch (err) {
+      setCreateCollectionError(err instanceof Error ? err.message : "Failed to create collection.");
+    } finally {
+      setCreateCollectionBusy(false);
     }
   };
 
@@ -400,6 +551,17 @@ export function MenuManagerView({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {onMoveItem && (
+          <Button
+            onClick={() => setMoveItem(item)}
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title="Move to collection"
+          >
+            <ArrowRightLeft className="h-3.5 w-3.5" />
+          </Button>
+        )}
         <Button
           onClick={() => openEdit(item)}
           variant="ghost"
@@ -435,6 +597,22 @@ export function MenuManagerView({
             <RefreshCw className="mr-2 h-3.5 w-3.5" />
             Refresh
           </Button>
+          {onCreateCollection && (
+            <Button
+              onClick={() => {
+                setCreateCollectionName("");
+                setCreateCollectionType("menu");
+                setCreateCollectionParentDTag("");
+                setCreateCollectionError(null);
+                setCreateCollectionOpen(true);
+              }}
+              variant="outline"
+              size="sm"
+            >
+              <FolderPlus className="mr-2 h-3.5 w-3.5" />
+              New Menu
+            </Button>
+          )}
           <Button onClick={onImport} size="sm">
             <Plus className="mr-2 h-3.5 w-3.5" />
             Import Menu
@@ -480,7 +658,23 @@ export function MenuManagerView({
           <Collapsible.Root key={group.label} defaultOpen className="rounded-lg border bg-card">
             <Collapsible.Trigger className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-muted/50 group">
               <div>
-                <h3 className="text-sm font-semibold">{group.label}</h3>
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-sm font-semibold">{group.label}</h3>
+                  {onRenameCollection && group.menu && (
+                    <button
+                      type="button"
+                      title="Rename"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRenameInput(displayTitle(group.menu!));
+                        setRenameCollection(group.menu!);
+                      }}
+                      className="rounded p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
                 {group.menu?.summary && group.menu.summary !== group.label && (
                   <p className="text-xs text-muted-foreground">{group.menu.summary}</p>
                 )}
@@ -501,10 +695,23 @@ export function MenuManagerView({
               {/* Sections within this menu */}
               {group.sections.map((section) => (
                 <div key={section.collection.dTag}>
-                  <div className="border-t bg-muted/30 px-4 py-2">
+                  <div className="border-t bg-muted/30 px-4 py-2 flex items-center gap-1.5">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {section.label}
                     </h4>
+                    {onRenameCollection && (
+                      <button
+                        type="button"
+                        title="Rename"
+                        onClick={() => {
+                          setRenameInput(displayTitle(section.collection));
+                          setRenameCollection(section.collection);
+                        }}
+                        className="rounded p-0.5 text-muted-foreground hover:text-primary transition-colors"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                   <div className="divide-y">
                     {section.items.map(renderItemRow)}
@@ -573,11 +780,48 @@ export function MenuManagerView({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-image">Image URL</Label>
+              <Label>Image</Label>
+              {editImageUrl && (
+                <img
+                  src={editImageUrl}
+                  alt="Item preview"
+                  className="h-20 w-20 rounded object-cover border"
+                />
+              )}
               <Input
-                id="edit-image"
+                placeholder="https://..."
                 value={editImageUrl}
                 onChange={(e) => setEditImageUrl(e.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={imageUploading}
+                >
+                  {imageUploading ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  {imageUploading ? "Uploading…" : "Upload image"}
+                </Button>
+                {imageUploadError && (
+                  <span className="text-xs text-destructive">{imageUploadError}</span>
+                )}
+              </div>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleImageFile(f);
+                  e.target.value = "";
+                }}
               />
             </div>
           </div>
@@ -585,7 +829,7 @@ export function MenuManagerView({
             <Button variant="outline" onClick={() => setEditItem(null)} disabled={editBusy}>
               Cancel
             </Button>
-            <Button onClick={handleEditSave} disabled={editBusy}>
+            <Button onClick={handleEditSave} disabled={editBusy || imageUploading}>
               {editBusy ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -593,6 +837,197 @@ export function MenuManagerView({
                 </>
               ) : (
                 "Save Changes"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Move Item Dialog */}
+      <Dialog open={moveItem !== null} onOpenChange={(open) => { if (!open) setMoveItem(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Move item</DialogTitle>
+            <DialogDescription>
+              Select the menu or section where &ldquo;{moveItem?.title}&rdquo; should appear.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 overflow-y-auto space-y-0.5 py-1">
+            {menuData && buildMoveDestinations(menuData).map(({ label, collection, indent }) => {
+              const isCurrent = moveItem?.collectionDTags.includes(collection.dTag);
+              return (
+                <button
+                  key={collection.dTag}
+                  type="button"
+                  disabled={moveBusy || isCurrent}
+                  onClick={() => void handleMoveDialogSelect(collection)}
+                  className={cn(
+                    "w-full text-left rounded px-3 py-2 text-sm transition-colors",
+                    indent ? "pl-7" : "",
+                    isCurrent
+                      ? "text-muted-foreground cursor-default"
+                      : "hover:bg-muted/60",
+                    moveBusy && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  {label}
+                  {isCurrent && (
+                    <span className="ml-2 text-xs text-muted-foreground">(current)</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {moveBusy && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Moving…
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMoveItem(null)} disabled={moveBusy}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Collection Dialog */}
+      <Dialog
+        open={renameCollection !== null}
+        onOpenChange={(open) => { if (!open) setRenameCollection(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename</DialogTitle>
+            <DialogDescription>
+              Enter a new name for &ldquo;{renameCollection ? displayTitle(renameCollection) : ""}&rdquo;.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="rename-input">Name</Label>
+            <Input
+              id="rename-input"
+              value={renameInput}
+              onChange={(e) => setRenameInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void handleRenameSubmit(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameCollection(null)} disabled={renameBusy}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleRenameSubmit()}
+              disabled={renameBusy || !renameInput.trim()}
+            >
+              {renameBusy ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving…
+                </>
+              ) : (
+                "Rename"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Collection Dialog */}
+      <Dialog
+        open={createCollectionOpen}
+        onOpenChange={(open) => { if (!open) setCreateCollectionOpen(false); }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>New menu or section</DialogTitle>
+            <DialogDescription>
+              A <strong>Menu</strong> groups items at the top level. A <strong>Section</strong> is a named subsection within a menu.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="create-name">Name</Label>
+              <Input
+                id="create-name"
+                placeholder="e.g. Dinner, Entrees"
+                value={createCollectionName}
+                onChange={(e) => setCreateCollectionName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleCreateCollectionSubmit(); }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="radio"
+                    name="collection-type"
+                    value="menu"
+                    checked={createCollectionType === "menu"}
+                    onChange={() => { setCreateCollectionType("menu"); setCreateCollectionParentDTag(""); }}
+                    className="accent-primary"
+                  />
+                  Menu
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                  <input
+                    type="radio"
+                    name="collection-type"
+                    value="section"
+                    checked={createCollectionType === "section"}
+                    onChange={() => setCreateCollectionType("section")}
+                    className="accent-primary"
+                  />
+                  Section
+                </label>
+              </div>
+            </div>
+            {createCollectionType === "section" && menuData && (
+              <div className="space-y-2">
+                <Label htmlFor="create-parent">Parent Menu</Label>
+                <select
+                  id="create-parent"
+                  value={createCollectionParentDTag}
+                  onChange={(e) => setCreateCollectionParentDTag(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">— none —</option>
+                  {menuData.collections
+                    .filter((c) => c.menuType === "menu")
+                    .map((c) => (
+                      <option key={c.dTag} value={c.dTag}>
+                        {c.title}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
+            {createCollectionError && (
+              <p className="text-sm text-destructive">{createCollectionError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateCollectionOpen(false)}
+              disabled={createCollectionBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleCreateCollectionSubmit()}
+              disabled={createCollectionBusy || !createCollectionName.trim()}
+            >
+              {createCollectionBusy ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create"
               )}
             </Button>
           </DialogFooter>

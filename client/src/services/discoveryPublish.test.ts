@@ -181,7 +181,32 @@ describe("discoveryPublish", () => {
       expect(result?.menuEvents).toEqual(localEvents);
     });
 
-    it("uses relay events when both relay and local events exist", async () => {
+    it("filters out hidden events from relay results", async () => {
+      // Regression test: hideAllCurrentMenu publishes visibility:hidden versions of old items.
+      // These hidden items must not appear on the discovery page.
+      const hiddenEvent = { kind: 30402, tags: [["d", "old-burger"], ["visibility", "hidden"]], content: "", created_at: 1700000010 };
+      const visibleEvent = { kind: 30402, tags: [["d", "new-pizza"]], content: "", created_at: 1700000020 };
+      const mockPool = {
+        get: vi.fn().mockResolvedValue(mockProfileEvent),
+        querySync: vi.fn().mockResolvedValue([hiddenEvent, visibleEvent])
+      };
+      vi.mocked(getPool).mockReturnValue(mockPool as any);
+      vi.mocked(parseKind0ProfileEvent).mockReturnValue({
+        patch: mockProfile,
+        categories: []
+      });
+      vi.mocked(deduplicateEvents).mockReturnValue([hiddenEvent, visibleEvent] as any);
+
+      const result = await fetchDiscoveryData(mockPubkey, mockRelays);
+
+      // Hidden event must be stripped; only the visible new item should remain
+      expect(result?.menuEvents).toHaveLength(1);
+      expect(result?.menuEvents?.[0].tags.find((t: string[]) => t[0] === "d")?.[1]).toBe("new-pizza");
+    });
+
+    it("always uses localMenuEvents when provided, even if relay also has events", async () => {
+      // Regression test: when replacing a menu the relay still serves stale events
+      // during propagation. localMenuEvents must always win when provided.
       const localEvents = [
         { kind: 30402, tags: [["d", "pizza"]], content: "", created_at: 1700000000 }
       ];
@@ -198,7 +223,8 @@ describe("discoveryPublish", () => {
 
       const result = await fetchDiscoveryData(mockPubkey, mockRelays, localEvents as any);
 
-      expect(result?.menuEvents).toEqual(mockMenuEvents);
+      // Local events should always take precedence over relay events
+      expect(result?.menuEvents).toEqual(localEvents);
     });
 
     it("returns null geohash when profile has no g tag", async () => {

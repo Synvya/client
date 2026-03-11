@@ -9,30 +9,43 @@ interface UseMenuEnhancementParams {
   setNotice: (msg: string | null) => void;
 }
 
+const ENRICH_BATCH_SIZE = 10;
+
 export function useMenuEnhancement({
   reviewState,
   setReviewState,
   setError,
   setNotice,
 }: UseMenuEnhancementParams) {
-  const [enriching, setEnriching] = useState(false);
+  const [enrichProgress, setEnrichProgress] = useState<{ current: number; total: number } | null>(null);
   const [imageGenProgress, setImageGenProgress] = useState<{ current: number; total: number } | null>(null);
 
   const handleEnrich = async () => {
     if (!reviewState) return;
     setError(null);
-    setEnriching(true);
-    try {
-      const result = await enrichMenuDescriptions(
-        reviewState.items.map((i) => ({
-          name: i.name,
-          description: i.description,
-          ingredients: i.ingredients,
-        })),
-        { name: "", cuisine: "", about: "" },
-      );
 
-      const enrichMap = new Map(result.items.map((i) => [i.name, i.enrichedDescription]));
+    const allItems = reviewState.items.map((i) => ({
+      name: i.name,
+      description: i.description,
+      ingredients: i.ingredients,
+    }));
+    const total = allItems.length;
+    setEnrichProgress({ current: 0, total });
+
+    try {
+      const enrichMap = new Map<string, string>();
+
+      // Process in batches so the progress counter advances as each batch completes.
+      for (let start = 0; start < total; start += ENRICH_BATCH_SIZE) {
+        const batch = allItems.slice(start, start + ENRICH_BATCH_SIZE);
+        const result = await enrichMenuDescriptions(batch, { name: "", cuisine: "", about: "" });
+        for (const item of result.items) {
+          enrichMap.set(item.name, item.enrichedDescription);
+        }
+        const done = Math.min(start + ENRICH_BATCH_SIZE, total);
+        setEnrichProgress({ current: done, total });
+      }
+
       setReviewState((prev) => {
         if (!prev) return prev;
         return {
@@ -48,7 +61,7 @@ export function useMenuEnhancement({
       const message = error instanceof Error ? error.message : "Failed to enrich descriptions.";
       setError(message);
     } finally {
-      setEnriching(false);
+      setEnrichProgress(null);
     }
   };
 
@@ -142,7 +155,7 @@ export function useMenuEnhancement({
   };
 
   return {
-    enriching,
+    enrichProgress,
     imageGenProgress,
     handleEnrich,
     handleGenerateImages,

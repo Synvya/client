@@ -21,47 +21,57 @@ export function squareEventsToReviewState(
     const title = col.tags.find((t) => t[0] === "title")?.[1] || dTag;
     const summary = col.tags.find((t) => t[0] === "summary")?.[1] || "";
 
-    // Detect if it's a section or menu from title suffix
-    const isSection = title.endsWith("Menu Section");
-    const cleanName = title
-      .replace(/ Menu Section$/, "")
-      .replace(/ Menu$/, "")
-      .trim() || dTag;
+    // Detect type: explicit menu-type tag first, then title-suffix fallback for legacy events.
+    const menuTypeTag = col.tags.find((t) => t[0] === "menu-type")?.[1];
+    const isSection = menuTypeTag
+      ? menuTypeTag === "section"
+      : title.endsWith("Menu Section");
+
+    // For new events title is already clean; for legacy events strip the suffix.
+    const cleanName = menuTypeTag
+      ? title
+      : (title.replace(/ Menu Section$/, "").replace(/ Menu$/, "").trim() || dTag);
 
     collectionDTagToName.set(dTag, cleanName);
 
-    // For sections, find parent menu by looking at other collections
-    // that this section's products also reference
+    // For sections, find parent menu via explicit parent tag first, then item-overlap fallback.
     let parentMenu = "";
     if (isSection) {
-      // Find product events referencing this collection
-      const sectionAddr = `30405:`;
-      const productATags = products.flatMap((p) =>
-        p.tags.filter((t) => t[0] === "a" && t[1]?.includes(`:${dTag}`))
-      );
-      // Find other collection references from same products
-      for (const prod of products) {
-        const refs = prod.tags
-          .filter((t) => t[0] === "a" && t[1]?.startsWith("30405:"))
-          .map((t) => t[1]);
-        const refsDTags = refs.map((r) => r.split(":")[2]);
-        if (refsDTags.includes(dTag)) {
-          for (const otherDTag of refsDTags) {
-            if (otherDTag !== dTag) {
-              const otherCol = collections.find(
-                (c) => c.tags.find((t) => t[0] === "d")?.[1] === otherDTag
-              );
-              if (otherCol) {
-                const otherTitle = otherCol.tags.find((t) => t[0] === "title")?.[1] || "";
-                if (!otherTitle.endsWith("Menu Section")) {
-                  parentMenu = collectionDTagToName.get(otherDTag) ||
-                    otherTitle.replace(/ Menu$/, "").trim() || otherDTag;
-                  break;
+      // Check for explicit ["parent", "30405:pubkey:parentDTag"] tag
+      const parentTagVal = col.tags.find((t) => t[0] === "parent")?.[1];
+      if (parentTagVal) {
+        const parts = parentTagVal.split(":");
+        const parentDTag = parts.slice(2).join(":");
+        parentMenu = collectionDTagToName.get(parentDTag) || parentDTag;
+      } else {
+        // Fallback: infer parent from item a-tag overlap (legacy events without parent tag)
+        for (const prod of products) {
+          const refs = prod.tags
+            .filter((t) => t[0] === "a" && t[1]?.startsWith("30405:"))
+            .map((t) => t[1]);
+          const refsDTags = refs.map((r) => r.split(":")[2]);
+          if (refsDTags.includes(dTag)) {
+            for (const otherDTag of refsDTags) {
+              if (otherDTag !== dTag) {
+                const otherCol = collections.find(
+                  (c) => c.tags.find((t) => t[0] === "d")?.[1] === otherDTag
+                );
+                if (otherCol) {
+                  const otherMenuTypeTag = otherCol.tags.find((t) => t[0] === "menu-type")?.[1];
+                  const otherTitle = otherCol.tags.find((t) => t[0] === "title")?.[1] || "";
+                  const otherIsSection = otherMenuTypeTag
+                    ? otherMenuTypeTag === "section"
+                    : otherTitle.endsWith("Menu Section");
+                  if (!otherIsSection) {
+                    parentMenu = collectionDTagToName.get(otherDTag) ||
+                      otherTitle.replace(/ Menu$/, "").trim() || otherDTag;
+                    break;
+                  }
                 }
               }
             }
+            if (parentMenu) break;
           }
-          if (parentMenu) break;
         }
       }
     }
@@ -123,10 +133,13 @@ export function squareEventsToReviewState(
         (c) => c.tags.find((t) => t[0] === "d")?.[1] === refDTag
       );
       if (!col) continue;
+      const colMenuTypeTag = col.tags.find((t) => t[0] === "menu-type")?.[1];
       const colTitle = col.tags.find((t) => t[0] === "title")?.[1] || "";
-      const isSection = colTitle.endsWith("Menu Section");
+      const colIsSection = colMenuTypeTag
+        ? colMenuTypeTag === "section"
+        : colTitle.endsWith("Menu Section");
       const cleanName = collectionDTagToName.get(refDTag) || refDTag;
-      if (isSection) {
+      if (colIsSection) {
         partOfMenuSection = cleanName;
       } else {
         partOfMenu = cleanName;

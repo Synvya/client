@@ -30,7 +30,8 @@ import { squareEventsToReviewState } from "@/lib/menuImport/squareToReviewState"
 import { extractPdfMenu } from "@/services/menuImport";
 import { pdfToImages } from "@/lib/menuImport/pdfToImages";
 import { useMenuEnhancement } from "@/hooks/useMenuEnhancement";
-import { fetchLiveMenuData, type LiveMenuData, type LiveMenuItem } from "@/lib/menu/menuFetch";
+import { fetchLiveMenuData, type LiveMenuData, type LiveMenuItem, type LiveCollection } from "@/lib/menu/menuFetch";
+import { slugify } from "@/lib/siteExport/slug";
 
 type MenuSource = "square" | "spreadsheet" | "pdf";
 type WorkflowStep = 1 | 2;
@@ -133,7 +134,8 @@ export function MenuPage(): JSX.Element {
   const [selectedSource, setSelectedSource] = useState<MenuSource | null>(null);
 
   // Multi-step publish progress and Synvya.com error handling
-  const [publishStep, setPublishStep] = useState<"nostr" | "synvya" | null>(null);
+  const [publishStep, setPublishStep] = useState<"hiding" | "nostr" | "synvya" | null>(null);
+  const [publishMode, setPublishMode] = useState<"replace" | "append">("replace");
   const [publishProgress, setPublishProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [synvyaError, setSynvyaError] = useState<string | null>(null);
   const [lastPublishedHtml, setLastPublishedHtml] = useState<string | null>(null);
@@ -142,9 +144,12 @@ export function MenuPage(): JSX.Element {
   const pdfFileInputRef = useRef<HTMLInputElement>(null);
   const sheetFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Prevent concurrent auto-migration runs
+  const autoMigrationRunningRef = useRef(false);
+
   // Enhancement hook
   const {
-    enriching,
+    enrichProgress,
     imageGenProgress,
     handleEnrich,
     handleGenerateImages,
@@ -366,14 +371,71 @@ export function MenuPage(): JSX.Element {
     }
   };
 
+  const hideAllCurrentMenu = async () => {
+    if (!pubkey || !managerData) return;
+    // Publish visibility:hidden replacements for all existing 30402 items.
+    // Addressable events replace in-place on the relay so this immediately
+    // prevents hidden items from appearing in discovery pages or the UI.
+    for (const item of managerData.items) {
+      const hiddenTags = [
+        ...item.event.tags.filter((t) => t[0] !== "visibility"),
+        ["visibility", "hidden"],
+      ];
+      const hiddenEvent = {
+        kind: 30402 as const,
+        created_at: Math.floor(Date.now() / 1000),
+        content: item.event.content,
+        tags: hiddenTags,
+      };
+      const signedHidden = await signEvent(hiddenEvent as any);
+      validateEvent(signedHidden);
+      await publishToRelays(signedHidden, relays);
+    }
+    // Same treatment for 30405 collection events.  Without this, old collection
+    // entries (e.g. "Drinks", "Red Wines") remain visible on the relay after a
+    // replace because NIP-09 deletion is advisory and ignored by many relays.
+    for (const collection of managerData.collections) {
+      const hiddenTags = [
+        ...collection.event.tags.filter((t) => t[0] !== "visibility"),
+        ["visibility", "hidden"],
+      ];
+      const hiddenEvent = {
+        kind: 30405 as const,
+        created_at: Math.floor(Date.now() / 1000),
+        content: collection.event.content,
+        tags: hiddenTags,
+      };
+      const signedHidden = await signEvent(hiddenEvent as any);
+      validateEvent(signedHidden);
+      await publishToRelays(signedHidden, relays);
+    }
+    // NIP-09 deletion event for both kinds as a best-effort cleanup.
+    const addresses: string[] = [
+      ...managerData.items.map((item) => `30402:${pubkey}:${item.dTag}`),
+      ...managerData.collections.map((c) => `30405:${pubkey}:${c.dTag}`),
+    ];
+    if (addresses.length > 0) {
+      const deletionEvent = buildDeletionEventByAddress(addresses, [30402, 30405], "replacing menu");
+      const signed = await signEvent(deletionEvent as any);
+      validateEvent(signed);
+      await publishToRelays(signed, relays);
+    }
+  };
+
   // Unified publish handler for all sources
-  const handlePublish = async () => {
+  const handlePublish = async (mode: "replace" | "append" = publishMode) => {
     if (!pubkey || !reviewState) return;
     setImportError(null);
     setImportNotice(null);
     setSynvyaError(null);
     setPublishBusy(true);
     try {
+      // If replacing, hide all existing menu items first
+      if (mode === "replace" && managerData && managerData.items.length > 0) {
+        setPublishStep("hiding");
+        await hideAllCurrentMenu();
+      }
+
       // Build events from review state
       const { menus, items } = reviewStateToSpreadsheetRows(reviewState);
       const previewEvents = buildSpreadsheetPreviewEvents({
@@ -497,10 +559,26 @@ export function MenuPage(): JSX.Element {
   }, [pubkey, relays]);
 
   useEffect(() => {
-    if (pubkey && pageMode === "manager") {
+    if (pubkey) {
       void refreshManagerData();
     }
-  }, [pubkey, pageMode, refreshManagerData]);
+  }, [pubkey, refreshManagerData]);
+
+  // Automatically migrate legacy collections (those missing explicit menu-type / parent tags)
+  // whenever fresh menu data is loaded. Runs silently — no user action required.
+  useEffect(() => {
+    if (!managerData || autoMigrationRunningRef.current) return;
+    const hasLegacy = managerData.collections.some((c) => {
+      const hasMenuType = c.event.tags.some((t) => t[0] === "menu-type");
+      const hasParent = c.event.tags.some((t) => t[0] === "parent");
+      return !hasMenuType || (c.menuType === "section" && !hasParent);
+    });
+    if (!hasLegacy) return;
+    autoMigrationRunningRef.current = true;
+    void handleMigrateCollections().finally(() => {
+      autoMigrationRunningRef.current = false;
+    });
+  }, [managerData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDeleteItems = async (addresses: string[]) => {
     if (!pubkey) return;
@@ -573,6 +651,307 @@ export function MenuPage(): JSX.Element {
     validateEvent(signed);
     await publishToRelays(signed, relays);
     await refreshManagerData();
+  };
+
+  const handleMoveItem = async (item: LiveMenuItem, targetCollection: LiveCollection): Promise<void> => {
+    if (!pubkey || !managerData) return;
+
+    const { collections } = managerData;
+    const collectionByDTag = new Map(collections.map((c) => [c.dTag, c]));
+
+    // Build item-set per collection for sectionToMenu computation
+    const collectionItemSet = new Map<string, Set<string>>();
+    for (const c of collections) {
+      collectionItemSet.set(c.dTag, new Set(c.itemDTags));
+    }
+
+    // Find parent menu of target if it's a section.
+    // Use explicit parentDTag first, then item-overlap fallback for legacy events.
+    const targetIsSection = targetCollection.menuType === "section";
+    let parentMenuDTag: string | null = null;
+    if (targetIsSection) {
+      if (targetCollection.parentDTag && collectionByDTag.has(targetCollection.parentDTag)) {
+        parentMenuDTag = targetCollection.parentDTag;
+      } else {
+        for (const col of collections) {
+          if (col.menuType !== "menu") continue;
+          const menuItemSet = collectionItemSet.get(col.dTag)!;
+          // Section belongs to menu if all current section items are in the menu
+          if ([...targetCollection.itemDTags].every((d) => menuItemSet.has(d))) {
+            parentMenuDTag = col.dTag;
+            break;
+          }
+        }
+      }
+    }
+
+    // New collection memberships for the item
+    const newCollectionDTags = new Set<string>([targetCollection.dTag]);
+    if (parentMenuDTag) newCollectionDTags.add(parentMenuDTag);
+
+    const oldCollectionDTags = new Set(item.collectionDTags);
+    const collectionsToRemoveFrom = [...oldCollectionDTags].filter((d) => !newCollectionDTags.has(d));
+    const collectionsToAddTo = [...newCollectionDTags].filter((d) => !oldCollectionDTags.has(d));
+
+    // 1. Update item event: replace collection a-tags
+    const nonCollTags = item.event.tags.filter(
+      (t) => !(t[0] === "a" && typeof t[1] === "string" && t[1].startsWith("30405:"))
+    );
+    const newCollATags = [...newCollectionDTags].map((d) => ["a", `30405:${pubkey}:${d}`]);
+    const updatedItemEvent = {
+      kind: 30402 as const,
+      created_at: Math.floor(Date.now() / 1000),
+      content: item.event.content,
+      tags: [...nonCollTags, ...newCollATags],
+    };
+    const signedItem = await signEvent(updatedItemEvent as any);
+    validateEvent(signedItem);
+    await publishToRelays(signedItem, relays);
+
+    // 2. Remove item from source collections
+    for (const dTag of collectionsToRemoveFrom) {
+      const col = collectionByDTag.get(dTag);
+      if (!col) continue;
+      const remaining = col.itemDTags.filter((d) => d !== item.dTag);
+      if (remaining.length === 0) {
+        // Auto-delete empty collection
+        const addr = `30405:${pubkey}:${dTag}`;
+        const delEvt = buildDeletionEventByAddress([addr], [30405], "empty collection after move");
+        const signed = await signEvent(delEvt as any);
+        validateEvent(signed);
+        await publishToRelays(signed, relays);
+      } else {
+        const updatedTags = col.event.tags.filter(
+          (t) => !(t[0] === "a" && t[1] === `30402:${pubkey}:${item.dTag}`)
+        );
+        const collEvt = {
+          kind: 30405 as const,
+          created_at: Math.floor(Date.now() / 1000),
+          content: col.event.content,
+          tags: updatedTags,
+        };
+        const signed = await signEvent(collEvt as any);
+        validateEvent(signed);
+        await publishToRelays(signed, relays);
+      }
+    }
+
+    // 3. Add item to destination collections
+    for (const dTag of collectionsToAddTo) {
+      const col = collectionByDTag.get(dTag);
+      if (!col) continue;
+      const updatedTags = [...col.event.tags, ["a", `30402:${pubkey}:${item.dTag}`]];
+      const collEvt = {
+        kind: 30405 as const,
+        created_at: Math.floor(Date.now() / 1000),
+        content: col.event.content,
+        tags: updatedTags,
+      };
+      const signed = await signEvent(collEvt as any);
+      validateEvent(signed);
+      await publishToRelays(signed, relays);
+    }
+
+    await refreshManagerData();
+  };
+
+  const handleCreateCollection = async (name: string, type: "menu" | "section", parentMenuDTag?: string): Promise<void> => {
+    if (!pubkey) return;
+
+    const dTag = slugify(name);
+    if (!dTag) throw new Error("Name produces an empty identifier. Use alphanumeric characters.");
+
+    if (managerData) {
+      const collision = managerData.collections.find((c) => c.dTag === dTag);
+      if (collision) {
+        throw new Error(
+          `A collection named "${collision.title}" already uses the identifier "${dTag}". Choose a different name.`
+        );
+      }
+    }
+
+    // Use clean title (no suffix) with explicit menu-type and optional parent tags.
+    const tags: string[][] = [
+      ["d", dTag],
+      ["title", name],
+      ["menu-type", type],
+      ["summary", name],
+    ];
+    if (type === "section" && parentMenuDTag) {
+      tags.push(["parent", `30405:${pubkey}:${parentMenuDTag}`]);
+    }
+    const collEvt = {
+      kind: 30405 as const,
+      created_at: Math.floor(Date.now() / 1000),
+      content: "",
+      tags,
+    };
+    const signed = await signEvent(collEvt as any);
+    validateEvent(signed);
+    await publishToRelays(signed, relays);
+    await refreshManagerData();
+  };
+
+  /** Rename a top-level menu in the review state (before publishing). */
+  const handleRenameReviewMenu = (oldName: string, newName: string) => {
+    setReviewState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        menus: prev.menus.map((m) =>
+          m.name === oldName ? { ...m, name: newName } : m
+        ),
+        items: prev.items.map((item) =>
+          item.partOfMenu === oldName ? { ...item, partOfMenu: newName } : item
+        ),
+      };
+    });
+  };
+
+  /** Rename a section in the review state (before publishing). */
+  const handleRenameReviewSection = (oldName: string, newName: string, parentMenuName: string) => {
+    setReviewState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        menus: prev.menus.map((m) =>
+          m.name === oldName && m.parentMenu === parentMenuName
+            ? { ...m, name: newName }
+            : m
+        ),
+        items: prev.items.map((item) =>
+          item.partOfMenuSection === oldName && item.partOfMenu === parentMenuName
+            ? { ...item, partOfMenuSection: newName }
+            : item
+        ),
+      };
+    });
+  };
+
+  /** Rename a published collection (kind 30405) — updates title/summary, preserves d-tag and all other tags. */
+  const handleRenameCollection = async (collection: LiveCollection, newName: string): Promise<void> => {
+    if (!pubkey) return;
+
+    // Drop title, summary, and menu-type — we re-add them with the new name.
+    // IMPORTANT: Always write an explicit menu-type tag, even if the original lacked one.
+    // Legacy events had no menu-type tag and relied on title suffix for classification;
+    // after rename the clean title has no suffix, so without an explicit tag the
+    // collection would be misclassified as "other" and disappear from the UI.
+    const baseTags = collection.event.tags.filter(
+      (t) => t[0] !== "title" && t[0] !== "summary" && t[0] !== "menu-type"
+    );
+    const explicitMenuType = collection.menuType === "section" ? "section" : "menu";
+    const newTags: string[][] = [
+      ...baseTags,
+      ["title", newName],
+      ["menu-type", explicitMenuType],
+      ["summary", newName],
+    ];
+
+    const collEvt = {
+      kind: 30405 as const,
+      created_at: Math.floor(Date.now() / 1000),
+      content: collection.event.content,
+      tags: newTags,
+    };
+    const signed = await signEvent(collEvt as any);
+    validateEvent(signed);
+    await publishToRelays(signed, relays);
+    await refreshManagerData();
+  };
+
+  /**
+   * Migrate all legacy collections that lack explicit `menu-type` / `parent` tags.
+   * Re-publishes each affected collection with:
+   *   - Clean title (legacy suffix stripped)
+   *   - Explicit ["menu-type", "menu"|"section"]
+   *   - ["parent", "30405:pubkey:dTag"] for sections (inferred via item-overlap if not already set)
+   * Item events are not touched.
+   */
+  const handleMigrateCollections = async (): Promise<void> => {
+    if (!pubkey || !managerData) return;
+
+    const { collections } = managerData;
+
+    // Build item-set per collection for parent inference
+    const collectionItemSet = new Map<string, Set<string>>();
+    for (const c of collections) {
+      collectionItemSet.set(c.dTag, new Set(c.itemDTags));
+    }
+
+    // Identify collections that need migration:
+    // those whose event lacks an explicit ["menu-type", ...] tag, OR
+    // sections whose event lacks a ["parent", ...] tag.
+    const needsMigration = collections.filter((c) => {
+      const hasMenuType = c.event.tags.some((t) => t[0] === "menu-type");
+      const hasParent = c.event.tags.some((t) => t[0] === "parent");
+      if (!hasMenuType) return true;
+      if (c.menuType === "section" && !hasParent) return true;
+      return false;
+    });
+
+    if (needsMigration.length === 0) return;
+
+    const now = Math.floor(Date.now() / 1000);
+
+    for (const col of needsMigration) {
+      const explicitMenuType = col.menuType === "section" ? "section" : "menu";
+
+      // Strip legacy title suffixes for the updated title
+      const cleanTitle = col.title
+        .replace(/ Menu Section$/, "")
+        .replace(/ Menu$/, "")
+        .trim() || col.dTag;
+
+      // Infer parent for sections that don't have a parent tag yet
+      let inferredParentDTag: string | null = col.parentDTag;
+      if (explicitMenuType === "section" && !inferredParentDTag) {
+        const sectionItems = collectionItemSet.get(col.dTag)!;
+        for (const other of collections) {
+          if (other.menuType !== "menu") continue;
+          const menuItems = collectionItemSet.get(other.dTag)!;
+          if (sectionItems.size > 0 && [...sectionItems].every((d) => menuItems.has(d))) {
+            inferredParentDTag = other.dTag;
+            break;
+          }
+        }
+      }
+
+      // Rebuild tags: drop title, summary, menu-type, parent — re-add them cleanly
+      const baseTags = col.event.tags.filter(
+        (t) => t[0] !== "title" && t[0] !== "summary" && t[0] !== "menu-type" && t[0] !== "parent"
+      );
+      const newTags: string[][] = [
+        ...baseTags,
+        ["title", cleanTitle],
+        ["menu-type", explicitMenuType],
+        ["summary", col.summary || cleanTitle],
+      ];
+      if (explicitMenuType === "section" && inferredParentDTag) {
+        newTags.push(["parent", `30405:${pubkey}:${inferredParentDTag}`]);
+      }
+
+      const collEvt = {
+        kind: 30405 as const,
+        created_at: now,
+        content: col.event.content,
+        tags: newTags,
+      };
+      const signed = await signEvent(collEvt as any);
+      validateEvent(signed);
+      await publishToRelays(signed, relays);
+    }
+
+    await refreshManagerData();
+  };
+
+  const handleUpdateReviewItem = (index: number, patch: Partial<MenuReviewItem>) => {
+    setReviewState((prev) => {
+      if (!prev) return prev;
+      const items = [...prev.items];
+      items[index] = { ...items[index], ...patch };
+      return { ...prev, items };
+    });
   };
 
   const handleChangeSource = () => {
@@ -660,6 +1039,9 @@ export function MenuPage(): JSX.Element {
           onDeleteItems={handleDeleteItems}
           onEditItem={handleEditItem}
           onUnpublishAll={handleUnpublishMenu}
+          onMoveItem={handleMoveItem}
+          onCreateCollection={handleCreateCollection}
+          onRenameCollection={handleRenameCollection}
         />
       )}
 
@@ -680,6 +1062,43 @@ export function MenuPage(): JSX.Element {
         <ArrowLeft className="mr-2 h-3.5 w-3.5" />
         Back to Menu Manager
       </Button>
+
+      {/* Replace / Append selector — shown at the top whenever there's an existing published menu */}
+      {managerData && managerData.items.length > 0 && !publishSuccess && (
+        <section className="rounded-lg border bg-muted/40 p-4">
+          <p className="text-sm font-medium mb-3">
+            You have {managerData.items.length} published item{managerData.items.length === 1 ? "" : "s"}. What should happen when you publish the new import?
+          </p>
+          <div className="grid grid-cols-2 gap-2 max-w-sm">
+            <button
+              type="button"
+              onClick={() => setPublishMode("replace")}
+              className={cn(
+                "rounded-md border p-3 text-left text-sm transition-colors",
+                publishMode === "replace"
+                  ? "border-primary bg-primary/5"
+                  : "border-border bg-background hover:bg-muted"
+              )}
+            >
+              <span className="font-medium">Replace</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">Delete existing items, publish new ones</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPublishMode("append")}
+              className={cn(
+                "rounded-md border p-3 text-left text-sm transition-colors",
+                publishMode === "append"
+                  ? "border-primary bg-primary/5"
+                  : "border-border bg-background hover:bg-muted"
+              )}
+            >
+              <span className="font-medium">Append</span>
+              <span className="block text-xs text-muted-foreground mt-0.5">Add new items alongside existing ones</span>
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Success State */}
       {publishSuccess && (
@@ -865,17 +1284,23 @@ export function MenuPage(): JSX.Element {
             <div className="flex items-center gap-3 rounded-md border bg-muted/50 p-3 text-sm">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <div className="flex items-center gap-2">
-                <span className={
-                  publishStep === "nostr"
-                    ? "text-primary font-medium"
-                    : "text-emerald-600"
-                }>
-                  {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
-                </span>
-                <span className="text-muted-foreground">&rarr;</span>
-                <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
-                  2. Going live
-                </span>
+                {publishStep === "hiding" ? (
+                  <span className="text-primary font-medium">Deleting existing items…</span>
+                ) : (
+                  <>
+                    <span className={
+                      publishStep === "nostr"
+                        ? "text-primary font-medium"
+                        : "text-emerald-600"
+                    }>
+                      {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
+                    </span>
+                    <span className="text-muted-foreground">&rarr;</span>
+                    <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
+                      2. Going live
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -943,7 +1368,7 @@ export function MenuPage(): JSX.Element {
             <div className="space-y-4">
               <MenuReviewPanel
                 reviewState={reviewState}
-                enriching={enriching}
+                enrichProgress={enrichProgress}
                 imageGenProgress={imageGenProgress}
                 publishBusy={publishBusy}
                 onEnrich={() => void handleEnrich()}
@@ -952,6 +1377,9 @@ export function MenuPage(): JSX.Element {
                 onPublish={() => {
                   setPublishConfirmOpen(true);
                 }}
+                onUpdateItem={handleUpdateReviewItem}
+                onRenameMenu={handleRenameReviewMenu}
+                onRenameSection={handleRenameReviewSection}
                 onReUpload={() => {
                   setReviewState(null);
                   setImportError(null);
@@ -1038,13 +1466,19 @@ export function MenuPage(): JSX.Element {
             <div className="flex items-center gap-3 rounded-md border bg-muted/50 p-3 text-sm">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <div className="flex items-center gap-2">
-                <span className={publishStep === "nostr" ? "text-primary font-medium" : "text-emerald-600"}>
-                  {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
-                </span>
-                <span className="text-muted-foreground">&rarr;</span>
-                <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
-                  2. Going live
-                </span>
+                {publishStep === "hiding" ? (
+                  <span className="text-primary font-medium">Deleting existing items…</span>
+                ) : (
+                  <>
+                    <span className={publishStep === "nostr" ? "text-primary font-medium" : "text-emerald-600"}>
+                      {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
+                    </span>
+                    <span className="text-muted-foreground">&rarr;</span>
+                    <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
+                      2. Going live
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1109,7 +1543,7 @@ export function MenuPage(): JSX.Element {
           {currentStep === 2 && reviewState && (
             <MenuReviewPanel
               reviewState={reviewState}
-              enriching={enriching}
+              enrichProgress={enrichProgress}
               imageGenProgress={imageGenProgress}
               publishBusy={publishBusy}
               onEnrich={() => void handleEnrich()}
@@ -1118,6 +1552,9 @@ export function MenuPage(): JSX.Element {
               onPublish={() => {
                 setPublishConfirmOpen(true);
               }}
+              onUpdateItem={handleUpdateReviewItem}
+              onRenameMenu={handleRenameReviewMenu}
+              onRenameSection={handleRenameReviewSection}
               onReUpload={() => pdfFileInputRef.current?.click()}
               reUploadLabel="Upload Different File"
             />
@@ -1208,17 +1645,23 @@ export function MenuPage(): JSX.Element {
             <div className="flex items-center gap-3 rounded-md border bg-muted/50 p-3 text-sm">
               <Loader2 className="h-4 w-4 animate-spin text-primary" />
               <div className="flex items-center gap-2">
-                <span className={
-                  publishStep === "nostr"
-                    ? "text-primary font-medium"
-                    : "text-emerald-600"
-                }>
-                  {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
-                </span>
-                <span className="text-muted-foreground">&rarr;</span>
-                <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
-                  2. Going live
-                </span>
+                {publishStep === "hiding" ? (
+                  <span className="text-primary font-medium">Deleting existing items…</span>
+                ) : (
+                  <>
+                    <span className={
+                      publishStep === "nostr"
+                        ? "text-primary font-medium"
+                        : "text-emerald-600"
+                    }>
+                      {publishStep === "nostr" ? `1. Publishing (${publishProgress.current} of ${publishProgress.total})` : "1. Published"}
+                    </span>
+                    <span className="text-muted-foreground">&rarr;</span>
+                    <span className={publishStep === "synvya" ? "text-primary font-medium" : ""}>
+                      2. Going live
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1262,7 +1705,7 @@ export function MenuPage(): JSX.Element {
           {currentStep === 2 && reviewState && (
             <MenuReviewPanel
               reviewState={reviewState}
-              enriching={enriching}
+              enrichProgress={enrichProgress}
               imageGenProgress={imageGenProgress}
               publishBusy={publishBusy}
               onEnrich={() => void handleEnrich()}
@@ -1271,6 +1714,9 @@ export function MenuPage(): JSX.Element {
               onPublish={() => {
                 setPublishConfirmOpen(true);
               }}
+              onUpdateItem={handleUpdateReviewItem}
+              onRenameMenu={handleRenameReviewMenu}
+              onRenameSection={handleRenameReviewSection}
               onReUpload={() => sheetFileInputRef.current?.click()}
               reUploadLabel="Upload Different File"
             />

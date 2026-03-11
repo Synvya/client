@@ -138,6 +138,20 @@ export function buildSpreadsheetPreviewEvents(params: {
     titleByMenuName.set(name, description);
   }
 
+  // Auto-discover sections referenced by items that are missing from the explicit menus list.
+  // The extraction LLM reliably populates partOfMenuSection on items but sometimes omits those
+  // section names from the top-level menus array.  We synthesize implicit section rows so that
+  // 30405 collection events are always published for every section that items belong to.
+  for (const row of items) {
+    const section = asString((row as any)["Part of Menu Section"]);
+    const menu = asString((row as any)["Part of Menu"]);
+    if (!section) continue;
+    // Only add when the section has no explicit parent recorded yet.
+    if (!parentByMenuName.has(section) || !parentByMenuName.get(section)) {
+      parentByMenuName.set(section, menu);
+    }
+  }
+
   const baseDTags = items.map((row, i) =>
     computeItemDTag(
       asString(row.Name),
@@ -241,19 +255,18 @@ export function buildSpreadsheetPreviewEvents(params: {
     }
   }
 
+  // Track which collection names were handled by explicit menus rows.
+  const explicitMenuNames = new Set<string>();
+
   for (const row of menus) {
     const name = asString(row.Name);
     if (!name) continue;
+    explicitMenuNames.add(name);
 
-    const menuType = asString((row as any)["Menu Type"]);
     const description = asString(row.Description);
     const parent = asString((row as any)["Parent Menu"]);
 
-    // Title: MUST include suffix so downstream menu/section classification works.
-    // - If Parent Menu is set -> section
-    // - Otherwise -> menu
     const isSection = Boolean(parent);
-    const title = `${name} ${isSection ? "Menu Section" : "Menu"}`;
 
     const productDTags = collectionToProductDTags.get(name) || [];
     if (!productDTags.length) {
@@ -263,8 +276,42 @@ export function buildSpreadsheetPreviewEvents(params: {
 
     const tags: string[][] = [];
     tags.push(["d", name]);
-    tags.push(["title", title]);
-    tags.push(["summary", description || title]);
+    // Use clean title (no suffix) — type is conveyed via explicit menu-type tag below.
+    tags.push(["title", name]);
+    tags.push(["menu-type", isSection ? "section" : "menu"]);
+    tags.push(["summary", description || name]);
+    // For sections, record the parent menu via explicit parent tag.
+    if (isSection && parent) {
+      tags.push(["parent", `30405:${merchantPubkey}:${parent}`]);
+    }
+
+    for (const dTag of Array.from(new Set(productDTags))) {
+      tags.push(["a", `30402:${merchantPubkey}:${dTag}`]);
+    }
+
+    collectionEvents.push({
+      kind: 30405,
+      created_at: createdAt,
+      content: "",
+      tags,
+    });
+  }
+
+  // Second pass: emit collection events for implicit sections — those discovered from
+  // items' partOfMenuSection that were NOT present in the explicit menus rows.
+  for (const [name, parent] of parentByMenuName.entries()) {
+    if (explicitMenuNames.has(name)) continue; // already handled above
+    if (!parent) continue; // top-level menus without explicit row are skipped
+
+    const productDTags = collectionToProductDTags.get(name) || [];
+    if (!productDTags.length) continue;
+
+    const tags: string[][] = [];
+    tags.push(["d", name]);
+    tags.push(["title", name]);
+    tags.push(["menu-type", "section"]);
+    tags.push(["summary", name]);
+    tags.push(["parent", `30405:${merchantPubkey}:${parent}`]);
 
     for (const dTag of Array.from(new Set(productDTags))) {
       tags.push(["a", `30402:${merchantPubkey}:${dTag}`]);

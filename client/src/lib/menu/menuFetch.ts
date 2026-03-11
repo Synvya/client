@@ -19,6 +19,10 @@ export interface LiveCollection {
   title: string;
   summary: string;
   itemDTags: string[];
+  /** Explicit type from ["menu-type", ...] tag; falls back to title-suffix inference for legacy events. */
+  menuType: "menu" | "section" | "other";
+  /** d-tag of the parent menu collection (for sections). Null for menus and unparented items. */
+  parentDTag: string | null;
 }
 
 export interface LiveMenuData {
@@ -109,12 +113,40 @@ function parseCollection(event: Event): LiveCollection {
       return parts.slice(2).join(":");
     });
 
+  // Determine menu type: explicit tag first, then title-suffix fallback for legacy events.
+  const menuTypeTag = getTagValue(event.tags, "menu-type");
+  let menuType: "menu" | "section" | "other";
+  if (menuTypeTag === "menu") {
+    menuType = "menu";
+  } else if (menuTypeTag === "section") {
+    menuType = "section";
+  } else if (title.endsWith(" Menu") || title === "Menu") {
+    menuType = "menu";
+  } else if (title.endsWith(" Menu Section")) {
+    menuType = "section";
+  } else {
+    menuType = "other";
+  }
+
+  // Determine parent: explicit ["parent", "30405:pubkey:dTag"] tag first.
+  const parentTagVal = event.tags.find((t) => t[0] === "parent")?.[1] ?? null;
+  let parentDTag: string | null = null;
+  if (parentTagVal) {
+    // Format: "30405:pubkey:dTag" — extract the dTag portion
+    const parts = parentTagVal.split(":");
+    if (parts.length >= 3) {
+      parentDTag = parts.slice(2).join(":");
+    }
+  }
+
   return {
     event,
     dTag,
     title,
     summary,
     itemDTags,
+    menuType,
+    parentDTag,
   };
 }
 
@@ -137,6 +169,7 @@ export async function fetchLiveMenuData(
 
   const collections = deduped
     .filter((e) => e.kind === 30405)
+    .filter((e) => !e.tags.some((t) => t[0] === "visibility" && (t[1] === "hidden" || t[1] === "<hidden")))
     .map(parseCollection);
 
   return { items, collections };

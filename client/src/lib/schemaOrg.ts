@@ -697,9 +697,15 @@ export function buildMenuSchema(
     const summaryTag = collectionEvent.tags.find((t) => t[0] === "summary")?.[1];
     if (!dTag || !titleTag) continue;
 
-    // Classify as menu or section
-    const isTopLevel = titleTag.includes(" Menu") && !titleTag.includes("Menu Section");
-    const type = isTopLevel ? "menu" : "section";
+    // Classify as menu or section: explicit menu-type tag first, then title-suffix fallback.
+    const menuTypeTag = collectionEvent.tags.find((t) => t[0] === "menu-type")?.[1];
+    const type: "menu" | "section" = menuTypeTag === "menu"
+      ? "menu"
+      : menuTypeTag === "section"
+        ? "section"
+        : (titleTag.includes(" Menu") && !titleTag.includes("Menu Section"))
+          ? "menu"
+          : "section";
 
     collectionsMap.set(dTag, {
       name: dTag,
@@ -740,26 +746,40 @@ export function buildMenuSchema(
   }
 
   // Step 3: Build section-to-menu relationships
-  // A section belongs to a menu if items in that section also reference the menu
+  // Check explicit ["parent", "30405:pubkey:dTag"] tag first; fall back to item-overlap inference.
   const sectionToMenuMap = new Map<string, string>(); // section-d-tag -> menu-d-tag
 
   for (const [sectionDTag, sectionCollection] of collectionsMap.entries()) {
     if (sectionCollection.type !== "section") continue;
 
-    // Get all products that reference this section
+    // Try explicit parent tag first
+    const sectionEvent = collectionEvents.find(
+      (e) => e.tags.find((t) => t[0] === "d")?.[1] === sectionDTag
+    );
+    if (sectionEvent) {
+      const parentTagVal = sectionEvent.tags.find((t) => t[0] === "parent")?.[1];
+      if (parentTagVal) {
+        const parts = parentTagVal.split(":");
+        const parentDTag = parts.slice(2).join(":");
+        if (collectionsMap.has(parentDTag)) {
+          sectionToMenuMap.set(sectionDTag, parentDTag);
+          continue;
+        }
+      }
+    }
+
+    // Fallback: infer from item-overlap (items in section also reference the menu)
     const productsInSection = Array.from(productToCollectionRefs.entries())
       .filter(([, refs]) => refs.includes(sectionDTag))
       .map(([product]) => product);
 
-    // Check if any of those products also reference a top-level menu
     for (const product of productsInSection) {
       const refs = productToCollectionRefs.get(product) || [];
       for (const refDTag of refs) {
         const refCollection = collectionsMap.get(refDTag);
         if (refCollection && refCollection.type === "menu") {
-          // This section belongs to this menu
           sectionToMenuMap.set(sectionDTag, refDTag);
-          break; // One menu per section is enough
+          break;
         }
       }
       if (sectionToMenuMap.has(sectionDTag)) break;
@@ -814,7 +834,8 @@ export function buildMenuSchema(
 
       menuSections.push({
         "@type": "MenuSection",
-        "name": sectionCollection.title.replace(" Menu Section", ""),
+        // Strip " Menu Section" suffix for legacy events; new events have clean titles already.
+        "name": sectionCollection.title.replace(/\s*Menu Section\s*$/i, "").trim() || sectionCollection.title,
         "hasMenuItem": sectionCollection.products
       });
     }
