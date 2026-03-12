@@ -97,6 +97,15 @@ Multi-column layouts: many printed menus use two or more columns where the same 
 STEP 3 — Consistency check (critical):
 Before finalising output, scan every item's "partOfMenuSection" value and confirm it exactly matches a "name" in the menus array. If any partOfMenuSection value has no matching menus entry, add the missing section to the menus array (with the appropriate parentMenu). This check is mandatory — every section referenced by items must exist in menus.
 
+STEP 4 — Menu legend and dietary/spice symbols:
+Many menus include a legend (e.g. "V = Vegetarian", "GF = Gluten-Free") or use icons (chili pepper icon for spicy, leaf for vegan, etc.). Scan the entire PDF for any such legend or key.
+- If an item is marked with a symbol that the legend defines as "Vegetarian", add "vegetarian" to suitableForDiets.
+- If an item is marked with a symbol that the legend defines as "Vegan", add "vegan" to suitableForDiets.
+- If an item is marked with a symbol that the legend defines as "Gluten-Free", add "gluten-free" to suitableForDiets.
+- If an item has a chili pepper icon or any symbol the legend defines as "Spicy" or "Hot", add "spicy" to tags.
+- Apply these rules even when the symbol appears inline next to the item name (e.g. "Chicken Tikka V", "Tangra Chilli Chicken 🌶").
+- Do not strip the dietary markers from the item name — keep the name clean (without V, GF, etc.).
+
 Additional guidelines:
 - Extract ALL items; do not skip any
 - Normalize section names: strip leading/trailing asterisks or symbols, normalise whitespace, use consistent Title Case
