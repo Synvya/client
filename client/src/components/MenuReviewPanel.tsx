@@ -246,6 +246,30 @@ export function MenuReviewPanel({
                               {item.ingredients.join(", ")}
                             </p>
                           )}
+                          {(item.suitableForDiets.length > 0 || item.tags.length > 0) && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {item.suitableForDiets.map((diet) => (
+                                <span
+                                  key={diet}
+                                  className="inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                >
+                                  {diet}
+                                </span>
+                              ))}
+                              {item.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                    tag === "spicy"
+                                      ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400"
+                                      : "bg-muted text-muted-foreground"
+                                  }`}
+                                >
+                                  {tag === "spicy" ? "🌶 spicy" : tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {item.imageGenStatus === "generating" && (
