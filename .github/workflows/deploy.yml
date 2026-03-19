@@ -215,6 +215,22 @@ jobs:
             fi
           fi
 
+      - name: Check for visibility-report changes
+        id: visibility-changes
+        working-directory: ${{ github.workspace }}
+        run: |
+          VISIBILITY_FILES="infra/lambda/visibility-report.js infra/lambda/email-sender.js infra/lambda/business-normalize.js infra/lambda/report-engine.js infra/lambda/scoring-engine.js infra/lambda/narrative.js infra/lambda/prompt-library.js infra/lambda/model-adapters.js"
+          if git cat-file -e ${{ github.event.before }} 2>/dev/null; then
+            CHANGED=$(git log --name-only --diff-filter=AM ${{ github.event.before }}..${{ github.sha }} -- $VISIBILITY_FILES)
+          else
+            CHANGED=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }})
+          fi
+          if echo "$CHANGED" | grep -qE "^infra/lambda/(visibility-report|email-sender|business-normalize|report-engine|scoring-engine|narrative|prompt-library|model-adapters)\.js$"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Package Square Lambda function
         if: steps.square-changes.outputs.changed == 'true'
         working-directory: ${{ github.workspace }}/infra/lambda
@@ -366,3 +382,25 @@ jobs:
             --region "$AWS_REGION" \
             --function-name synvya-google-maps \
             --zip-file fileb://infra/synvya-google-maps.zip
+
+      - name: Package Visibility Report Lambda function
+        if: steps.visibility-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}/infra/lambda
+        run: |
+          npm ci --production
+          zip -qr ../synvya-visibility-report.zip \
+            visibility-report.js email-sender.js business-normalize.js \
+            report-engine.js scoring-engine.js narrative.js \
+            prompt-library.js model-adapters.js \
+            package.json package-lock.json node_modules
+
+      - name: Deploy Visibility Report Lambda function
+        if: steps.visibility-changes.outputs.changed == 'true'
+        working-directory: ${{ github.workspace }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws lambda update-function-code \
+            --region "$AWS_REGION" \
+            --function-name synvya-visibility-report \
+            --zip-file fileb://infra/synvya-visibility-report.zip
