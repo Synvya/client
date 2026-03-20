@@ -162,6 +162,9 @@ async function handleCreateJob(event, requestOrigin) {
   }
 
   const email = sanitizeString(body.email, 254) || null;
+  if (!email) {
+    return jsonResponse(400, { error: "email is required" }, {}, requestOrigin);
+  }
   const neighborhood = sanitizeString(body.neighborhood) || null;
   const website = sanitizeString(body.website) || null;
   const reportType = body.report_type === "full" ? "full" : "mini";
@@ -169,6 +172,11 @@ async function handleCreateJob(event, requestOrigin) {
   // Google Places resolved data (optional — from search step)
   const placeId = sanitizeString(body.place_id) || null;
   const groundTruth = body.ground_truth || null;
+
+  // Restrict to US businesses only
+  if (groundTruth?.country && groundTruth.country !== "US") {
+    return jsonResponse(400, { error: "This free report is currently available for US businesses only." }, {}, requestOrigin);
+  }
 
   // Check cache — one report per bakery per 30 days
   const modelVersion = getDefaultModel("openai");

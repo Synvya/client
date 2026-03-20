@@ -94,6 +94,7 @@ function parseAddressComponents(components) {
   let city = "";
   let state = "";
   let zip = "";
+  let country = "";
 
   for (const component of components) {
     const types = component.types || [];
@@ -109,6 +110,8 @@ function parseAddressComponents(components) {
       state = component.shortText || component.longText || "";
     } else if (types.includes("postal_code")) {
       zip = component.longText || component.shortText || "";
+    } else if (types.includes("country")) {
+      country = component.shortText || component.longText || "";
     }
   }
 
@@ -118,6 +121,7 @@ function parseAddressComponents(components) {
     city: city || undefined,
     state: state || undefined,
     zip: zip || undefined,
+    country: country || undefined,
   };
 }
 
@@ -147,6 +151,7 @@ function mapPlaceToCandidate(place) {
     city: addressParts.city,
     state: addressParts.state,
     zip: addressParts.zip,
+    country: addressParts.country,
     hours: parseOpeningHours(place.regularOpeningHours),
     lat: place.location?.latitude || null,
     lng: place.location?.longitude || null,
