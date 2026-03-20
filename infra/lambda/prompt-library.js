@@ -4,7 +4,7 @@
  * Mini prompt set is a subset of the full 30-prompt library.
  */
 
-export const PROMPT_SET_VERSION = "1.7";
+export const PROMPT_SET_VERSION = "1.8";
 
 export const DIMENSIONS = {
   presence: { max: 3, weight: 0.30, label: "Presence" },
@@ -168,6 +168,34 @@ export const ANSWER_SCHEMA = {
     additionalProperties: false,
   },
 };
+
+// ─── Signature product resolution ─────────────────────────────────
+// Used to determine the actual signature product based on the business name
+// and Google Places category, instead of relying on static mappings.
+
+export const RESOLVE_PRODUCT_SYSTEM_PROMPT =
+  "You are a data extractor. Given a business name and its Google Places category, determine the single most likely signature product a customer would order. Consider the business name as a strong signal. Respond with just the product name, 1-3 words.";
+
+export const RESOLVE_PRODUCT_SCHEMA = {
+  name: "product_resolution",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      product: {
+        type: "string",
+        description: "The signature product, 1-3 words (e.g. 'masala chai', 'croissant', 'craft beer')",
+      },
+    },
+    required: ["product"],
+    additionalProperties: false,
+  },
+};
+
+export function buildResolveProductPrompt(businessName, primaryType, types) {
+  const typesStr = types ? types.join(", ") : primaryType || "unknown";
+  return `Business name: "${businessName}"\nGoogle Places category: ${primaryType || "unknown"}\nGoogle Places types: ${typesStr}\n\nWhat is the single most likely signature product a customer would order from this business? Consider the business name as a strong signal. Respond with just the product name, 1-3 words.`;
+}
 
 // ─── Menu item extraction ─────────────────────────────────────────
 // Used to extract a concrete menu item from the menu_knowledge response

@@ -8,7 +8,7 @@ import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-sec
 const secretsClient = new SecretsManagerClient({});
 
 const GOOGLE_PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
-const FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,places.addressComponents,places.regularOpeningHours,places.location,places.primaryType";
+const FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.googleMapsUri,places.websiteUri,places.nationalPhoneNumber,places.internationalPhoneNumber,places.addressComponents,places.regularOpeningHours,places.location,places.primaryType,places.types";
 
 let cachedGoogleKey = null;
 
@@ -156,6 +156,7 @@ function mapPlaceToCandidate(place) {
     lat: place.location?.latitude || null,
     lng: place.location?.longitude || null,
     primary_type: place.primaryType || null,
+    types: place.types || [],
   };
 }
 

@@ -5,7 +5,7 @@
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import { getPromptsForReportType, renderPrompt, resolveBusinessType, ANSWER_SYSTEM_PROMPT, ANSWER_SCHEMA, EXTRACT_MENU_ITEM_SYSTEM_PROMPT, EXTRACT_MENU_ITEM_SCHEMA, buildJudgeSystemPrompt, buildJudgeUserPrompt, JUDGE_SCHEMA, PROMPT_SET_VERSION } from "./prompt-library.js";
+import { getPromptsForReportType, renderPrompt, resolveBusinessType, ANSWER_SYSTEM_PROMPT, ANSWER_SCHEMA, EXTRACT_MENU_ITEM_SYSTEM_PROMPT, EXTRACT_MENU_ITEM_SCHEMA, RESOLVE_PRODUCT_SYSTEM_PROMPT, RESOLVE_PRODUCT_SCHEMA, buildResolveProductPrompt, buildJudgeSystemPrompt, buildJudgeUserPrompt, JUDGE_SCHEMA, PROMPT_SET_VERSION } from "./prompt-library.js";
 import { getAdapter, getDefaultModel } from "./model-adapters.js";
 import { applyDeterministicOverrides, computeDimensionScores, computeOverallScore, determineDiagnosis } from "./scoring-engine.js";
 import { buildCacheKey } from "./business-normalize.js";
@@ -46,10 +46,28 @@ export async function runReportPipeline(jobId) {
 
     // 4. Resolve business type, state, and location details from Google Places data
     const primaryType = ground_truth?.primary_type || null;
+    const placesTypes = ground_truth?.types || null;
     const state = ground_truth?.state || "";
     const address = ground_truth?.formatted_address || "";
     const placesNeighborhood = ground_truth?.neighborhood || "";
-    const { label: businessTypeLabel, product: signatureProduct } = resolveBusinessType(primaryType);
+    const { label: businessTypeLabel, product: fallbackProduct } = resolveBusinessType(primaryType);
+
+    // 4b. Resolve signature product via LLM (uses business name as strong signal)
+    let signatureProduct = fallbackProduct;
+    try {
+      const productPrompt = buildResolveProductPrompt(business_name, primaryType, placesTypes);
+      const productResult = await adapter.call(
+        RESOLVE_PRODUCT_SYSTEM_PROMPT,
+        productPrompt,
+        RESOLVE_PRODUCT_SCHEMA,
+        { webSearch: false }
+      );
+      if (productResult.parsed.product) {
+        signatureProduct = productResult.parsed.product;
+      }
+    } catch (err) {
+      console.warn("LLM product resolution failed, using fallback:", err.message);
+    }
 
     // 5. Build template variables
     // For discovery prompts (1-2): use neighborhood if available, otherwise city
