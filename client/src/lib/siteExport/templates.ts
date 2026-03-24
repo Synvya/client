@@ -18,6 +18,26 @@ type MenuItemLink = {
   featured?: boolean;
 };
 
+/** Extracts the dTag from a MenuItem schema object — either from the URL path or @id fallback. */
+function extractDTag(mi: { "@id"?: string; url?: string }): string {
+  // Prefer extracting from url (e.g., ".../items/truffle-fries.html" → "truffle-fries")
+  if (mi.url) {
+    const match = mi.url.match(/\/items\/([^/]+)\.html$/);
+    if (match) return match[1];
+  }
+  // @id may be a URL or a plain dTag (legacy)
+  const id = mi["@id"] || "";
+  const urlMatch = id.match(/\/items\/([^/]+)\.html$/);
+  if (urlMatch) return urlMatch[1];
+  return id;
+}
+
+/** Checks if a MenuItem has a featured additionalProperty. */
+function isFeatured(mi: { additionalProperty?: Array<{ name: string; value: string | unknown }> }): boolean {
+  return Array.isArray(mi.additionalProperty) &&
+    mi.additionalProperty.some((p) => p.name === "featured" && p.value === "true");
+}
+
 type MenuLink = {
   name: string;
   slug: string;
@@ -157,32 +177,38 @@ export function buildExportSiteModel(params: {
       menu.hasMenuSection?.map((sec) => ({
         name: sec.name,
         items:
-          sec.hasMenuItem?.map((mi) => ({
-            name: mi.name,
-            slug: mi["@id"] ? `items/${mi["@id"]}.html` : `${slugify(mi.name)}.html`,
-            dTag: mi["@id"] || slugify(mi.name),
-            description: mi.description,
-            dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
-            contains: [],
-            price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
-            image: mi.image,
-            section: sec.name,
-            featured: mi.featured,
-          })) ?? [],
+          sec.hasMenuItem?.map((mi) => {
+            const dTag = extractDTag(mi) || slugify(mi.name);
+            return {
+              name: mi.name,
+              slug: `items/${dTag}.html`,
+              dTag,
+              description: mi.description,
+              dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
+              contains: [],
+              price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
+              image: mi.image,
+              section: sec.name,
+              featured: isFeatured(mi),
+            };
+          }) ?? [],
       })) ?? [];
 
     const directItems =
-      menu.hasMenuItem?.map((mi) => ({
-        name: mi.name,
-        slug: mi["@id"] ? `items/${mi["@id"]}.html` : `${slugify(mi.name)}.html`,
-        dTag: mi["@id"] || slugify(mi.name),
-        description: mi.description,
-        dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
-        contains: [],
-        price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
-        image: mi.image,
-        featured: mi.featured,
-      })) ?? [];
+      menu.hasMenuItem?.map((mi) => {
+        const dTag = extractDTag(mi) || slugify(mi.name);
+        return {
+          name: mi.name,
+          slug: `items/${dTag}.html`,
+          dTag,
+          description: mi.description,
+          dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
+          contains: [],
+          price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
+          image: mi.image,
+          featured: isFeatured(mi),
+        };
+      }) ?? [];
 
     return { name: menu.name, slug: menuSlug, description: menu.description, sections, directItems };
   });

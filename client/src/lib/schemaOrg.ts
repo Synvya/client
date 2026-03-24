@@ -60,6 +60,12 @@ interface SchemaOrgReserveAction extends SchemaOrgThing {
   result: SchemaOrgReservation;
 }
 
+interface SchemaOrgPropertyValue {
+  "@type": "PropertyValue";
+  name: string;
+  value: string | SchemaOrgThing;
+}
+
 interface SchemaOrgMenuItem extends SchemaOrgThing {
   "@type": "MenuItem";
   "@id"?: string;
@@ -69,11 +75,8 @@ interface SchemaOrgMenuItem extends SchemaOrgThing {
   description?: string;
   offers?: SchemaOrgOffer;
   suitableForDiet?: string[];
-  ingredients?: string[];
   image?: string;
-  category?: string;
-  breadcrumb?: SchemaOrgThing;
-  featured?: boolean;
+  additionalProperty?: SchemaOrgPropertyValue[];
 }
 
 interface SchemaOrgMenuSection extends SchemaOrgThing {
@@ -807,16 +810,17 @@ export function buildMenuSchema(
   for (const [menuDTag, menuCollection] of collectionsMap.entries()) {
     if (menuCollection.type !== "menu") continue;
 
+    const menuUrl = baseUrl ? menuUrlForTitle(baseUrl, menuCollection.title) : undefined;
     const menu: SchemaOrgMenu = {
       "@type": "Menu",
-      "@id": menuDTag,
+      "@id": menuUrl || menuDTag,
       "name": menuCollection.title
     };
 
     // CSV format: description from summary if present, else fallback
     menu.description = menuCollection.summary || `${menuCollection.title} for ${merchantName}`;
-    if (baseUrl) {
-      menu.url = menuUrlForTitle(baseUrl, menuCollection.title);
+    if (menuUrl) {
+      menu.url = menuUrl;
     }
     // CSV format: identifier as nostr:naddr
     try {
@@ -893,7 +897,7 @@ export function buildMenuSchema(
     menus.push(fallbackMenu);
   }
 
-  // Step 6: Enrich items with category and breadcrumb
+  // Step 6: Enrich items with category and breadcrumb via additionalProperty
   for (const menu of menus) {
     const menuName = menu.name;
 
@@ -903,18 +907,13 @@ export function buildMenuSchema(
         const sectionName = section.name;
         if (section.hasMenuItem) {
           for (const item of section.hasMenuItem) {
-            item.category = `${menuName} > ${sectionName}`;
-            if (baseUrl) {
-              item.breadcrumb = {
-                "@type": "BreadcrumbList",
-                "itemListElement": [
-                  { "@type": "ListItem", "position": 1, "name": merchantName, "item": `${baseUrl}/` },
-                  { "@type": "ListItem", "position": 2, "name": menuName, "item": `${baseUrl}/#menu-${slugify(menuName)}` },
-                  { "@type": "ListItem", "position": 3, "name": sectionName, "item": `${baseUrl}/#section-${slugify(sectionName)}` },
-                  { "@type": "ListItem", "position": 4, "name": item.name }
-                ]
-              };
-            }
+            const props: SchemaOrgPropertyValue[] = item.additionalProperty ? [...item.additionalProperty] : [];
+            props.push({
+              "@type": "PropertyValue",
+              "name": "category",
+              "value": `${menuName} > ${sectionName}`
+            });
+            item.additionalProperty = props;
           }
         }
       }
@@ -923,17 +922,13 @@ export function buildMenuSchema(
     // Direct items (not in sections)
     if (menu.hasMenuItem) {
       for (const item of menu.hasMenuItem) {
-        item.category = menuName;
-        if (baseUrl) {
-          item.breadcrumb = {
-            "@type": "BreadcrumbList",
-            "itemListElement": [
-              { "@type": "ListItem", "position": 1, "name": merchantName, "item": `${baseUrl}/` },
-              { "@type": "ListItem", "position": 2, "name": menuName, "item": `${baseUrl}/#menu-${slugify(menuName)}` },
-              { "@type": "ListItem", "position": 3, "name": item.name }
-            ]
-          };
-        }
+        const props: SchemaOrgPropertyValue[] = item.additionalProperty ? [...item.additionalProperty] : [];
+        props.push({
+          "@type": "PropertyValue",
+          "name": "category",
+          "value": menuName
+        });
+        item.additionalProperty = props;
       }
     }
   }
@@ -962,10 +957,16 @@ function buildMenuItem(
     menuItem.description = content;
   }
 
-  // Ingredients (new format)
+  const additionalProps: SchemaOrgPropertyValue[] = [];
+
+  // Ingredients → additionalProperty
   const ingredients = extractIngredientsFromEventTags(productEvent.tags);
   if (ingredients.length > 0) {
-    menuItem.ingredients = ingredients;
+    additionalProps.push({
+      "@type": "PropertyValue",
+      "name": "ingredients",
+      "value": ingredients.join(", ")
+    });
   }
 
   // Price - only include if present in Nostr event
@@ -991,26 +992,34 @@ function buildMenuItem(
   const dietaryTags = extractSuitableForDietFromEventTags(productEvent.tags);
   if (dietaryTags.length > 0) menuItem.suitableForDiet = dietaryTags;
 
-  // Featured flag
+  // Featured → additionalProperty
   if (productEvent.tags.some((t) => t[0] === "t" && t[1] === "featured")) {
-    menuItem.featured = true;
+    additionalProps.push({
+      "@type": "PropertyValue",
+      "name": "featured",
+      "value": "true"
+    });
   }
 
-  // CSV format: @id, identifier, url
+  // @id, identifier, url
   const dTag = productEvent.tags.find((t) => t[0] === "d")?.[1];
-  if (dTag) {
+  if (opts.baseUrl && dTag) {
+    menuItem["@id"] = menuItemUrlForDTag(opts.baseUrl, dTag);
+    menuItem.url = menuItemUrlForDTag(opts.baseUrl, dTag);
+  } else if (dTag) {
     menuItem["@id"] = dTag;
-    if (opts.merchantPubkey) {
-      try {
-        const naddr = naddrForAddressableEvent({ identifier: dTag, pubkey: opts.merchantPubkey, kind: 30402 });
-        menuItem.identifier = `nostr:${naddr}`;
-      } catch (e) {
-        // ignore
-      }
+  }
+  if (dTag && opts.merchantPubkey) {
+    try {
+      const naddr = naddrForAddressableEvent({ identifier: dTag, pubkey: opts.merchantPubkey, kind: 30402 });
+      menuItem.identifier = `nostr:${naddr}`;
+    } catch (e) {
+      // ignore
     }
   }
-  if (opts.baseUrl && dTag) {
-    menuItem.url = menuItemUrlForDTag(opts.baseUrl, dTag);
+
+  if (additionalProps.length > 0) {
+    menuItem.additionalProperty = additionalProps;
   }
 
   return menuItem;
@@ -1036,7 +1045,14 @@ export function generateLDJsonScript(
 
   // Build FoodEstablishment with all properties (CSV format)
   const establishment = buildFoodEstablishmentSchema(profile, { geohash, pubkeyHex: merchantPubkey, kind0Tags });
-  
+
+  // Override @id with canonical URL (nostr:npub is kept in identifier)
+  const canonicalUrl = `${synvyaBaseUrl}/`;
+  if (establishment["@id"]) {
+    establishment.identifier = establishment["@id"] as string;
+  }
+  establishment["@id"] = canonicalUrl;
+
   // If we have menu events, add them inline (no @id references needed)
   if (menuEvents && menuEvents.length > 0 && merchantPubkey) {
     const menus = buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey, baseUrlForMenus);
@@ -1071,12 +1087,13 @@ export function generateLDJsonScript(
     "@type": typeLabel,
   };
 
+  referenceSchema["@id"] = synvyaDiscoveryUrl;
   if (merchantPubkey) {
     try {
       const npub = nip19.npubEncode(merchantPubkey);
-      referenceSchema["@id"] = `nostr:${npub}`;
+      referenceSchema["identifier"] = `nostr:${npub}`;
     } catch {
-      // skip @id if pubkey is invalid
+      // skip identifier if pubkey is invalid
     }
   }
 

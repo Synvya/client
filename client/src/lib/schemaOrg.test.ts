@@ -537,7 +537,7 @@ describe("schemaOrg", () => {
 
       const menus = buildMenuSchema("Test Restaurant", events, "pubkey123", "https://synvya.com/restaurant/test");
       expect(menus).toHaveLength(1);
-      expect(menus[0]["@id"]).toBe("Lunch");
+      expect(menus[0]["@id"]).toBe("https://synvya.com/restaurant/test/lunch.html");
       expect(menus[0].name).toBe("Lunch Menu");
       expect(menus[0].description).toBe("Lunch Menu for Test Restaurant");
       expect(menus[0].hasMenuSection).toHaveLength(1);
