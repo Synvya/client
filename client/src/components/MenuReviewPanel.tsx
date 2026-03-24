@@ -4,9 +4,28 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, RefreshCw, Sparkles, ImageIcon, Pencil, Upload } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, ImageIcon, Pencil, Upload, X } from "lucide-react";
 import type { MenuReviewState, MenuReviewItem } from "@/lib/menuImport/types";
 import { uploadMedia } from "@/services/upload";
+
+const DIETARY_OPTIONS = [
+  "VegetarianDiet",
+  "VeganDiet",
+  "GlutenFreeDiet",
+  "DairyFreeDiet",
+  "NutFreeDiet",
+  "HalalDiet",
+  "KosherDiet",
+  "PaleoDiet",
+  "KetoDiet",
+  "LowCarbDiet",
+  "PescatarianDiet",
+] as const;
+
+/** Human-readable label for a diet tag, e.g. "VeganDiet" → "Vegan" */
+function dietLabel(diet: string): string {
+  return diet.replace(/Diet$/, "").replace(/([a-z])([A-Z])/g, "$1 $2");
+}
 
 interface EditForm {
   name: string;
@@ -15,6 +34,8 @@ interface EditForm {
   description: string;
   ingredients: string;
   imageUrl: string;
+  suitableForDiets: string[];
+  tags: string[];
 }
 
 interface MenuReviewPanelProps {
@@ -55,7 +76,8 @@ export function MenuReviewPanel({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [lightboxName, setLightboxName] = useState<string>("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: "", price: "", currency: "", description: "", ingredients: "", imageUrl: "" });
+  const [editForm, setEditForm] = useState<EditForm>({ name: "", price: "", currency: "", description: "", ingredients: "", imageUrl: "", suitableForDiets: [], tags: [] });
+  const [tagInput, setTagInput] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +111,7 @@ export function MenuReviewPanel({
   const openEdit = (item: MenuReviewItem, idx: number) => {
     setEditingIndex(idx);
     setImageUploadError(null);
+    setTagInput("");
     setEditForm({
       name: item.name,
       price: item.price,
@@ -96,6 +119,8 @@ export function MenuReviewPanel({
       description: item.enrichedDescription || item.description,
       ingredients: item.ingredients.join(", "),
       imageUrl: item.generatedImageUrl || "",
+      suitableForDiets: [...item.suitableForDiets],
+      tags: [...item.tags],
     });
   };
 
@@ -126,6 +151,8 @@ export function MenuReviewPanel({
       description: editForm.description,
       enrichedDescription: undefined,
       ingredients: parsed,
+      suitableForDiets: editForm.suitableForDiets,
+      tags: editForm.tags,
       generatedImageUrl: trimmedImageUrl || undefined,
       imageGenStatus: trimmedImageUrl ? "done" : "idle",
     });
@@ -461,6 +488,95 @@ export function MenuReviewPanel({
                 rows={2}
                 placeholder="flour, eggs, butter"
               />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Dietary Tags</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {DIETARY_OPTIONS.map((diet) => {
+                  const active = editForm.suitableForDiets.includes(diet);
+                  return (
+                    <button
+                      key={diet}
+                      type="button"
+                      onClick={() =>
+                        setEditForm((f) => ({
+                          ...f,
+                          suitableForDiets: active
+                            ? f.suitableForDiets.filter((d) => d !== diet)
+                            : [...f.suitableForDiets, diet],
+                        }))
+                      }
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                        active
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 ring-1 ring-green-400"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      {dietLabel(diet)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tags</Label>
+              {editForm.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {editForm.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditForm((f) => ({
+                            ...f,
+                            tags: f.tags.filter((t) => t !== tag),
+                          }))
+                        }
+                        className="rounded-full hover:text-destructive transition-colors"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = tagInput.trim().toLowerCase();
+                      if (val && !editForm.tags.includes(val)) {
+                        setEditForm((f) => ({ ...f, tags: [...f.tags, val] }));
+                      }
+                      setTagInput("");
+                    }
+                  }}
+                  placeholder="e.g. spicy, signature"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const val = tagInput.trim().toLowerCase();
+                    if (val && !editForm.tags.includes(val)) {
+                      setEditForm((f) => ({ ...f, tags: [...f.tags, val] }));
+                    }
+                    setTagInput("");
+                  }}
+                  disabled={!tagInput.trim()}
+                >
+                  Add
+                </Button>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label>Image</Label>
