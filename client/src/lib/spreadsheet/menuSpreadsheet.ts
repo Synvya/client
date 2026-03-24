@@ -208,7 +208,7 @@ export function buildSpreadsheetPreviewEvents(params: {
 
     const featuredRaw = asString((row as any).Featured).toLowerCase();
     if (featuredRaw === "true" || featuredRaw === "yes") {
-      tags.push(["featured"]);
+      tags.push(["t", "featured"]);
     }
 
     // Collection membership: section + parent menu + explicit menu

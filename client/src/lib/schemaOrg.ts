@@ -992,7 +992,7 @@ function buildMenuItem(
   if (dietaryTags.length > 0) menuItem.suitableForDiet = dietaryTags;
 
   // Featured flag
-  if (productEvent.tags.some((t) => t[0] === "featured")) {
+  if (productEvent.tags.some((t) => t[0] === "t" && t[1] === "featured")) {
     menuItem.featured = true;
   }
 

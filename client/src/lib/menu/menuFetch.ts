@@ -98,7 +98,7 @@ function parseItem(event: Event): LiveMenuItem {
     description: parsed.description,
     tTags,
     collectionDTags,
-    featured: event.tags.some((t) => t[0] === "featured"),
+    featured: event.tags.some((t) => t[0] === "t" && t[1] === "featured"),
   };
 }
 

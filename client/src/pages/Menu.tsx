@@ -23,7 +23,7 @@ import sampleSpreadsheetUrl from "@/assets/Sample Menu Importer.xlsx?url";
 import { buildSpreadsheetPreviewEvents, parseMenuSpreadsheetXlsx } from "@/lib/spreadsheet/menuSpreadsheet";
 import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
 import { cn } from "@/lib/utils";
-import type { MenuReviewState, MenuReviewItem } from "@/lib/menuImport/types";
+import { deduplicateTags, type MenuReviewState, type MenuReviewItem } from "@/lib/menuImport/types";
 import { reviewStateToSpreadsheetRows } from "@/lib/menuImport/pdfToMenuData";
 import { spreadsheetToReviewState } from "@/lib/menuImport/spreadsheetToReviewState";
 import { squareEventsToReviewState } from "@/lib/menuImport/squareToReviewState";
@@ -351,7 +351,7 @@ export function MenuPage(): JSX.Element {
       const result = await extractPdfMenu(pageImages, "");
 
       const reviewItems: MenuReviewItem[] = result.items.map((item) => ({
-        ...item,
+        ...deduplicateTags(item),
         imageGenEnabled: false,
         imageGenStatus: "idle" as const,
       }));
@@ -623,7 +623,7 @@ export function MenuPage(): JSX.Element {
       );
       for (const other of currentlyFeatured) {
         const otherTags = other.event.tags.filter(
-          (t) => t[0] !== "featured"
+          (t) => !(t[0] === "t" && t[1] === "featured")
         );
         const otherTemplate = {
           kind: 30402 as const,
@@ -638,7 +638,7 @@ export function MenuPage(): JSX.Element {
     }
 
     const existingTags = item.event.tags.filter(
-      (t) => t[0] !== "title" && t[0] !== "price" && t[0] !== "image" && t[0] !== "featured"
+      (t) => t[0] !== "title" && t[0] !== "price" && t[0] !== "image" && !(t[0] === "t" && t[1] === "featured")
     );
 
     const newTags = [...existingTags];
@@ -659,7 +659,7 @@ export function MenuPage(): JSX.Element {
       newTags.push(["image", imageUrl]);
     }
     if (patch.featured) {
-      newTags.push(["featured"]);
+      newTags.push(["t", "featured"]);
     }
 
     const content = `**${title}**\n\n${description}`.trim();

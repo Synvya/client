@@ -305,6 +305,16 @@ export function MenuReviewPanel({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {onUpdateItem && (
+                            <button
+                              type="button"
+                              title={item.featured ? "Remove featured" : "Mark as featured"}
+                              onClick={() => onUpdateItem(idx, { featured: !item.featured })}
+                              className="rounded p-0.5 transition-colors"
+                            >
+                              <Star className={`h-3.5 w-3.5 ${item.featured ? "fill-amber-400 text-amber-400" : "text-muted-foreground hover:text-amber-400"}`} />
+                            </button>
+                          )}
                           {item.imageGenStatus === "generating" && (
                             <Loader2 className="h-4 w-4 animate-spin text-primary" />
                           )}
@@ -443,11 +453,11 @@ export function MenuReviewPanel({
 
       {/* Edit item dialog */}
       <Dialog open={editingIndex !== null} onOpenChange={(open) => { if (!open) setEditingIndex(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Item</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 overflow-y-auto flex-1">
             <div className="space-y-1.5">
               <Label htmlFor="edit-name">Name</Label>
               <Input
