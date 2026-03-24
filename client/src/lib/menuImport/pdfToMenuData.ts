@@ -23,6 +23,7 @@ export function reviewStateToSpreadsheetRows(state: MenuReviewState): {
     Tags: item.tags.join("; "),
     "Part of Menu": item.partOfMenu,
     "Part of Menu Section": item.partOfMenuSection,
+    Featured: item.featured ? "true" : "false",
   }));
 
   return { menus, items };

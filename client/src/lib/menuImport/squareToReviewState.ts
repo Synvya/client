@@ -146,6 +146,8 @@ export function squareEventsToReviewState(
       }
     }
 
+    const isFeatured = prod.tags.some((t) => t[0] === "featured");
+
     items.push({
       name: titleTag,
       description,
@@ -157,6 +159,7 @@ export function squareEventsToReviewState(
       partOfMenu,
       partOfMenuSection,
       imageDescription: "",
+      featured: isFeatured,
       imageGenEnabled: false,
       imageGenStatus: imageUrl ? "done" : "idle",
       generatedImageUrl: imageUrl || undefined,

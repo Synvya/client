@@ -11,6 +11,7 @@ export interface LiveMenuItem {
   description: string;
   tTags: string[];
   collectionDTags: string[];
+  featured: boolean;
 }
 
 export interface LiveCollection {
@@ -97,6 +98,7 @@ function parseItem(event: Event): LiveMenuItem {
     description: parsed.description,
     tTags,
     collectionDTags,
+    featured: event.tags.some((t) => t[0] === "featured"),
   };
 }
 

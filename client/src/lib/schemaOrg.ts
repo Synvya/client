@@ -73,6 +73,7 @@ interface SchemaOrgMenuItem extends SchemaOrgThing {
   image?: string;
   category?: string;
   breadcrumb?: SchemaOrgThing;
+  featured?: boolean;
 }
 
 interface SchemaOrgMenuSection extends SchemaOrgThing {
@@ -989,6 +990,11 @@ function buildMenuItem(
   // Dietary preferences
   const dietaryTags = extractSuitableForDietFromEventTags(productEvent.tags);
   if (dietaryTags.length > 0) menuItem.suitableForDiet = dietaryTags;
+
+  // Featured flag
+  if (productEvent.tags.some((t) => t[0] === "featured")) {
+    menuItem.featured = true;
+  }
 
   // CSV format: @id, identifier, url
   const dTag = productEvent.tags.find((t) => t[0] === "d")?.[1];

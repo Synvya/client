@@ -9,6 +9,7 @@ export interface MenuExtractedItem {
   partOfMenu: string;
   partOfMenuSection: string;
   imageDescription: string;
+  featured?: boolean;
 }
 
 export interface MenuExtractedMenu {

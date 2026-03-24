@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Loader2, RefreshCw, Sparkles, ImageIcon, Pencil, Upload, X } from "lucide-react";
+import { Loader2, RefreshCw, Sparkles, ImageIcon, Pencil, Upload, X, Star } from "lucide-react";
 import type { MenuReviewState, MenuReviewItem } from "@/lib/menuImport/types";
 import { uploadMedia } from "@/services/upload";
 
@@ -36,6 +36,7 @@ interface EditForm {
   imageUrl: string;
   suitableForDiets: string[];
   tags: string[];
+  featured: boolean;
 }
 
 interface MenuReviewPanelProps {
@@ -76,7 +77,7 @@ export function MenuReviewPanel({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [lightboxName, setLightboxName] = useState<string>("");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: "", price: "", currency: "", description: "", ingredients: "", imageUrl: "", suitableForDiets: [], tags: [] });
+  const [editForm, setEditForm] = useState<EditForm>({ name: "", price: "", currency: "", description: "", ingredients: "", imageUrl: "", suitableForDiets: [], tags: [], featured: false });
   const [tagInput, setTagInput] = useState("");
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
@@ -121,6 +122,7 @@ export function MenuReviewPanel({
       imageUrl: item.generatedImageUrl || "",
       suitableForDiets: [...item.suitableForDiets],
       tags: [...item.tags],
+      featured: item.featured ?? false,
     });
   };
 
@@ -153,6 +155,7 @@ export function MenuReviewPanel({
       ingredients: parsed,
       suitableForDiets: editForm.suitableForDiets,
       tags: editForm.tags,
+      featured: editForm.featured,
       generatedImageUrl: trimmedImageUrl || undefined,
       imageGenStatus: trimmedImageUrl ? "done" : "idle",
     });
@@ -255,6 +258,9 @@ export function MenuReviewPanel({
                       <div key={idx} className="flex items-start gap-3 rounded-md border bg-background px-3 py-2 text-sm">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
+                            {item.featured && (
+                              <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400 shrink-0" />
+                            )}
                             <span className="font-medium">{item.name}</span>
                             {item.price && (
                               <span className="text-muted-foreground">${item.price}</span>
@@ -449,6 +455,19 @@ export function MenuReviewPanel({
                 value={editForm.name}
                 onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="edit-featured"
+                checked={editForm.featured}
+                onChange={(e) => setEditForm((f) => ({ ...f, featured: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 accent-amber-500"
+              />
+              <Label htmlFor="edit-featured" className="flex items-center gap-1.5 cursor-pointer">
+                <Star className="h-4 w-4 text-amber-400" />
+                Featured Item
+              </Label>
             </div>
             <div className="flex gap-3">
               <div className="flex-1 space-y-1.5">

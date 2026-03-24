@@ -15,6 +15,7 @@ type MenuItemLink = {
   image?: string;
   naddr?: string;
   section?: string;
+  featured?: boolean;
 };
 
 type MenuLink = {
@@ -166,6 +167,7 @@ export function buildExportSiteModel(params: {
             price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
             image: mi.image,
             section: sec.name,
+            featured: mi.featured,
           })) ?? [],
       })) ?? [];
 
@@ -179,6 +181,7 @@ export function buildExportSiteModel(params: {
         contains: [],
         price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
         image: mi.image,
+        featured: mi.featured,
       })) ?? [];
 
     return { name: menu.name, slug: menuSlug, description: menu.description, sections, directItems };
@@ -330,8 +333,11 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
           const itemsHtml = sec.items
             .map((item) => {
               const itemAnchor = `item-${item.dTag}`;
-              const badges = item.dietaryBadges.length
-                ? `<div class="itemBadges">${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
+              const featuredBadge = item.featured
+                ? `<span class="itemBadge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a">★ Featured</span>`
+                : "";
+              const badges = (item.featured || item.dietaryBadges.length)
+                ? `<div class="itemBadges">${featuredBadge}${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
                 : "";
               const contains = item.contains.length
                 ? `<div class="small" style="margin-top:12px"><strong>Contains:</strong> ${item.contains.map((c) => escapeHtml(c)).join(", ")}</div>`
@@ -339,9 +345,10 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
               const priceHtml = item.price
                 ? `<div class="itemCardPrice">$${escapeHtml(item.price.amount)}</div>`
                 : "";
+              const featuredStyle = item.featured ? "border:2px solid #f59e0b;box-shadow:0 0 0 1px #fde68a" : "";
 
               return `<a href="items/${item.dTag}.html" style="text-decoration:none;color:inherit">
-              <div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
+              <div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px;${featuredStyle}">
                 ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.name)}" class="itemCardImage" />` : ""}
                 <div class="itemCardContent">
                   <div class="itemCardRow">
@@ -368,8 +375,11 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
         ? `<h3 style="margin-top:32px;margin-bottom:16px;font-size:20px;color:#374151">Items</h3>\n${menu.directItems
             .map((item) => {
               const itemAnchor = `item-${item.dTag}`;
-              const badges = item.dietaryBadges.length
-                ? `<div class="itemBadges">${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
+              const featuredBadge = item.featured
+                ? `<span class="itemBadge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a">★ Featured</span>`
+                : "";
+              const badges = (item.featured || item.dietaryBadges.length)
+                ? `<div class="itemBadges">${featuredBadge}${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
                 : "";
               const contains = item.contains.length
                 ? `<div class="small" style="margin-top:12px"><strong>Contains:</strong> ${item.contains.map((c) => escapeHtml(c)).join(", ")}</div>`
@@ -377,9 +387,10 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
               const priceHtml = item.price
                 ? `<div class="itemCardPrice">$${escapeHtml(item.price.amount)}</div>`
                 : "";
+              const featuredStyle = item.featured ? "border:2px solid #f59e0b;box-shadow:0 0 0 1px #fde68a" : "";
 
               return `<a href="items/${item.dTag}.html" style="text-decoration:none;color:inherit">
-              <div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px">
+              <div id="${itemAnchor}" class="itemCard" style="scroll-margin-top:80px;${featuredStyle}">
                 ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.name)}" class="itemCardImage" />` : ""}
                 <div class="itemCardContent">
                   <div class="itemCardRow">
