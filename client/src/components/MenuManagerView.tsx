@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import * as Collapsible from "@radix-ui/react-collapsible";
-import { RefreshCw, Loader2, Trash2, Pencil, Plus, ImageIcon, ChevronDown, Upload, ArrowRightLeft, FolderPlus } from "lucide-react";
+import { RefreshCw, Loader2, Trash2, Pencil, Plus, ImageIcon, ChevronDown, Upload, ArrowRightLeft, FolderPlus, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LiveMenuData, LiveMenuItem, LiveCollection } from "@/lib/menu/menuFetch";
 import { uploadMedia } from "@/services/upload";
@@ -34,6 +34,7 @@ export interface MenuItemPatch {
   currency?: string;
   description?: string;
   imageUrl?: string;
+  featured?: boolean;
 }
 
 interface MenuManagerViewProps {
@@ -46,6 +47,7 @@ interface MenuManagerViewProps {
   onImport: () => void;
   onDeleteItems: (addresses: string[]) => Promise<void>;
   onEditItem: (item: LiveMenuItem, patch: MenuItemPatch) => Promise<void>;
+  onToggleFeatured?: (item: LiveMenuItem) => Promise<void>;
   onUnpublishAll: () => Promise<void>;
   onMoveItem?: (item: LiveMenuItem, targetCollection: LiveCollection) => Promise<void>;
   onCreateCollection?: (name: string, type: "menu" | "section", parentMenuDTag?: string) => Promise<void>;
@@ -269,6 +271,7 @@ export function MenuManagerView({
   onImport,
   onDeleteItems,
   onEditItem,
+  onToggleFeatured,
   onUnpublishAll,
   onMoveItem,
   onCreateCollection,
@@ -286,10 +289,14 @@ export function MenuManagerView({
   const [editCurrency, setEditCurrency] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editImageUrl, setEditImageUrl] = useState("");
+  const [editFeatured, setEditFeatured] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Featured toggle state
+  const [featuredBusy, setFeaturedBusy] = useState<string | null>(null);
 
   // Move item dialog state
   const [moveItem, setMoveItem] = useState<LiveMenuItem | null>(null);
@@ -365,6 +372,7 @@ export function MenuManagerView({
     setEditCurrency(item.currency);
     setEditDescription(item.description);
     setEditImageUrl(item.imageUrl);
+    setEditFeatured(item.featured);
     setImageUploadError(null);
   };
 
@@ -391,6 +399,7 @@ export function MenuManagerView({
         currency: editCurrency,
         description: editDescription,
         imageUrl: editImageUrl,
+        featured: editFeatured,
       });
       setEditItem(null);
     } finally {
@@ -525,6 +534,9 @@ export function MenuManagerView({
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
+          {item.featured && (
+            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400 shrink-0" />
+          )}
           <span className="font-medium text-sm">{item.title}</span>
           {item.price && (
             <span className="text-sm text-muted-foreground">
@@ -548,6 +560,29 @@ export function MenuManagerView({
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {onToggleFeatured && (
+          <Button
+            onClick={async () => {
+              setFeaturedBusy(item.dTag);
+              try {
+                await onToggleFeatured(item);
+              } finally {
+                setFeaturedBusy(null);
+              }
+            }}
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            title={item.featured ? "Remove featured" : "Mark as featured"}
+            disabled={featuredBusy === item.dTag}
+          >
+            {featuredBusy === item.dTag ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Star className={cn("h-3.5 w-3.5", item.featured ? "fill-amber-400 text-amber-400" : "text-muted-foreground")} />
+            )}
+          </Button>
+        )}
         {onMoveItem && (
           <Button
             onClick={() => setMoveItem(item)}
@@ -786,6 +821,19 @@ export function MenuManagerView({
                 onChange={(e) => setEditDescription(e.target.value)}
                 rows={3}
               />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="edit-featured"
+                checked={editFeatured}
+                onChange={(e) => setEditFeatured(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 accent-amber-500"
+              />
+              <Label htmlFor="edit-featured" className="flex items-center gap-1.5 cursor-pointer">
+                <Star className="h-4 w-4 text-amber-400" />
+                Featured Item
+              </Label>
             </div>
             <div className="space-y-2">
               <Label>Image</Label>

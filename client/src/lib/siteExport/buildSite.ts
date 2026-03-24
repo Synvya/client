@@ -36,6 +36,13 @@ export function buildStaticSiteFiles(params: {
       ? buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey, model.baseUrl)
       : [];
 
+  // Override @id with canonical URL (nostr:npub is kept in identifier)
+  const canonicalUrl = `${model.baseUrl}/`;
+  if (establishment["@id"]) {
+    establishment["identifier"] = establishment["@id"];
+  }
+  establishment["@id"] = canonicalUrl;
+
   // Consolidate schema: FoodEstablishment with full nested menus and menu items
   const consolidatedSchema = {
     "@context": "https://schema.org",

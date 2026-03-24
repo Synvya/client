@@ -20,6 +20,7 @@ export type MenuItemRow = {
   Tags?: string;
   "Part of Menu"?: string;
   "Part of Menu Section"?: string;
+  Featured?: string | boolean;
 };
 
 function normalizeHeaderKey(value: unknown): string {
@@ -203,6 +204,11 @@ export function buildSpreadsheetPreviewEvents(params: {
     const customTags = splitList(asString((row as any).Tags));
     for (const tag of customTags) {
       tags.push(["t", tag]);
+    }
+
+    const featuredRaw = asString((row as any).Featured).toLowerCase();
+    if (featuredRaw === "true" || featuredRaw === "yes") {
+      tags.push(["t", "featured"]);
     }
 
     // Collection membership: section + parent menu + explicit menu

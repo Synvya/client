@@ -23,7 +23,7 @@ import sampleSpreadsheetUrl from "@/assets/Sample Menu Importer.xlsx?url";
 import { buildSpreadsheetPreviewEvents, parseMenuSpreadsheetXlsx } from "@/lib/spreadsheet/menuSpreadsheet";
 import { fetchAndPublishDiscovery } from "@/services/discoveryPublish";
 import { cn } from "@/lib/utils";
-import type { MenuReviewState, MenuReviewItem } from "@/lib/menuImport/types";
+import { deduplicateTags, type MenuReviewState, type MenuReviewItem } from "@/lib/menuImport/types";
 import { reviewStateToSpreadsheetRows } from "@/lib/menuImport/pdfToMenuData";
 import { spreadsheetToReviewState } from "@/lib/menuImport/spreadsheetToReviewState";
 import { squareEventsToReviewState } from "@/lib/menuImport/squareToReviewState";
@@ -351,7 +351,7 @@ export function MenuPage(): JSX.Element {
       const result = await extractPdfMenu(pageImages, "");
 
       const reviewItems: MenuReviewItem[] = result.items.map((item) => ({
-        ...item,
+        ...deduplicateTags(item),
         imageGenEnabled: false,
         imageGenStatus: "idle" as const,
       }));
@@ -616,8 +616,29 @@ export function MenuPage(): JSX.Element {
   const handleEditItem = async (item: LiveMenuItem, patch: MenuItemPatch) => {
     if (!pubkey) return;
 
+    // Enforce single featured item: de-feature others when featuring this one
+    if (patch.featured && !item.featured && managerData) {
+      const currentlyFeatured = managerData.items.filter(
+        (i) => i.featured && i.dTag !== item.dTag
+      );
+      for (const other of currentlyFeatured) {
+        const otherTags = other.event.tags.filter(
+          (t) => !(t[0] === "t" && t[1] === "featured")
+        );
+        const otherTemplate = {
+          kind: 30402 as const,
+          created_at: Math.floor(Date.now() / 1000),
+          content: other.event.content,
+          tags: otherTags,
+        };
+        const signed = await signEvent(otherTemplate as any);
+        validateEvent(signed);
+        await publishToRelays(signed, relays);
+      }
+    }
+
     const existingTags = item.event.tags.filter(
-      (t) => t[0] !== "title" && t[0] !== "price" && t[0] !== "image"
+      (t) => t[0] !== "title" && t[0] !== "price" && t[0] !== "image" && !(t[0] === "t" && t[1] === "featured")
     );
 
     const newTags = [...existingTags];
@@ -637,6 +658,9 @@ export function MenuPage(): JSX.Element {
     if (imageUrl) {
       newTags.push(["image", imageUrl]);
     }
+    if (patch.featured) {
+      newTags.push(["t", "featured"]);
+    }
 
     const content = `**${title}**\n\n${description}`.trim();
 
@@ -651,6 +675,19 @@ export function MenuPage(): JSX.Element {
     validateEvent(signed);
     await publishToRelays(signed, relays);
     await refreshManagerData();
+
+    // Republish discovery page so changes are reflected on synvya.com and metadata
+    try {
+      const result = await fetchAndPublishDiscovery(pubkey, relays);
+      setDiscoveryPageUrl(result.url);
+      setLastPublishedHtml(result.html);
+    } catch (err) {
+      console.error("Failed to republish discovery page:", err);
+    }
+  };
+
+  const handleToggleFeatured = async (item: LiveMenuItem) => {
+    await handleEditItem(item, { featured: !item.featured });
   };
 
   const handleMoveItem = async (item: LiveMenuItem, targetCollection: LiveCollection): Promise<void> => {
@@ -950,6 +987,14 @@ export function MenuPage(): JSX.Element {
       if (!prev) return prev;
       const items = [...prev.items];
       items[index] = { ...items[index], ...patch };
+      // Enforce single featured item
+      if (patch.featured) {
+        for (let i = 0; i < items.length; i++) {
+          if (i !== index && items[i].featured) {
+            items[i] = { ...items[i], featured: false };
+          }
+        }
+      }
       return { ...prev, items };
     });
   };
@@ -1038,6 +1083,7 @@ export function MenuPage(): JSX.Element {
           }}
           onDeleteItems={handleDeleteItems}
           onEditItem={handleEditItem}
+          onToggleFeatured={handleToggleFeatured}
           onUnpublishAll={handleUnpublishMenu}
           onMoveItem={handleMoveItem}
           onCreateCollection={handleCreateCollection}

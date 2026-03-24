@@ -1,5 +1,5 @@
 import type { MenuRow, MenuItemRow } from "@/lib/spreadsheet/menuSpreadsheet";
-import type { MenuExtractedMenu, MenuReviewItem, MenuReviewState } from "./types";
+import { deduplicateTags, type MenuExtractedMenu, type MenuReviewItem, type MenuReviewState } from "./types";
 
 function splitSemicolons(value: string | undefined): string[] {
   if (!value) return [];
@@ -36,7 +36,7 @@ export function spreadsheetToReviewState(params: {
     .filter((row) => asString(row.Name))
     .map((row) => {
       const pictureUrl = asString(row.Pictures);
-      return {
+      const item: MenuReviewItem = {
         name: asString(row.Name),
         description: asString(row.Description),
         price: asString(row.Price),
@@ -51,6 +51,8 @@ export function spreadsheetToReviewState(params: {
         imageGenStatus: pictureUrl ? "done" as const : "idle" as const,
         generatedImageUrl: pictureUrl || undefined,
       };
+      const deduped = deduplicateTags(item);
+      return { ...item, tags: deduped.tags };
     });
 
   return { fileName, menus, items };

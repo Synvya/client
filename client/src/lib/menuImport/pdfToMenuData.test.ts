@@ -56,6 +56,7 @@ describe("reviewStateToSpreadsheetRows", () => {
       Tags: "appetizer",
       "Part of Menu": "Dinner",
       "Part of Menu Section": "Appetizers",
+      Featured: "false",
     });
   });
 

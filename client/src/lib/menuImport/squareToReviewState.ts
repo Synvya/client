@@ -1,5 +1,5 @@
 import type { SquareEventTemplate } from "@/services/square";
-import type { MenuExtractedMenu, MenuReviewItem, MenuReviewState } from "./types";
+import { deduplicateTags, type MenuExtractedMenu, type MenuReviewItem, type MenuReviewState } from "./types";
 
 /**
  * Converts Square catalog preview events (30402 products + 30405 collections)
@@ -146,7 +146,9 @@ export function squareEventsToReviewState(
       }
     }
 
-    items.push({
+    const isFeatured = prod.tags.some((t) => t[0] === "t" && t[1] === "featured");
+
+    const item: MenuReviewItem = {
       name: titleTag,
       description,
       price,
@@ -157,10 +159,13 @@ export function squareEventsToReviewState(
       partOfMenu,
       partOfMenuSection,
       imageDescription: "",
+      featured: isFeatured,
       imageGenEnabled: false,
       imageGenStatus: imageUrl ? "done" : "idle",
       generatedImageUrl: imageUrl || undefined,
-    });
+    };
+    const deduped = deduplicateTags(item);
+    items.push({ ...item, tags: deduped.tags });
   }
 
   return {
