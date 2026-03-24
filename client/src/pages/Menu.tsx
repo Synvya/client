@@ -726,7 +726,13 @@ export function MenuPage(): JSX.Element {
     const newCollectionDTags = new Set<string>([targetCollection.dTag]);
     if (parentMenuDTag) newCollectionDTags.add(parentMenuDTag);
 
+    // Collect ALL collections that currently reference this item (bidirectional check)
     const oldCollectionDTags = new Set(item.collectionDTags);
+    for (const col of collections) {
+      if (col.itemDTags.includes(item.dTag)) {
+        oldCollectionDTags.add(col.dTag);
+      }
+    }
     const collectionsToRemoveFrom = [...oldCollectionDTags].filter((d) => !newCollectionDTags.has(d));
     const collectionsToAddTo = [...newCollectionDTags].filter((d) => !oldCollectionDTags.has(d));
 
