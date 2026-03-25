@@ -1,5 +1,6 @@
 import type { MenuRow, MenuItemRow } from "@/lib/spreadsheet/menuSpreadsheet";
 import { deduplicateTags, type MenuExtractedMenu, type MenuReviewItem, type MenuReviewState } from "./types";
+import { normalizeDietTerm } from "@/lib/events";
 
 function splitSemicolons(value: string | undefined): string[] {
   if (!value) return [];
@@ -42,7 +43,9 @@ export function spreadsheetToReviewState(params: {
         price: asString(row.Price),
         currency: asString(row.Currency) || "USD",
         ingredients: splitSemicolons(asString(row.Ingredients)),
-        suitableForDiets: splitSemicolons(asString(row["Suitable For Diets"])),
+        suitableForDiets: splitSemicolons(asString(row["Suitable For Diets"]))
+          .map((d) => normalizeDietTerm(d) ?? d)
+          .filter((v, i, a) => a.indexOf(v) === i),
         tags: splitSemicolons(asString(row.Tags)),
         partOfMenu: asString(row["Part of Menu"]),
         partOfMenuSection: asString(row["Part of Menu Section"]),

@@ -47,7 +47,7 @@ describe("spreadsheetToReviewState", () => {
     expect(item.price).toBe("12.99");
     expect(item.currency).toBe("USD");
     expect(item.ingredients).toEqual(["romaine", "parmesan", "croutons"]);
-    expect(item.suitableForDiets).toEqual(["vegetarian"]);
+    expect(item.suitableForDiets).toEqual(["VegetarianDiet"]);
     expect(item.tags).toEqual(["appetizer", "salad"]);
     expect(item.partOfMenu).toBe("Dinner");
     expect(item.partOfMenuSection).toBe("Appetizers");
@@ -68,7 +68,7 @@ describe("spreadsheetToReviewState", () => {
     const result = spreadsheetToReviewState({ fileName: "test.xlsx", menus: [], items });
     const item = result.items[0];
     expect(item.ingredients).toEqual(["beef", "lettuce", "tomato", "onion"]);
-    expect(item.suitableForDiets).toEqual(["gluten free", "dairy free"]);
+    expect(item.suitableForDiets).toEqual(["GlutenFreeDiet", "DairyFreeDiet"]);
     expect(item.tags).toEqual(["entree", "popular"]);
   });
 

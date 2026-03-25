@@ -27,6 +27,7 @@ import { deduplicateTags, type MenuReviewState, type MenuReviewItem } from "@/li
 import { reviewStateToSpreadsheetRows } from "@/lib/menuImport/pdfToMenuData";
 import { spreadsheetToReviewState } from "@/lib/menuImport/spreadsheetToReviewState";
 import { squareEventsToReviewState } from "@/lib/menuImport/squareToReviewState";
+import { normalizeDietTerm } from "@/lib/events";
 import { extractPdfMenu } from "@/services/menuImport";
 import { pdfToImages } from "@/lib/menuImport/pdfToImages";
 import { useMenuEnhancement } from "@/hooks/useMenuEnhancement";
@@ -350,11 +351,17 @@ export function MenuPage(): JSX.Element {
         : await pdfToImages(file);
       const result = await extractPdfMenu(pageImages, "");
 
-      const reviewItems: MenuReviewItem[] = result.items.map((item) => ({
-        ...deduplicateTags(item),
-        imageGenEnabled: false,
-        imageGenStatus: "idle" as const,
-      }));
+      const reviewItems: MenuReviewItem[] = result.items.map((item) => {
+        const deduped = deduplicateTags(item);
+        return {
+          ...deduped,
+          suitableForDiets: deduped.suitableForDiets
+            .map((d) => normalizeDietTerm(d) ?? d)
+            .filter((v, i, a) => a.indexOf(v) === i),
+          imageGenEnabled: false,
+          imageGenStatus: "idle" as const,
+        };
+      });
 
       setReviewState({
         fileName: file.name,
@@ -638,7 +645,9 @@ export function MenuPage(): JSX.Element {
     }
 
     const existingTags = item.event.tags.filter(
-      (t) => t[0] !== "title" && t[0] !== "price" && t[0] !== "image" && !(t[0] === "t" && t[1] === "featured")
+      (t) => t[0] !== "title" && t[0] !== "price" && t[0] !== "image"
+        && !(t[0] === "t" && t[1] === "featured")
+        && !(t[0] === "featured") // strip legacy standalone ["featured"] tags
     );
 
     const newTags = [...existingTags];

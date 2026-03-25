@@ -10,6 +10,7 @@ type MenuItemLink = {
   dTag: string;
   description?: string;
   dietaryBadges: string[];
+  generalTags: string[];
   contains: string[];
   price?: { amount: string; currency: string };
   image?: string;
@@ -30,6 +31,13 @@ function extractDTag(mi: { "@id"?: string; url?: string }): string {
   const urlMatch = id.match(/\/items\/([^/]+)\.html$/);
   if (urlMatch) return urlMatch[1];
   return id;
+}
+
+/** Extracts general tags from additionalProperty "tags" entry. */
+function extractGeneralTags(mi: { additionalProperty?: Array<{ name: string; value: string | unknown }> }): string[] {
+  const entry = mi.additionalProperty?.find((p) => p.name === "tags");
+  if (!entry || typeof entry.value !== "string") return [];
+  return entry.value.split(",").map((t) => t.trim()).filter(Boolean);
 }
 
 /** Checks if a MenuItem has a featured additionalProperty. */
@@ -152,9 +160,19 @@ export function buildExportSiteModel(params: {
 
   const categoryBadges = (profile.categories || []).filter(Boolean);
 
-  const establishment = buildFoodEstablishmentSchema(profile, geohash ?? null);
+  const establishment = buildFoodEstablishmentSchema(profile, {
+    geohash: geohash ?? null,
+    pubkeyHex: merchantPubkey,
+  }) as unknown as Record<string, unknown>;
+  // Override @id with canonical URL (nostr:npub kept in identifier)
+  const canonicalUrl = `${baseUrl}/`;
+  if (establishment["@id"]) {
+    establishment["identifier"] = establishment["@id"];
+  }
+  establishment["@id"] = canonicalUrl;
+
   const menusSchema =
-    menuEvents && menuEvents.length ? buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey) : [];
+    menuEvents && menuEvents.length ? buildMenuSchema(profile.displayName || profile.name, menuEvents, merchantPubkey, baseUrl) : [];
 
   // Index schema: FoodEstablishment + minimal menu list
   const jsonLdIndex = {
@@ -185,6 +203,7 @@ export function buildExportSiteModel(params: {
               dTag,
               description: mi.description,
               dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
+              generalTags: extractGeneralTags(mi),
               contains: [],
               price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
               image: mi.image,
@@ -203,6 +222,7 @@ export function buildExportSiteModel(params: {
           dTag,
           description: mi.description,
           dietaryBadges: Array.isArray(mi.suitableForDiet) ? mi.suitableForDiet.map(friendlyDietLabel) : [],
+          generalTags: extractGeneralTags(mi),
           contains: [],
           price: mi.offers ? { amount: String(mi.offers.price), currency: String(mi.offers.priceCurrency) } : undefined,
           image: mi.image,
@@ -362,8 +382,9 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
               const featuredBadge = item.featured
                 ? `<span class="itemBadge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a">★ Featured</span>`
                 : "";
-              const badges = (item.featured || item.dietaryBadges.length)
-                ? `<div class="itemBadges">${featuredBadge}${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
+              const tagBadges = item.generalTags.map((t) => `<span class="itemBadge" style="background:#f3f4f6;color:#4b5563;border:1px solid #e5e7eb">${escapeHtml(t)}</span>`).join("");
+              const badges = (item.featured || item.dietaryBadges.length || item.generalTags.length)
+                ? `<div class="itemBadges">${featuredBadge}${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}${tagBadges}</div>`
                 : "";
               const contains = item.contains.length
                 ? `<div class="small" style="margin-top:12px"><strong>Contains:</strong> ${item.contains.map((c) => escapeHtml(c)).join(", ")}</div>`
@@ -404,8 +425,9 @@ export function renderSinglePageHtml(model: ExportSiteModel, consolidatedSchema:
               const featuredBadge = item.featured
                 ? `<span class="itemBadge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a">★ Featured</span>`
                 : "";
-              const badges = (item.featured || item.dietaryBadges.length)
-                ? `<div class="itemBadges">${featuredBadge}${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}</div>`
+              const tagBadges = item.generalTags.map((t) => `<span class="itemBadge" style="background:#f3f4f6;color:#4b5563;border:1px solid #e5e7eb">${escapeHtml(t)}</span>`).join("");
+              const badges = (item.featured || item.dietaryBadges.length || item.generalTags.length)
+                ? `<div class="itemBadges">${featuredBadge}${item.dietaryBadges.map((b) => `<span class="itemBadge">${escapeHtml(b)}</span>`).join("")}${tagBadges}</div>`
                 : "";
               const contains = item.contains.length
                 ? `<div class="small" style="margin-top:12px"><strong>Contains:</strong> ${item.contains.map((c) => escapeHtml(c)).join(", ")}</div>`
