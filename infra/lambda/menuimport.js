@@ -77,7 +77,7 @@ Return a JSON object with this exact structure:
       "price": "Price as a number string (e.g. '12.99'). Use empty string if no price listed.",
       "currency": "USD",
       "ingredients": ["ingredient1", "ingredient2"],
-      "suitableForDiets": ["vegan", "gluten-free"],
+      "suitableForDiets": ["VeganDiet", "GlutenFreeDiet"],
       "tags": ["appetizer", "spicy"],
       "partOfMenu": "Which top-level menu this item belongs to",
       "partOfMenuSection": "Which section within the menu (e.g. 'Appetizers', 'Entrees'), or empty string if none",
@@ -99,9 +99,9 @@ Before finalising output, scan every item's "partOfMenuSection" value and confir
 
 STEP 4 — Menu legend and dietary/spice symbols:
 Many menus include a legend (e.g. "V = Vegetarian", "GF = Gluten-Free") or use icons (chili pepper icon for spicy, leaf for vegan, etc.). Scan the entire PDF for any such legend or key.
-- If an item is marked with a symbol that the legend defines as "Vegetarian", add "vegetarian" to suitableForDiets.
-- If an item is marked with a symbol that the legend defines as "Vegan", add "vegan" to suitableForDiets.
-- If an item is marked with a symbol that the legend defines as "Gluten-Free", add "gluten-free" to suitableForDiets.
+- If an item is marked with a symbol that the legend defines as "Vegetarian", add "VegetarianDiet" to suitableForDiets.
+- If an item is marked with a symbol that the legend defines as "Vegan", add "VeganDiet" to suitableForDiets.
+- If an item is marked with a symbol that the legend defines as "Gluten-Free", add "GlutenFreeDiet" to suitableForDiets.
 - If an item has a chili pepper icon or any symbol the legend defines as "Spicy" or "Hot", add "spicy" to tags.
 - Apply these rules even when the symbol appears inline next to the item name (e.g. "Chicken Tikka V", "Tangra Chilli Chicken 🌶").
 - Do not strip the dietary markers from the item name — keep the name clean (without V, GF, etc.).
@@ -110,7 +110,7 @@ Additional guidelines:
 - Extract ALL items; do not skip any
 - Normalize section names: strip leading/trailing asterisks or symbols, normalise whitespace, use consistent Title Case
 - If an item has no description on the menu, write a brief one based on the name and ingredients
-- For suitableForDiets, only include diets you can confidently identify (vegan, vegetarian, gluten-free, etc.)
+- For suitableForDiets, use PascalCase+Diet format: VeganDiet, VegetarianDiet, GlutenFreeDiet, DairyFreeDiet, NutFreeDiet, HalalDiet, KosherDiet, PaleoDiet, KetoDiet, LowCarbDiet, PescatarianDiet. Only include diets you can confidently identify.
 - Ingredients: list what you can identify from the description. If none listed, use empty array.
 - imageDescription should be vivid enough for an AI image generator to create appetizing food photography
 - Return ONLY the JSON, no markdown code fences or explanations`;

@@ -4,6 +4,7 @@ import { nip19 } from "nostr-tools";
 import { menuSlugFromMenuName, slugify } from "@/lib/siteExport/slug";
 import { mapBusinessTypeToEstablishmentSlug } from "@/lib/siteExport/typeMapping";
 import { naddrForAddressableEvent } from "@/lib/siteExport/naddr";
+import { normalizeDietTerm } from "@/lib/events";
 
 // ============================================================================
 // Schema.org Type Definitions
@@ -222,15 +223,37 @@ export function extractIngredientsFromEventTags(tags: string[][]): string[] {
     .filter(Boolean);
 }
 
-export function extractSuitableForDietFromEventTags(tags: string[][]): string[] {
-  // New 30402 format: diets are plain tokens like "DairyFreeDiet", "GlutenFreeDiet"
-  const diets = tags
-    .filter((t) => Array.isArray(t) && t[0] === "t" && typeof t[1] === "string")
-    .map((t) => t[1].trim())
-    .filter(Boolean)
-    .filter((v) => !v.toLowerCase().startsWith("ingredients:"))
-    .filter((v) => /Diet$/.test(v));
+/**
+ * Extracts all general "t" tags from event tags (everything except diet terms,
+ * which are already in suitableForDiet).
+ * Includes ingredients, featured, and any user-provided tags.
+ */
+export function extractGeneralTagsFromEventTags(tags: string[][]): string[] {
+  const general: string[] = [];
+  for (const t of tags) {
+    if (!Array.isArray(t) || t[0] !== "t" || typeof t[1] !== "string") continue;
+    const val = t[1].trim();
+    if (!val) continue;
+    // Skip diet terms — they're already represented in suitableForDiet
+    if (normalizeDietTerm(val)) continue;
+    // Skip "featured" — it has its own dedicated badge/additionalProperty
+    if (val === "featured") continue;
+    general.push(val);
+  }
+  return Array.from(new Set(general));
+}
 
+export function extractSuitableForDietFromEventTags(tags: string[][]): string[] {
+  // Extract all "t" tags, normalize to canonical PascalCase+Diet format.
+  // Handles both new format ("VeganDiet") and legacy lowercase ("vegan", "gluten-free").
+  const diets: string[] = [];
+  for (const t of tags) {
+    if (!Array.isArray(t) || t[0] !== "t" || typeof t[1] !== "string") continue;
+    const val = t[1].trim();
+    if (!val || val.toLowerCase().startsWith("ingredients:")) continue;
+    const canonical = normalizeDietTerm(val);
+    if (canonical) diets.push(canonical);
+  }
   return Array.from(new Set(diets));
 }
 
@@ -897,7 +920,7 @@ export function buildMenuSchema(
     menus.push(fallbackMenu);
   }
 
-  // Step 6: Enrich items with category and breadcrumb via additionalProperty
+  // Step 6: Enrich items with category via additionalProperty
   for (const menu of menus) {
     const menuName = menu.name;
 
@@ -991,6 +1014,16 @@ function buildMenuItem(
   // Dietary preferences
   const dietaryTags = extractSuitableForDietFromEventTags(productEvent.tags);
   if (dietaryTags.length > 0) menuItem.suitableForDiet = dietaryTags;
+
+  // General tags → additionalProperty (non-structural: excludes ingredients, diets, featured)
+  const generalTags = extractGeneralTagsFromEventTags(productEvent.tags);
+  if (generalTags.length > 0) {
+    additionalProps.push({
+      "@type": "PropertyValue",
+      "name": "tags",
+      "value": generalTags.join(", ")
+    });
+  }
 
   // Featured → additionalProperty
   if (productEvent.tags.some((t) => t[0] === "t" && t[1] === "featured")) {

@@ -128,6 +128,60 @@ function formatPhoneWithCountryCode(phone: string, country: string | undefined):
 }
 
 /**
+ * Canonical diet term lookup map — shared across all import paths.
+ * Maps lowercase variants to PascalCase+Diet format used in Nostr tags and schema.org.
+ */
+export const DIET_CANONICAL_MAP: Record<string, string> = {
+  "vegetarian": "VegetarianDiet",
+  "vegan": "VeganDiet",
+  "gluten-free": "GlutenFreeDiet",
+  "glutenfree": "GlutenFreeDiet",
+  "gluten free": "GlutenFreeDiet",
+  "dairy-free": "DairyFreeDiet",
+  "dairyfree": "DairyFreeDiet",
+  "dairy free": "DairyFreeDiet",
+  "nut-free": "NutFreeDiet",
+  "nutfree": "NutFreeDiet",
+  "nut free": "NutFreeDiet",
+  "halal": "HalalDiet",
+  "kosher": "KosherDiet",
+  "paleo": "PaleoDiet",
+  "keto": "KetoDiet",
+  "low-carb": "LowCarbDiet",
+  "lowcarb": "LowCarbDiet",
+  "low carb": "LowCarbDiet",
+  "pescatarian": "PescatarianDiet",
+};
+
+/**
+ * Normalizes a diet term to canonical PascalCase+Diet format.
+ * Returns the canonical form, or null if not recognized as a diet.
+ */
+export function normalizeDietTerm(term: string): string | null {
+  const trimmed = term.trim();
+  if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+
+  // Exact match in canonical map
+  if (DIET_CANONICAL_MAP[lower]) return DIET_CANONICAL_MAP[lower];
+
+  // Already ends with "Diet" (e.g. "VeganDiet", "vegetarianDiet")
+  if (/diet$/i.test(trimmed)) {
+    // Check if lowercase-without-diet maps
+    const withoutDiet = lower.replace(/diet$/i, "").trim();
+    if (DIET_CANONICAL_MAP[withoutDiet]) return DIET_CANONICAL_MAP[withoutDiet];
+    // Capitalize properly
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  }
+
+  // Normalize whitespace/hyphens and retry
+  const normalized = lower.replace(/[\s-]+/g, "");
+  if (DIET_CANONICAL_MAP[normalized]) return DIET_CANONICAL_MAP[normalized];
+
+  return null;
+}
+
+/**
  * Maps category to diet tag format if it's a diet category
  * Returns the mapped diet tag or null if not a diet category
  */
