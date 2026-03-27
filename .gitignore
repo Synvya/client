@@ -8,6 +8,9 @@ client/.env.*
 internal/*
 CLAUDE.md
 
+# Claude Code
+.claude/
+
 # Other files
 .DS_Store
 client/node_modules/
