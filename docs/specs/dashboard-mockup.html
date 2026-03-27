@@ -1,0 +1,255 @@
+<!-- Visual mockup for the AI Readiness Report. Spec: docs/specs/ai-readiness-report.md -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — AI Readiness Report Mockup</title>
+<style>
+  :root {
+    --bg: #09090b;
+    --card: #18181b;
+    --border: #27272a;
+    --text: #fafafa;
+    --muted: #a1a1aa;
+    --primary: #22c55e;
+    --primary-dim: rgba(34,197,94,0.15);
+    --orange: #f97316;
+    --orange-dim: rgba(249,115,22,0.15);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.15);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.15);
+    --yellow: #eab308;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--bg); color:var(--text); }
+
+  .topbar { background:var(--card); border-bottom:1px solid var(--border); padding:12px 32px; display:flex; align-items:center; gap:32px; }
+  .topbar .logo { font-weight:700; font-size:18px; color:var(--primary); }
+  .topbar nav { display:flex; gap:4px; }
+  .topbar nav a { padding:8px 16px; border-radius:6px; font-size:14px; color:var(--muted); text-decoration:none; }
+  .topbar nav a.active { background:var(--primary-dim); color:var(--primary); font-weight:600; }
+
+  .container { max-width:1100px; margin:0 auto; padding:32px 24px; }
+
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:24px; }
+  .card h2 { font-size:20px; font-weight:700; margin-bottom:4px; }
+  .card .subtitle { color:var(--muted); font-size:14px; margin-bottom:20px; }
+
+  /* Score hero */
+  .score-hero { display:flex; gap:32px; align-items:flex-start; margin-bottom:24px; }
+  .score-ring { position:relative; width:160px; height:160px; flex-shrink:0; }
+  .score-ring svg { width:160px; height:160px; transform:rotate(-90deg); }
+  .score-ring .track { fill:none; stroke:var(--border); stroke-width:12; }
+  .score-ring .fill { fill:none; stroke-width:12; stroke-linecap:round; stroke-dasharray:408; transition:stroke-dashoffset .8s ease; }
+  .score-number { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; }
+  .score-number .big { font-size:40px; font-weight:800; line-height:1; }
+  .score-number .pct { font-size:24px; font-weight:700; }
+  .score-number .label { font-size:13px; color:var(--muted); margin-top:2px; }
+
+  .score-meta { flex:1; }
+  .diagnosis-badge { display:inline-block; padding:6px 14px; border-radius:20px; font-size:13px; font-weight:600; margin-bottom:12px; }
+  .score-meta .summary { color:var(--muted); font-size:14px; line-height:1.6; margin-bottom:16px; }
+  .run-btn { background:var(--primary); color:#000; border:none; padding:10px 20px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+  .run-btn:hover { opacity:0.9; }
+  .last-run { color:var(--muted); font-size:12px; margin-top:8px; }
+
+  /* Category cards */
+  .categories { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }
+  .cat { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .cat-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .cat-name { font-size:14px; font-weight:600; }
+  .cat-weight { font-size:11px; color:var(--muted); margin-bottom:6px; }
+  .cat-pct { font-size:14px; font-weight:700; }
+  .cat-bar { height:8px; background:var(--border); border-radius:4px; overflow:hidden; margin-bottom:12px; }
+  .cat-bar-fill { height:100%; border-radius:4px; }
+  .cat-checks { list-style:none; font-size:12px; }
+  .cat-checks li { display:flex; align-items:flex-start; gap:8px; padding:3px 0; color:var(--muted); }
+  .cat-checks li.pass { color:var(--primary); }
+  .cat-checks li.fail { color:var(--red); }
+  .cat-checks li.warn { color:var(--orange); }
+  .cat-checks li .icon { width:16px; text-align:center; font-size:11px; flex-shrink:0; margin-top:1px; }
+
+  /* Recommendations */
+  .recs-title { font-size:16px; font-weight:700; margin-bottom:12px; }
+  .rec-list { list-style:none; }
+  .rec-list li { display:flex; gap:12px; padding:10px 14px; border-radius:8px; margin-bottom:8px; font-size:13px; line-height:1.5; background:var(--bg); border:1px solid var(--border); }
+  .rec-list li .rec-icon { flex-shrink:0; width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; margin-top:1px; }
+  .rec-quick { background:var(--primary-dim); color:var(--primary); }
+  .rec-ext { background:var(--orange-dim); color:var(--orange); }
+  .rec-label { font-weight:600; }
+  .rec-cta { color:var(--blue); font-weight:500; text-decoration:underline; cursor:pointer; }
+
+  .rec-legend { display:flex; gap:16px; margin-bottom:12px; }
+  .rec-legend span { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+  .rec-legend .dot { width:10px; height:10px; border-radius:50%; }
+
+  /* Analytics placeholder */
+  .chart-placeholder { height:200px; background:var(--bg); border:1px dashed var(--border); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:14px; }
+  .charts-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">Synvya</div>
+  <nav>
+    <a href="#">Profile</a>
+    <a href="#">Menu</a>
+    <a href="#">ChatGPT</a>
+    <a href="#" class="active">Dashboard</a>
+    <a href="#">Settings</a>
+  </nav>
+</div>
+
+<div class="container">
+
+  <!-- ===================== AI READINESS REPORT ===================== -->
+  <div class="card">
+    <h2>AI Readiness Report</h2>
+    <p class="subtitle">How ready is your business to be found and recommended by AI assistants like ChatGPT, Claude, Gemini, and Perplexity.</p>
+
+    <div class="score-hero">
+      <!-- Circular percentage gauge — 50% compliance -->
+      <div class="score-ring">
+        <svg viewBox="0 0 160 160">
+          <circle class="track" cx="80" cy="80" r="65"/>
+          <!-- 50% of 408 = offset 204 -->
+          <circle class="fill" cx="80" cy="80" r="65" style="stroke:var(--orange); stroke-dashoffset:204;"/>
+        </svg>
+        <div class="score-number">
+          <div class="big" style="color:var(--orange)">50<span class="pct">%</span></div>
+          <div class="label">ready</div>
+        </div>
+      </div>
+
+      <div class="score-meta">
+        <div class="diagnosis-badge" style="background:var(--orange-dim); color:var(--orange);">Partially ready — menu data missing</div>
+        <p class="summary">
+          Your Google presence is solid but AI assistants can't find a machine-readable menu on your website. This is the #1 reason restaurants get skipped by AI recommendations. Publishing your menu as structured data and ensuring your website has Schema.org markup would move you above 80%.
+        </p>
+        <button class="run-btn">Refresh Report</button>
+        <div class="last-run">Last assessed: March 24, 2026</div>
+      </div>
+    </div>
+
+    <!-- 4 Benchmark Categories -->
+    <div class="categories">
+
+      <!-- 1. Google Business Profile (25%) -->
+      <div class="cat">
+        <div class="cat-header">
+          <span class="cat-name">Google Business Profile</span>
+          <span class="cat-pct" style="color:var(--primary)">83%</span>
+        </div>
+        <div class="cat-weight">Weight: 25% — Primary source AI assistants query</div>
+        <div class="cat-bar"><div class="cat-bar-fill" style="width:83%;background:var(--primary)"></div></div>
+        <ul class="cat-checks">
+          <li class="pass"><span class="icon">&#10003;</span> Found and verified on Google Maps</li>
+          <li class="pass"><span class="icon">&#10003;</span> Address listed</li>
+          <li class="pass"><span class="icon">&#10003;</span> Phone number listed</li>
+          <li class="pass"><span class="icon">&#10003;</span> Opening hours listed</li>
+          <li class="pass"><span class="icon">&#10003;</span> Website URL listed</li>
+          <li class="fail"><span class="icon">&#10007;</span> Business category set</li>
+        </ul>
+      </div>
+
+      <!-- 2. Machine-Readable Menu (35%) -->
+      <div class="cat">
+        <div class="cat-header">
+          <span class="cat-name">Machine-Readable Menu</span>
+          <span class="cat-pct" style="color:var(--red)">0%</span>
+        </div>
+        <div class="cat-weight">Weight: 35% — AI can't read PDF menus; this is the biggest gap</div>
+        <div class="cat-bar"><div class="cat-bar-fill" style="width:0%;background:var(--red)"></div></div>
+        <ul class="cat-checks">
+          <li class="fail"><span class="icon">&#10007;</span> Menu items published as structured data</li>
+          <li class="fail"><span class="icon">&#10007;</span> Items have descriptions</li>
+          <li class="fail"><span class="icon">&#10007;</span> Items have prices</li>
+          <li class="fail"><span class="icon">&#10007;</span> Items have dietary tags (vegan, GF, etc.)</li>
+          <li class="fail"><span class="icon">&#10007;</span> Items have images</li>
+          <li class="fail"><span class="icon">&#10007;</span> Menu organized in sections</li>
+        </ul>
+      </div>
+
+      <!-- 3. Website & Schema.org (25%) -->
+      <div class="cat">
+        <div class="cat-header">
+          <span class="cat-name">Website &amp; Schema.org</span>
+          <span class="cat-pct" style="color:var(--orange)">57%</span>
+        </div>
+        <div class="cat-weight">Weight: 25% — JSON-LD markup that AI treats as ground truth</div>
+        <div class="cat-bar"><div class="cat-bar-fill" style="width:57%;background:var(--orange)"></div></div>
+        <ul class="cat-checks">
+          <li class="pass"><span class="icon">&#10003;</span> Website exists</li>
+          <li class="pass"><span class="icon">&#10003;</span> Discovery page published</li>
+          <li class="pass"><span class="icon">&#10003;</span> JSON-LD FoodEstablishment schema</li>
+          <li class="pass"><span class="icon">&#10003;</span> Schema.org OpeningHoursSpecification</li>
+          <li class="fail"><span class="icon">&#10007;</span> Schema.org Menu with MenuItems</li>
+          <li class="fail"><span class="icon">&#10007;</span> Schema.org prices (Offer on items)</li>
+          <li class="fail"><span class="icon">&#10007;</span> Schema.org dietary info (suitableForDiet)</li>
+        </ul>
+      </div>
+
+      <!-- 4. Data Consistency (15%) -->
+      <div class="cat">
+        <div class="cat-header">
+          <span class="cat-name">Data Consistency</span>
+          <span class="cat-pct" style="color:var(--primary)">100%</span>
+        </div>
+        <div class="cat-weight">Weight: 15% — Mismatches across platforms erode AI trust</div>
+        <div class="cat-bar"><div class="cat-bar-fill" style="width:100%;background:var(--primary)"></div></div>
+        <ul class="cat-checks">
+          <li class="pass"><span class="icon">&#10003;</span> Business name matches Google &harr; Discovery Page</li>
+          <li class="pass"><span class="icon">&#10003;</span> Address matches Google &harr; Discovery Page</li>
+          <li class="pass"><span class="icon">&#10003;</span> Phone matches Google &harr; Discovery Page</li>
+          <li class="pass"><span class="icon">&#10003;</span> Hours match Google &harr; Discovery Page</li>
+          <li class="pass"><span class="icon">&#10003;</span> Website URL matches Google &harr; Discovery Page</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="recs-title">Recommendations</div>
+    <div class="rec-legend">
+      <span><span class="dot" style="background:var(--primary)"></span> Quick win (do it in Synvya)</span>
+      <span><span class="dot" style="background:var(--orange)"></span> Requires action outside Synvya</span>
+    </div>
+    <ul class="rec-list">
+      <li>
+        <span class="rec-icon rec-quick">1</span>
+        <div><span class="rec-label">Publish your menu as structured data.</span> AI assistants cannot read PDF menus. Connect your Square POS in the <span class="rec-cta">Menu tab</span> to automatically publish menu items with names, prices, and descriptions that AI can parse. This single action impacts 60% of your score.</div>
+      </li>
+      <li>
+        <span class="rec-icon rec-quick">2</span>
+        <div><span class="rec-label">Add dietary tags to your menu items.</span> When someone asks "restaurants with vegan options near me," AI assistants need explicit dietary tags — not just mentions in descriptions. Add tags in the <span class="rec-cta">Menu tab</span>.</div>
+      </li>
+      <li>
+        <span class="rec-icon rec-quick">3</span>
+        <div><span class="rec-label">Re-publish your discovery page.</span> After adding menu data, re-publish from <span class="rec-cta">Settings</span> to update your Schema.org JSON-LD with Menu, MenuItem, prices, and dietary info — the format AI engines trust most.</div>
+      </li>
+      <li>
+        <span class="rec-icon rec-ext">4</span>
+        <div><span class="rec-label">Set your business category on Google.</span> Log into Google Business Profile and set your primary category (e.g., "Mexican Restaurant"). AI assistants use this to match cuisine-specific queries.</div>
+      </li>
+      <li>
+        <span class="rec-icon rec-ext">5</span>
+        <div><span class="rec-label">List your business on Yelp and delivery platforms.</span> AI assistants cross-reference Google, Yelp, DoorDash, and Uber Eats. Ensure your menu and hours are consistent across all platforms where you're listed.</div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ===================== ANALYTICS (existing) ===================== -->
+  <div class="card">
+    <h2>Analytics</h2>
+    <p class="subtitle">AI Assistants visiting your Synvya discovery page.</p>
+    <div class="charts-grid">
+      <div class="chart-placeholder">Total Visits by Bot (existing bar chart)</div>
+      <div class="chart-placeholder">Visits Over Time (existing line chart)</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
